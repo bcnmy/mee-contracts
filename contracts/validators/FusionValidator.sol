@@ -1,136 +1,250 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.27;
 
 import "@account-abstraction/core/UserOperationLib.sol";
 import "@account-abstraction/interfaces/PackedUserOperation.sol";
 import "@account-abstraction/core/Helpers.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 import {
     IValidator,
-    IHook,
     MODULE_TYPE_VALIDATOR,
     MODULE_TYPE_HOOK,
     VALIDATION_FAILED,
     VALIDATION_SUCCESS
 } from "../interfaces/IERC7579Module.sol";
-
-import {
-    ERC1271_MAGICVALUE,
-    ERC1271_INVALID
-} from "../../types/Constants.sol";
+import "../base/ERC7739Validator.sol";
 
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
-import "../libraries/PermitValidatorLib.sol";
-import "../libraries/TxValidatorLib.sol";
+import { EnumerableSet } from "../libraries/storage/EnumerableSet4337.sol";
+import "../libraries/SuperTxEcdsaValidatorLib.sol";
 
-struct ECDSAValidatorStorage {
-    address owner;
-}
+contract FusionValidator is IValidator, ERC7739Validator {
+    using SignatureCheckerLib for address;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
-contract FusionValidator is IValidator, IHook {
-    using UserOperationLib for PackedUserOperation;
-    using ECDSA for bytes32;
-    
-    event OwnerRegistered(address indexed kernel, address indexed owner);
+    /*//////////////////////////////////////////////////////////////////////////
+                            CONSTANTS & STORAGE
+    //////////////////////////////////////////////////////////////////////////*/
 
-    mapping(address => ECDSAValidatorStorage) public ecdsaValidatorStorage;
+    /// @notice Mapping of smart account addresses to their respective owner addresses
+    mapping(address => address) public smartAccountOwners;
 
-    function onInstall(bytes calldata _data) external override {
-        address owner = address(bytes20(_data[0:20]));
-        ecdsaValidatorStorage[msg.sender].owner = owner;
-        emit OwnerRegistered(msg.sender, owner);
+    EnumerableSet.AddressSet private _safeSenders;
+
+    /// @notice Error to indicate that no owner was provided during installation
+    error NoOwnerProvided();
+
+    /// @notice Error to indicate that the new owner cannot be the zero address
+    error ZeroAddressNotAllowed();
+
+    /// @notice Error to indicate the module is already initialized
+    error ModuleAlreadyInitialized();
+
+    /// @notice Error to indicate that the new owner cannot be a contract address
+    error NewOwnerIsContract();
+
+    /// @notice Error to indicate that the data length is invalid
+    error InvalidDataLength();
+
+
+    /*//////////////////////////////////////////////////////////////////////////
+                                     CONFIG
+    //////////////////////////////////////////////////////////////////////////*/
+
+    /**
+     * Initialize the module with the given data
+     *
+     * @param data The data to initialize the module with
+     */
+    function onInstall(bytes calldata data) external override {
+        require(data.length != 0, NoOwnerProvided());
+        require(!_isInitialized(msg.sender), ModuleAlreadyInitialized());
+        address newOwner = address(bytes20(data[:20]));
+        require(!_isContract(newOwner), NewOwnerIsContract());
+        smartAccountOwners[msg.sender] = newOwner;
+        if (data.length > 20) {
+            _fillSafeSenders(data[20:]);
+        }
     }
 
+    /**
+     * De-initialize the module with the given data
+     */
     function onUninstall(bytes calldata) external override {
-        if (!_isInitialized(msg.sender)) revert NotInitialized(msg.sender);
-        delete ecdsaValidatorStorage[msg.sender];
+        delete smartAccountOwners[msg.sender];
+        _safeSenders.removeAll(msg.sender);
     }
 
-    function isModuleType(uint256 typeID) external pure override returns (bool) {
-        return typeID == MODULE_TYPE_VALIDATOR || typeID == MODULE_TYPE_HOOK;
+    /// @notice Transfers ownership of the validator to a new owner
+    /// @param newOwner The address of the new owner
+    function transferOwnership(address newOwner) external {
+        require(newOwner != address(0), ZeroAddressNotAllowed());
+        require(!_isContract(newOwner), NewOwnerIsContract());
+        smartAccountOwners[msg.sender] = newOwner;
     }
 
-    function isInitialized(address smartAccount) external view override returns (bool) {
+    /// @notice Adds a safe sender to the _safeSenders list for the smart account
+    function addSafeSender(address sender) external {
+        _safeSenders.add(msg.sender, sender);
+    }
+
+    /// @notice Removes a safe sender from the _safeSenders list for the smart account
+    function removeSafeSender(address sender) external {
+        _safeSenders.remove(msg.sender, sender);
+    }
+
+    /**
+     * Check if the module is initialized
+     * @param smartAccount The smart account to check
+     *
+     * @return true if the module is initialized, false otherwise
+     */
+    function isInitialized(address smartAccount) external view returns (bool) {
         return _isInitialized(smartAccount);
     }
 
-    function _isInitialized(address smartAccount) internal view returns (bool) {
-        return ecdsaValidatorStorage[smartAccount].owner != address(0);
-    }
+    /*//////////////////////////////////////////////////////////////////////////
+                                     MODULE LOGIC
+    //////////////////////////////////////////////////////////////////////////*/
 
+    /**
+     * Validates PackedUserOperation
+     *
+     * @param userOp UserOperation to be validated
+     * @param userOpHash Hash of the UserOperation to be validated
+     *
+     * @return uint256 the result of the signature validation, which can be:
+     *  - 0 if the signature is valid
+     *  - 1 if the signature is invalid
+     *  - <20-byte> aggregatorOrSigFail, <6-byte> validUntil and <6-byte> validAfter (see ERC-4337
+     * for more details)
+     */
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
         external
         override
         returns (uint256)
     {
-
-        address owner = ecdsaValidatorStorage[msg.sender].owner;
-        uint8 sigType = uint8(userOp.signature[0]);
-        bytes memory sigData = userOp.signature[1:];
-        if (sigType == 0x00) { // signature[1:] is just a signed userOpHash
-            if (!_validateSignature(userOpHash, sigData, owner)) {
-                return SIG_VALIDATION_FAILED;
-            }
-        } else if (sigType == 0x01) { // signature[1:] is a fully signed serialized evm transaction
-            if (!TxValidator.validate(sigData, userOpHash, owner)) { // invoke TxValidator
-                return SIG_VALIDATION_FAILED;
-            }
-        } else if (sigType == 0x02) { // signature[1:] is a DecodedErc20PermitSig struct containing signed Permit message
-            if (!PermitValidator.validate(sigData, userOp.sender, userOpHash, owner)) { // invoke PermitValidator
-                return SIG_VALIDATION_FAILED;
-            }
-        } else { // throw; unsupported sig type
-            revert("FusionValidator:: unsupported userOp.signature type");
-        }
-
-        return SIG_VALIDATION_SUCCESS;
+        address owner = smartAccountOwners[userOp.sender];
+        return SuperTxEcdsaValidatorLib.validate(userOp, userOpHash, owner);
     }
 
-    function isValidSignatureWithSender(address, bytes32 hash, bytes calldata sig)
-        external
-        view
-        override
-        returns (bytes4)
-    {
-        address owner = ecdsaValidatorStorage[msg.sender].owner;
-        if (owner == ECDSA.recover(hash, sig)) {
-            return ERC1271_MAGICVALUE;
+    /**
+     * Validates an ERC-1271 signature
+     *
+     * @param sender The sender of the ERC-1271 call to the account
+     * @param hash The hash of the message
+     * @param signature The signature of the message
+     *
+     * @return sigValidationResult the result of the signature validation, which can be:
+     *  - EIP1271_SUCCESS if the signature is valid
+     *  - EIP1271_FAILED if the signature is invalid
+     */
+    function isValidSignatureWithSender(
+        address sender,
+        bytes32 hash,
+        bytes calldata signature
+    ) external view virtual override returns (bytes4 sigValidationResult) {
+        // check if sig is valid
+        bool success = _erc1271IsValidSignatureWithSender(sender, hash, _erc1271UnwrapSignature(signature));
+        /// @solidity memory-safe-assembly
+        assembly {
+            // `success ? bytes4(keccak256("isValidSignature(bytes32,bytes)")) : 0xffffffff`.
+            // We use `0xffffffff` for invalid, in convention with the reference implementation.
+            sigValidationResult := shl(224, or(0x1626ba7e, sub(0, iszero(success))))
         }
-        bytes32 ethHash = ECDSA.toEthSignedMessageHash(hash);
-        address recovered = ECDSA.recover(ethHash, sig);
-        if (owner != recovered) {
-            return ERC1271_INVALID;
-        }
-        return ERC1271_MAGICVALUE;
     }
 
-    function preCheck(address msgSender, uint256 value, bytes calldata)
-        external
-        override
-        returns (bytes memory)
-    {
-        require(msgSender == ecdsaValidatorStorage[msg.sender].owner, "ECDSAValidator: sender is not owner");
-        return hex"";
+    /// @notice ISessionValidator interface for smart session
+    /// @param hash The hash of the data to validate
+    /// @param sig The signature data
+    /// @param data The data to validate against (owner address in this case)
+    function validateSignatureWithData(bytes32 hash, bytes calldata sig, bytes calldata data) external view returns (bool validSig) {
+        require(data.length == 20, InvalidDataLength());
+        address owner = address(bytes20(data[0:20]));
+        return _validateSignatureForOwner(owner, hash, sig);
     }
 
-    function postCheck(bytes calldata hookData) external override {}
+    /*//////////////////////////////////////////////////////////////////////////
+                                     METADATA
+    //////////////////////////////////////////////////////////////////////////*/
 
-    function _validateSignature(bytes32 dataHash, bytes memory signature, address expectedSigner)
-        internal
-        view
-        returns (bool)
-    {
-        address recovered;
-        (recovered, ) = (dataHash.toEthSignedMessageHash()).tryRecover(signature);
-        if (expectedSigner == recovered) {
-            return true;
+    /// @notice Returns the name of the module
+    /// @return The name of the module
+    function name() external pure returns (string memory) {
+        return "FusionValidator";
+    }
+
+    /// @notice Returns the version of the module
+    /// @return The version of the module
+    function version() external pure returns (string memory) {
+        return "1.0.0";
+    }
+
+    /// @notice Checks if the module is of the specified type
+    /// @param typeId The type ID to check
+    /// @return True if the module is of the specified type, false otherwise
+    function isModuleType(uint256 typeId) external pure returns (bool) {
+        return typeId == MODULE_TYPE_VALIDATOR;
+    }
+
+    /*//////////////////////////////////////////////////////////////////////////
+                                     INTERNAL
+    //////////////////////////////////////////////////////////////////////////*/
+
+    /// @dev Returns whether the `hash` and `signature` are valid.
+    ///      Obtains the authorized signer's credentials and calls some
+    ///      module's specific internal function to validate the signature
+    ///      against credentials.
+    function _erc1271IsValidSignatureNowCalldata(bytes32 hash, bytes calldata signature) internal view override returns (bool) {
+        // call custom internal function to validate the signature against credentials
+        return _validateSignatureForOwner(smartAccountOwners[msg.sender], hash, signature);
+    }
+
+    /// @dev Returns whether the `sender` is considered safe, such
+    /// that we don't need to use the nested EIP-712 workflow.
+    /// See: https://mirror.xyz/curiousapple.eth/pFqAdW2LiJ-6S4sg_u1z08k4vK6BCJ33LcyXpnNb8yU
+    // The canonical `MulticallerWithSigner` at 0x000000000000D9ECebf3C23529de49815Dac1c4c
+    // is known to include the account in the hash to be signed.
+    // msg.sender = Smart Account
+    // sender = 1271 og request sender
+    function _erc1271CallerIsSafe(address sender) internal view virtual override returns (bool) {
+        return (sender == 0x000000000000D9ECebf3C23529de49815Dac1c4c || // MulticallerWithSigner
+            sender == msg.sender || // Smart Account. Assume smart account never sends non safe eip-712 struct
+            _safeSenders.contains(msg.sender, sender)); // check if sender is in _safeSenders for the Smart Account
+    }
+
+    /// @notice Internal method that does the job of validating the signature via ECDSA (secp256k1)
+    /// @param owner The address of the owner
+    /// @param hash The hash of the data to validate
+    /// @param signature The signature data
+    function _validateSignatureForOwner(address owner, bytes32 hash, bytes calldata signature) internal view returns (bool) {
+        return SuperTxEcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature);
+    }
+
+    // @notice Fills the _safeSenders list from the given data
+    function _fillSafeSenders(bytes calldata data) private {
+        for (uint256 i; i < data.length / 20; i++) {
+            _safeSenders.add(msg.sender, address(bytes20(data[20 * i:20 * (i + 1)])));
         }
-        (recovered, ) = dataHash.tryRecover(signature);
-        if (expectedSigner == recovered) {
-            return true;
+    }
+
+    /// @notice Checks if the smart account is initialized with an owner
+    /// @param smartAccount The address of the smart account
+    /// @return True if the smart account has an owner, false otherwise
+    function _isInitialized(address smartAccount) private view returns (bool) {
+        return smartAccountOwners[smartAccount] != address(0);
+    }
+
+    /// @notice Checks if the address is a contract
+    /// @param account The address to check
+    /// @return True if the address is a contract, false otherwise
+    function _isContract(address account) private view returns (bool) {
+        uint256 size;
+        assembly {
+            size := extcodesize(account)
         }
-        return false;
+        return size > 0;
     }
 }
