@@ -48,7 +48,7 @@ library SuperTxEcdsaValidatorLib {
         else { revert("SuperTxEcdsaValidatorLib:: invalid userOp sig type"); }
     }
 
-    function validateSignatureForOwner(address owner, bytes32 hash, bytes memory signature) internal view returns (bool) {
+    function validateSignatureForOwner(address owner, bytes32 hash, bytes memory signature) internal pure returns (bool) {
         SuperSignature memory decodedSig = decodeSignature(signature);
 
         if (decodedSig.signatureType == SuperSignatureType.OFF_CHAIN) {
