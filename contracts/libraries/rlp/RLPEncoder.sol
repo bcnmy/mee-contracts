@@ -9,7 +9,6 @@ import "../util/BytesLib.sol";
  * @author Bakaoh
  */
 library RLPEncoder {
-
     using BytesLib for bytes;
 
     /*
@@ -31,12 +30,12 @@ library RLPEncoder {
         return encoded;
     }
 
-    /** 
+    /**
      * @dev RLP encodes a uint.
      * @param self The uint to encode.
      * @return The RLP encoded uint in bytes.
      */
-    function encodeUint(uint self) internal pure returns (bytes memory) {
+    function encodeUint(uint256 self) internal pure returns (bytes memory) {
         return encodeBytes(toBinary(self));
     }
 
@@ -46,14 +45,14 @@ library RLPEncoder {
      * @param offset 128 if item is string, 192 if item is list.
      * @return RLP encoded bytes.
      */
-    function encodeLength(uint self, uint offset) internal pure returns (bytes memory) {
+    function encodeLength(uint256 self, uint256 offset) internal pure returns (bytes memory) {
         bytes memory encoded;
         if (self < 56) {
             encoded = new bytes(1);
             encoded[0] = bytes32(self + offset)[31];
         } else {
-            uint lenLen;
-            uint i = 1;
+            uint256 lenLen;
+            uint256 i = 1;
             while (self / i != 0) {
                 lenLen++;
                 i *= 256;
@@ -61,8 +60,8 @@ library RLPEncoder {
 
             encoded = new bytes(lenLen + 1);
             encoded[0] = bytes32(lenLen + offset + 55)[31];
-            for(i = 1; i <= lenLen; i++) {
-                encoded[i] = bytes32((self / (256**(lenLen-i))) % 256)[31];
+            for (i = 1; i <= lenLen; i++) {
+                encoded[i] = bytes32((self / (256 ** (lenLen - i))) % 256)[31];
             }
         }
         return encoded;
@@ -78,22 +77,21 @@ library RLPEncoder {
      * @param _x The integer to encode.
      * @return RLP encoded bytes.
      */
-    function toBinary(uint _x) private pure returns (bytes memory) {
+    function toBinary(uint256 _x) private pure returns (bytes memory) {
         bytes memory b = new bytes(32);
-        assembly { 
-            mstore(add(b, 32), _x) 
+        assembly {
+            mstore(add(b, 32), _x)
         }
-        uint i;
+        uint256 i;
         for (i = 0; i < 32; i++) {
             if (b[i] != 0) {
                 break;
             }
         }
         bytes memory res = new bytes(32 - i);
-        for (uint j = 0; j < res.length; j++) {
+        for (uint256 j = 0; j < res.length; j++) {
             res[j] = b[i++];
         }
         return res;
     }
-
 }

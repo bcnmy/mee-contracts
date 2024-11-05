@@ -2,7 +2,6 @@
 pragma solidity ^0.8.27;
 
 library RLPDecoder {
-
     uint8 constant STRING_SHORT_START = 0x80;
     uint8 constant STRING_LONG_START = 0xb8;
     uint8 constant LIST_SHORT_START = 0xc0;
@@ -13,7 +12,7 @@ library RLPDecoder {
         uint256 len;
         uint256 memPtr;
     }
-    
+
     /*
      * @param item RLP encoded bytes
      */
@@ -79,8 +78,9 @@ library RLPDecoder {
         return true;
     }
 
-    /** RLPItem conversions into data types **/
-
+    /**
+     * RLPItem conversions into data types *
+     */
     function toUint(RLPItem memory item) internal pure returns (uint256) {
         require(item.len > 0 && item.len <= 33);
 
@@ -91,9 +91,7 @@ library RLPDecoder {
             result := mload(memPtr)
 
             // shift to the correct location if neccesary
-            if lt(len, 32) {
-                result := div(result, exp(256, sub(32, len)))
-            }
+            if lt(len, 32) { result := div(result, exp(256, sub(32, len))) }
         }
 
         return result;
@@ -208,7 +206,7 @@ library RLPDecoder {
 
         if (len > 0) {
             // left over bytes. Mask is used to remove unwanted bytes from the word
-            uint256 mask = 256**(WORD_SIZE - len) - 1;
+            uint256 mask = 256 ** (WORD_SIZE - len) - 1;
             assembly {
                 let srcpart := and(mload(src), not(mask)) // zero out src
                 let destpart := and(mload(dest), mask) // retrieve the bytes

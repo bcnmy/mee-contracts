@@ -6,7 +6,7 @@ import "@account-abstraction/core/UserOperationLib.sol";
 import "@account-abstraction/interfaces/PackedUserOperation.sol";
 import "@account-abstraction/core/Helpers.sol";
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
+import {SignatureCheckerLib} from "solady/utils/SignatureCheckerLib.sol";
 import {
     IValidator,
     MODULE_TYPE_VALIDATOR,
@@ -17,7 +17,7 @@ import {
 import "../base/ERC7739Validator.sol";
 
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
-import { EnumerableSet } from "../libraries/storage/EnumerableSet4337.sol";
+import {EnumerableSet} from "../libraries/storage/EnumerableSet4337.sol";
 import "../libraries/SuperTxEcdsaValidatorLib.sol";
 
 contract FusionValidator is IValidator, ERC7739Validator {
@@ -47,7 +47,6 @@ contract FusionValidator is IValidator, ERC7739Validator {
 
     /// @notice Error to indicate that the data length is invalid
     error InvalidDataLength();
-
 
     /*//////////////////////////////////////////////////////////////////////////
                                      CONFIG
@@ -141,11 +140,13 @@ contract FusionValidator is IValidator, ERC7739Validator {
      *  - EIP1271_SUCCESS if the signature is valid
      *  - EIP1271_FAILED if the signature is invalid
      */
-    function isValidSignatureWithSender(
-        address sender,
-        bytes32 hash,
-        bytes calldata signature
-    ) external view virtual override returns (bytes4 sigValidationResult) {
+    function isValidSignatureWithSender(address sender, bytes32 hash, bytes calldata signature)
+        external
+        view
+        virtual
+        override
+        returns (bytes4 sigValidationResult)
+    {
         // check if sig is valid
         bool success = _erc1271IsValidSignatureWithSender(sender, hash, _erc1271UnwrapSignature(signature));
         /// @solidity memory-safe-assembly
@@ -160,7 +161,11 @@ contract FusionValidator is IValidator, ERC7739Validator {
     /// @param hash The hash of the data to validate
     /// @param sig The signature data
     /// @param data The data to validate against (owner address in this case)
-    function validateSignatureWithData(bytes32 hash, bytes calldata sig, bytes calldata data) external pure returns (bool validSig) {
+    function validateSignatureWithData(bytes32 hash, bytes calldata sig, bytes calldata data)
+        external
+        pure
+        returns (bool validSig)
+    {
         require(data.length == 20, InvalidDataLength());
         address owner = address(bytes20(data[0:20]));
         return _validateSignatureForOwner(owner, hash, sig);
@@ -197,7 +202,12 @@ contract FusionValidator is IValidator, ERC7739Validator {
     ///      Obtains the authorized signer's credentials and calls some
     ///      module's specific internal function to validate the signature
     ///      against credentials.
-    function _erc1271IsValidSignatureNowCalldata(bytes32 hash, bytes calldata signature) internal view override returns (bool) {
+    function _erc1271IsValidSignatureNowCalldata(bytes32 hash, bytes calldata signature)
+        internal
+        view
+        override
+        returns (bool)
+    {
         // call custom internal function to validate the signature against credentials
         return _validateSignatureForOwner(smartAccountOwners[msg.sender], hash, signature);
     }
@@ -210,16 +220,22 @@ contract FusionValidator is IValidator, ERC7739Validator {
     // msg.sender = Smart Account
     // sender = 1271 og request sender
     function _erc1271CallerIsSafe(address sender) internal view virtual override returns (bool) {
-        return (sender == 0x000000000000D9ECebf3C23529de49815Dac1c4c || // MulticallerWithSigner
-            sender == msg.sender || // Smart Account. Assume smart account never sends non safe eip-712 struct
-            _safeSenders.contains(msg.sender, sender)); // check if sender is in _safeSenders for the Smart Account
+        return (
+            sender == 0x000000000000D9ECebf3C23529de49815Dac1c4c // MulticallerWithSigner
+                || sender == msg.sender // Smart Account. Assume smart account never sends non safe eip-712 struct
+                || _safeSenders.contains(msg.sender, sender)
+        ); // check if sender is in _safeSenders for the Smart Account
     }
 
     /// @notice Internal method that does the job of validating the signature via ECDSA (secp256k1)
     /// @param owner The address of the owner
     /// @param hash The hash of the data to validate
     /// @param signature The signature data
-    function _validateSignatureForOwner(address owner, bytes32 hash, bytes calldata signature) internal pure returns (bool) {
+    function _validateSignatureForOwner(address owner, bytes32 hash, bytes calldata signature)
+        internal
+        pure
+        returns (bool)
+    {
         return SuperTxEcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature);
     }
 

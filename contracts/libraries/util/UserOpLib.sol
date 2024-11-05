@@ -10,7 +10,6 @@ import "@account-abstraction/interfaces/PackedUserOperation.sol";
 import "@account-abstraction/core/UserOperationLib.sol";
 
 library UserOpLib {
-
     using UserOperationLib for PackedUserOperation;
 
     /**
@@ -26,17 +25,7 @@ library UserOpLib {
         uint256 upperBoundTimestamp
     ) internal view returns (bytes32 userOpHash) {
         userOpHash = keccak256(
-            bytes.concat(
-                keccak256(
-                    abi.encode(
-                        userOp.hash(),
-                        lowerBoundTimestamp,
-                        upperBoundTimestamp,
-                        block.chainid
-                    )
-                )
-            )
+            bytes.concat(keccak256(abi.encode(userOp.hash(), lowerBoundTimestamp, upperBoundTimestamp, block.chainid)))
         );
     }
-
 }

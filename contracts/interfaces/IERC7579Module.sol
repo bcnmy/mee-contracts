@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import { PackedUserOperation } from "@account-abstraction/interfaces/PackedUserOperation.sol";
+import {PackedUserOperation} from "@account-abstraction/interfaces/PackedUserOperation.sol";
 
 uint256 constant VALIDATION_SUCCESS = 0;
 uint256 constant VALIDATION_FAILED = 1;
@@ -60,38 +60,25 @@ interface IValidator is IModule {
      * @param userOpHash The hash of the user operation to be validated
      * @return return value according to ERC-4337
      */
-    function validateUserOp(
-        PackedUserOperation calldata userOp,
-        bytes32 userOpHash
-    )
-        external
-        returns (uint256);
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash) external returns (uint256);
 
     /**
      * Validator can be used for ERC-1271 validation
      */
-    function isValidSignatureWithSender(
-        address sender,
-        bytes32 hash,
-        bytes calldata data
-    )
+    function isValidSignatureWithSender(address sender, bytes32 hash, bytes calldata data)
         external
         view
         returns (bytes4);
 }
 
-interface IExecutor is IModule { }
+interface IExecutor is IModule {}
 
 interface IHook is IModule {
-    function preCheck(
-        address msgSender,
-        uint256 msgValue,
-        bytes calldata msgData
-    )
+    function preCheck(address msgSender, uint256 msgValue, bytes calldata msgData)
         external
         returns (bytes memory hookData);
 
     function postCheck(bytes calldata hookData) external;
 }
 
-interface IFallback is IModule { }
+interface IFallback is IModule {}

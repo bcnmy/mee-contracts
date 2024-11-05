@@ -8,22 +8,25 @@ interface IERC7739 {
 }
 
 interface IERC5267 {
-    function eip712Domain() external view returns (
-        bytes1 fields,
-        string memory name,
-        string memory version,
-        uint256 chainId,
-        address verifyingContract,
-        bytes32 salt,
-        uint256[] memory extensions
-    );
+    function eip712Domain()
+        external
+        view
+        returns (
+            bytes1 fields,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address verifyingContract,
+            bytes32 salt,
+            uint256[] memory extensions
+        );
 }
 
 abstract contract ERC7739Validator is IERC7739 {
     /// @dev `keccak256("PersonalSign(bytes prefixed)")`.
-    bytes32 internal constant _PERSONAL_SIGN_TYPEHASH = 0x983e65e5148e570cd828ead231ee759a8d7958721a768f93bc4483ba005c32de;
+    bytes32 internal constant _PERSONAL_SIGN_TYPEHASH =
+        0x983e65e5148e570cd828ead231ee759a8d7958721a768f93bc4483ba005c32de;
     bytes32 internal constant _DOMAIN_TYPEHASH = 0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f;
-
 
     /// @dev For automatic detection that the smart account supports the nested EIP-712 workflow.
     /// By default, it returns `bytes32(bytes4(keccak256("supportsNestedTypedDataSign()")))`,
@@ -39,7 +42,6 @@ abstract contract ERC7739Validator is IERC7739 {
                                      INTERNAL
     //////////////////////////////////////////////////////////////////////////*/
 
-
     /// @dev Returns whether the `signature` is valid for the `hash.
     /// Use this in your validator's `isValidSignatureWithSender` implementation.
     function _erc1271IsValidSignatureWithSender(address sender, bytes32 hash, bytes calldata signature)
@@ -49,8 +51,7 @@ abstract contract ERC7739Validator is IERC7739 {
         returns (bool)
     {
         return _erc1271IsValidSignatureViaSafeCaller(sender, hash, signature)
-            || _erc1271IsValidSignatureViaNestedEIP712(hash, signature)
-            || _erc1271IsValidSignatureViaRPC(hash, signature);
+            || _erc1271IsValidSignatureViaNestedEIP712(hash, signature) || _erc1271IsValidSignatureViaRPC(hash, signature);
     }
 
     /// @dev Returns whether the `msg.sender` is considered safe, such
@@ -75,12 +76,7 @@ abstract contract ERC7739Validator is IERC7739 {
         returns (bool);
 
     /// @dev Unwraps and returns the signature.
-    function _erc1271UnwrapSignature(bytes calldata signature)
-        internal
-        view
-        virtual
-        returns (bytes calldata result)
-    {
+    function _erc1271UnwrapSignature(bytes calldata signature) internal view virtual returns (bytes calldata result) {
         result = signature;
         /// @solidity memory-safe-assembly
         assembly {
@@ -293,12 +289,12 @@ abstract contract ERC7739Validator is IERC7739 {
         /// @solidity memory-safe-assembly
         assembly {
             m := mload(0x40) // Grab the free memory pointer.
-            mstore(0x40, add(m, 0x120)) // Allocate the memory.   
+            mstore(0x40, add(m, 0x120)) // Allocate the memory.
             // Skip 2 words for the `typedDataSignTypehash` and `contents` struct hash.
             mstore(add(m, 0x40), shl(248, byte(0, fields)))
             mstore(add(m, 0x60), keccak256(add(name, 0x20), mload(name)))
-            mstore(add(m, 0x80), keccak256(add(version, 0x20), mload(version))) 
-            mstore(add(m, 0xa0), chainId)    
+            mstore(add(m, 0x80), keccak256(add(version, 0x20), mload(version)))
+            mstore(add(m, 0xa0), chainId)
             mstore(add(m, 0xc0), shr(96, shl(96, verifyingContract)))
             mstore(add(m, 0xe0), salt)
             mstore(add(m, 0x100), keccak256(add(extensions, 0x20), shl(5, mload(extensions))))
@@ -311,12 +307,14 @@ abstract contract ERC7739Validator is IERC7739 {
     /// @param structHash the typed data struct hash
     function _hashTypedDataForAccount(address account, bytes32 structHash) private view returns (bytes32 digest) {
         (
-            /*bytes1 fields*/,
+            /*bytes1 fields*/
+            ,
             string memory name,
             string memory version,
             uint256 chainId,
             address verifyingContract,
-            /*bytes32 salt*/,
+            /*bytes32 salt*/
+            ,
             /*uint256[] memory extensions*/
         ) = IERC5267(account).eip712Domain();
 
@@ -340,5 +338,4 @@ abstract contract ERC7739Validator is IERC7739 {
             mstore(0x3a, 0)
         }
     }
-
 }

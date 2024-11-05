@@ -16,7 +16,6 @@ contract EntryPoint is BasePaymaster, ReentrancyGuard {
     constructor(IEntryPoint _entryPoint) payable BasePaymaster(_entryPoint) {}
 
     function handleOps(PackedUserOperation[] calldata ops) public payable {
-        
         if (msg.value == 0) {
             revert EmptyMessageValue();
         }

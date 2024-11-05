@@ -2,7 +2,6 @@
 pragma solidity ^0.8.27;
 
 contract MEE {
-    
     address token;
     uint256 activeNodeSlots;
 
@@ -10,7 +9,7 @@ contract MEE {
     uint256 public minStakePerNode = 10_000 * 10 ** 18; // 10k tokens minimum to become a node operator
     uint256 public slashingThreshold = 1_000_000 * 10 ** 18; // 1M Tokens threshold to slash the node
 
-    mapping (address => bool) activeNodes;
+    mapping(address => bool) activeNodes;
 
     constructor(address _token) {
         token = _token;
@@ -30,5 +29,4 @@ contract MEE {
         // 3. add msg.sender votes to slash the node
         // 4. check if this vote has surpassed slashing threshold and if true - slash
     }
-
 }
