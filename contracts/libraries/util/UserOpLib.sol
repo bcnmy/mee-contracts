@@ -21,7 +21,7 @@ library UserOpLib {
      * @param upperBoundTimestamp upper bound timestamp set when constructing userOp
      */
     function getUserOpHash(
-        PackedUserOperation memory userOp,
+        PackedUserOperation calldata userOp,
         uint256 lowerBoundTimestamp,
         uint256 upperBoundTimestamp
     ) internal view returns (bytes32 userOpHash) {

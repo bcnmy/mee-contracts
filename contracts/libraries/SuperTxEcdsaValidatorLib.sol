@@ -6,8 +6,11 @@ import "./fusion/PermitValidatorLib.sol";
 import "./fusion/TxValidatorLib.sol";
 import "./fusion/EcdsaValidatorLib.sol";
 import "./fusion/UserOpValidatorLib.sol";
+import "./util/BytesLib.sol";
 
 library SuperTxEcdsaValidatorLib {
+
+    using BytesLib for bytes;
 
     enum SuperSignatureType {
         OFF_CHAIN,
@@ -19,7 +22,7 @@ library SuperTxEcdsaValidatorLib {
     uint8 constant SIG_TYPE_OFF_CHAIN = 0x00;
     uint8 constant SIG_TYPE_ON_CHAIN = 0x01;
     uint8 constant SIG_TYPE_ERC20_PERMIT = 0x02;
-    // ...leave space for other sig types...
+    // ...leave space for other sig types: ERC-7683, Permit2, etc
     uint8 constant SIG_TYPE_USEROP = 0xff;
 
     struct SuperSignature {
@@ -27,20 +30,20 @@ library SuperTxEcdsaValidatorLib {
         bytes signature;
     }
     
-    function validateUserOp(PackedUserOperation memory userOp, bytes32 userOpHash, address owner) internal returns (uint256) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, address owner) internal returns (uint256) {
         SuperSignature memory decodedSig = decodeSignature(userOp.signature);
 
         if (decodedSig.signatureType == SuperSignatureType.OFF_CHAIN) {
-            return EcdsaValidatorLib.validate(userOp, decodedSig.signature, owner);
+            return EcdsaValidatorLib.validateUserOp(userOp, decodedSig.signature, owner);
         }
         else if (decodedSig.signatureType == SuperSignatureType.ON_CHAIN) {
-            return TxValidatorLib.validate(userOp, decodedSig.signature, owner);
+            return TxValidatorLib.validateUserOp(userOp, decodedSig.signature, owner);
         }
         else if (decodedSig.signatureType == SuperSignatureType.ERC20_PERMIT) {
-            return PermitValidatorLib.validate(userOp, decodedSig.signature, owner);
+            return PermitValidatorLib.validateUserOp(userOp, decodedSig.signature, owner);
         }
         else if (decodedSig.signatureType == SuperSignatureType.USEROP) {
-            return UserOpValidatorLib.validate(userOp, userOpHash, decodedSig.signature, owner);
+            return UserOpValidatorLib.validateUserOp(userOpHash, decodedSig.signature, owner);
         }
         else { revert("SuperTxEcdsaValidatorLib:: invalid userOp sig type"); }
     }

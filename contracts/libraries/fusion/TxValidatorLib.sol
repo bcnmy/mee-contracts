@@ -54,7 +54,7 @@ library TxValidatorLib {
     *      2. is the recovered tx signer equal to the expected signer?
     *      2. is the given UserOp a part of the merkle tree 
     * 
-    * If both conditions are met - outside contract can be sure that the expected signer has indeed
+    * If all the conditions are met - outside contract can be sure that the expected signer has indeed
     * approved the given hash by performing given on-chain transaction.
     * 
     * NOTES: This function will revert if either of following is met:
@@ -74,7 +74,7 @@ library TxValidatorLib {
     * @param expectedSigner Expected EOA signer of the given userOp and the EVM transaction.
     */
     function validateUserOp(
-        PackedUserOperation memory userOp,
+        PackedUserOperation calldata userOp,
         bytes memory parsedSignature,
         address expectedSigner
     ) internal view returns (uint256) {
@@ -86,7 +86,7 @@ library TxValidatorLib {
         }
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
-        if (!this.EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
+        if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return SIG_VALIDATION_FAILED;
         }
 
@@ -94,13 +94,13 @@ library TxValidatorLib {
             return SIG_VALIDATION_FAILED;
         }
 
-        return _packValidationData(SIG_VALIDATION_SUCCESS, decodedTx.upperBoundTimestamp, decodedTx.lowerBoundTimestamp);
+        return _packValidationData(false, decodedTx.upperBoundTimestamp, decodedTx.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature) internal returns (bool) {
+    function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature) internal pure returns (bool) {
         TxData memory decodedTx = decodeTx(parsedSignature);
         if (decodedTx.appendedHash != hash) { return false; }
-        return this.EcdsaLib.isValidSignature(
+        return EcdsaLib.isValidSignature(
             expectedSigner,
             decodedTx.utxHash,
             abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v)

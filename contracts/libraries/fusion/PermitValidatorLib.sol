@@ -56,7 +56,7 @@ library PermitValidatorLib {
      * @param parsedSignature Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
      * @param expectedSigner Signer expected to be recovered when decoding the ERC20OPermit signature.
      */
-    function validateUserOp(PackedUserOperation memory userOp, bytes memory parsedSignature, address expectedSigner) internal returns (uint256) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes memory parsedSignature, address expectedSigner) internal returns (uint256) {
         DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));
         
         bytes32 userOpHash = UserOpLib.getUserOpHash(userOp, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
@@ -78,7 +78,7 @@ library PermitValidatorLib {
         bytes32 signedDataHash = _hashTypedDataV4(structHash, decodedSig.domainSeparator);
         bytes memory signature = abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted);
 
-        if (!this.EcdsaLib.isValidSignature(expectedSigner, signedDataHash, signature)) {
+        if (!EcdsaLib.isValidSignature(expectedSigner, signedDataHash, signature)) {
             return SIG_VALIDATION_FAILED;
         }
 
@@ -98,10 +98,10 @@ library PermitValidatorLib {
             );
         }
         
-        return _packValidationData(SIG_VALIDATION_SUCCESS, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
+        return _packValidationData(false, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature) external returns (bool) {
+    function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature) internal pure returns (bool) {
         DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));  
         if (decodedSig.appendedHash != hash) { return false; }
         
@@ -122,7 +122,7 @@ library PermitValidatorLib {
         bytes32 signedDataHash = _hashTypedDataV4(structHash, decodedSig.domainSeparator);
         bytes memory signature = abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted);
 
-        return this.EcdsaLib.isValidSignature(expectedSigner, signedDataHash, signature);
+        return EcdsaLib.isValidSignature(expectedSigner, signedDataHash, signature);
     }
 
     function _hashTypedDataV4(bytes32 structHash, bytes32 domainSeparator) private pure returns (bytes32) {

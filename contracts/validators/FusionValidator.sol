@@ -127,7 +127,7 @@ contract FusionValidator is IValidator, ERC7739Validator {
         returns (uint256)
     {
         address owner = smartAccountOwners[userOp.sender];
-        return SuperTxEcdsaValidatorLib.validate(userOp, userOpHash, owner);
+        return SuperTxEcdsaValidatorLib.validateUserOp(userOp, userOpHash, owner);
     }
 
     /**

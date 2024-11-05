@@ -8,13 +8,13 @@ library EcdsaLib {
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
 
-    function isValidSignature(address expectedSigner, bytes32 hash, bytes calldata signature) internal pure returns (bool) {
+    function isValidSignature(address expectedSigner, bytes32 hash, bytes memory signature) internal pure returns (bool) {
         if (_recoverSigner(hash, signature) == expectedSigner) return true;
         if (_recoverSigner(hash.toEthSignedMessageHash(), signature) == expectedSigner) return true;
         return false;
     }
 
-    function _recoverSigner(bytes32 hash, bytes calldata signature) public pure returns (address) {
+    function _recoverSigner(bytes32 hash, bytes memory signature) public pure returns (address) {
         (address owner,,) = hash.tryRecover(signature);
         return owner;
     }
