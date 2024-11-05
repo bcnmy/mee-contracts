@@ -147,7 +147,7 @@ library TxValidatorLib {
             vPos = 9;
             rPos = 10;
             sPos = 11;
-        } else { revert("TxDecoder:: unsupported evm tx type"); }
+        } else { revert("TxValidatorLib:: unsupported evm tx type"); }
 
         return TxParams(
             items[vPos].toUint(),
@@ -191,7 +191,7 @@ library TxValidatorLib {
                 return keccak256(prependRlpContentSize(rlpEncodedTxNoSigAndPrefix, ""));
             }
         } else {
-            revert("TxDecoder:: unsupported tx type");
+            revert("TxValidatorLib:: unsupported tx type");
         }
     }
 
