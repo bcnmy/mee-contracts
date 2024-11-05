@@ -160,7 +160,7 @@ contract FusionValidator is IValidator, ERC7739Validator {
     /// @param hash The hash of the data to validate
     /// @param sig The signature data
     /// @param data The data to validate against (owner address in this case)
-    function validateSignatureWithData(bytes32 hash, bytes calldata sig, bytes calldata data) external view returns (bool validSig) {
+    function validateSignatureWithData(bytes32 hash, bytes calldata sig, bytes calldata data) external pure returns (bool validSig) {
         require(data.length == 20, InvalidDataLength());
         address owner = address(bytes20(data[0:20]));
         return _validateSignatureForOwner(owner, hash, sig);
@@ -219,7 +219,7 @@ contract FusionValidator is IValidator, ERC7739Validator {
     /// @param owner The address of the owner
     /// @param hash The hash of the data to validate
     /// @param signature The signature data
-    function _validateSignatureForOwner(address owner, bytes32 hash, bytes calldata signature) internal view returns (bool) {
+    function _validateSignatureForOwner(address owner, bytes32 hash, bytes calldata signature) internal pure returns (bool) {
         return SuperTxEcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature);
     }
 
