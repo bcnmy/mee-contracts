@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.27;
 
-import "@account-abstraction/interfaces/PackedUserOperation.sol";
+import "account-abstraction/interfaces/PackedUserOperation.sol";
 import "./fusion/PermitValidatorLib.sol";
 import "./fusion/TxValidatorLib.sol";
 import "./fusion/EcdsaValidatorLib.sol";

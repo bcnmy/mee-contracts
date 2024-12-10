@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "@account-abstraction/interfaces/PackedUserOperation.sol";
-import "@account-abstraction/core/Helpers.sol";
+import "account-abstraction/interfaces/PackedUserOperation.sol";
+import "account-abstraction/core/Helpers.sol";
 import "../util/EcdsaLib.sol";
 
 library UserOpValidatorLib {

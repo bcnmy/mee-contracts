@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import "@account-abstraction/interfaces/PackedUserOperation.sol";
-import "@account-abstraction/core/Helpers.sol";
+import "openzeppelin/utils/cryptography/MerkleProof.sol";
+import "account-abstraction/interfaces/PackedUserOperation.sol";
+import "account-abstraction/core/Helpers.sol";
 import "../util/EcdsaLib.sol";
 import "../util/UserOpLib.sol";
 
@@ -28,7 +28,7 @@ library EcdsaValidatorLib {
         returns (uint256)
     {
         (
-            bytes32 appendedHash,
+            bytes32 superTxHash,
             bytes32[] memory proof,
             uint48 lowerBoundTimestamp,
             uint48 upperBoundTimestamp,
@@ -36,11 +36,11 @@ library EcdsaValidatorLib {
         ) = abi.decode(parsedSignature, (bytes32, bytes32[], uint48, uint48, bytes));
 
         bytes32 calculatedUserOpHash = UserOpLib.getUserOpHash(userOp, lowerBoundTimestamp, upperBoundTimestamp);
-        if (!EcdsaLib.isValidSignature(expectedSigner, appendedHash, userEcdsaSignature)) {
+        if (!EcdsaLib.isValidSignature(expectedSigner, superTxHash, userEcdsaSignature)) {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(proof, appendedHash, calculatedUserOpHash)) {
+        if (!MerkleProof.verify(proof, superTxHash, calculatedUserOpHash)) {
             return SIG_VALIDATION_FAILED;
         }
 
@@ -52,6 +52,20 @@ library EcdsaValidatorLib {
         pure
         returns (bool)
     {
-        return EcdsaLib.isValidSignature(owner, hash, parsedSignature);
+        (
+            bytes32 superTxHash, //super tx hash
+            bytes32[] memory proof,
+            bytes memory userEcdsaSignature
+        ) = abi.decode(parsedSignature, (bytes32, bytes32[], bytes));
+
+        if (!EcdsaLib.isValidSignature(owner, superTxHash, userEcdsaSignature)) {
+            return false;
+        }
+
+        if (!MerkleProof.verify(proof, superTxHash, hash)) {
+            return false;
+        }
+        
+        return true;
     }
 }

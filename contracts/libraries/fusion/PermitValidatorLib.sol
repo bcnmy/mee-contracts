@@ -2,9 +2,9 @@
 pragma solidity ^0.8.27;
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import "@account-abstraction/interfaces/PackedUserOperation.sol";
-import "@account-abstraction/core/Helpers.sol";
+import "openzeppelin/utils/cryptography/MerkleProof.sol";
+import "account-abstraction/interfaces/PackedUserOperation.sol";
+import "account-abstraction/core/Helpers.sol";
 import "../../interfaces/IERC20Permit.sol";
 import "../util/EcdsaLib.sol";
 import "../util/UserOpLib.sol";
@@ -104,7 +104,6 @@ library PermitValidatorLib {
         returns (bool)
     {
         DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));
-        if (decodedSig.appendedHash != hash) return false;
 
         uint8 vAdjusted = _adjustV(decodedSig.v);
         uint256 deadline = uint256(decodedSig.appendedHash);
@@ -123,7 +122,15 @@ library PermitValidatorLib {
         bytes32 signedDataHash = _hashTypedDataV4(structHash, decodedSig.domainSeparator);
         bytes memory signature = abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted);
 
-        return EcdsaLib.isValidSignature(expectedSigner, signedDataHash, signature);
+        if (!EcdsaLib.isValidSignature(expectedSigner, signedDataHash, signature)) {
+            return false;
+        }
+
+        if (!MerkleProof.verify(decodedSig.proof, decodedSig.appendedHash, hash)) {
+            return false;
+        }
+
+        return true;
     }
 
     function _hashTypedDataV4(bytes32 structHash, bytes32 domainSeparator) private pure returns (bytes32) {

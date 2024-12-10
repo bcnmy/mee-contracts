@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import "@account-abstraction/interfaces/PackedUserOperation.sol";
-import "@account-abstraction/core/Helpers.sol";
+import "openzeppelin/utils/cryptography/MerkleProof.sol";
+import "account-abstraction/interfaces/PackedUserOperation.sol";
+import "account-abstraction/core/Helpers.sol";
 import "../rlp/RLPDecoder.sol";
 import "../rlp/RLPEncoder.sol";
 import "../util/BytesLib.sol";
@@ -33,7 +33,7 @@ library TxValidatorLib {
         bytes32 r;
         bytes32 s;
         bytes32 utxHash;
-        bytes32 appendedHash;
+        bytes32 superTxHash;
         bytes32[] proof;
         uint48 lowerBoundTimestamp;
         uint48 upperBoundTimestamp;
@@ -79,18 +79,15 @@ library TxValidatorLib {
     {
         TxData memory decodedTx = decodeTx(parsedSignature);
 
-        bytes32 expectedHash =
+        bytes32 userOpHash =
             UserOpLib.getUserOpHash(userOp, decodedTx.lowerBoundTimestamp, decodedTx.upperBoundTimestamp);
-        if (decodedTx.appendedHash != expectedHash) {
-            return SIG_VALIDATION_FAILED;
-        }
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(decodedTx.proof, decodedTx.appendedHash, expectedHash)) {
+        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, userOpHash)) {
             return SIG_VALIDATION_FAILED;
         }
 
@@ -103,10 +100,17 @@ library TxValidatorLib {
         returns (bool)
     {
         TxData memory decodedTx = decodeTx(parsedSignature);
-        if (decodedTx.appendedHash != hash) return false;
-        return EcdsaLib.isValidSignature(
-            expectedSigner, decodedTx.utxHash, abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v)
-        );
+
+        bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
+        if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
+            return false;
+        }
+
+        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, hash)) {
+            return false;
+        }
+
+        return true;
     }
 
     function decodeTx(bytes memory self) internal pure returns (TxData memory) {

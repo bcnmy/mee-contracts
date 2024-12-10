@@ -2,26 +2,18 @@
 
 pragma solidity ^0.8.27;
 
-import "@account-abstraction/core/UserOperationLib.sol";
-import "@account-abstraction/interfaces/PackedUserOperation.sol";
-import "@account-abstraction/core/Helpers.sol";
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import {SignatureCheckerLib} from "solady/utils/SignatureCheckerLib.sol";
 import {
     IValidator,
-    MODULE_TYPE_VALIDATOR,
-    MODULE_TYPE_HOOK,
-    VALIDATION_FAILED,
-    VALIDATION_SUCCESS
+    MODULE_TYPE_VALIDATOR
 } from "../interfaces/IERC7579Module.sol";
-import "../base/ERC7739Validator.sol";
+import { ERC7739Validator } from "erc7739Validator/ERC7739Validator.sol";
 
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
 import {EnumerableSet} from "../libraries/storage/EnumerableSet4337.sol";
 import "../libraries/SuperTxEcdsaValidatorLib.sol";
 
-contract FusionValidator is IValidator, ERC7739Validator {
-    using SignatureCheckerLib for address;
+contract K1MeeValidator is IValidator, ERC7739Validator {
+    // using SignatureCheckerLib for address;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -45,6 +37,9 @@ contract FusionValidator is IValidator, ERC7739Validator {
     /// @notice Error to indicate that the new owner cannot be a contract address
     error NewOwnerIsContract();
 
+    /// @notice Error to indicate that the owner cannot be the zero address
+    error OwnerCannotBeZeroAddress();
+
     /// @notice Error to indicate that the data length is invalid
     error InvalidDataLength();
 
@@ -61,6 +56,7 @@ contract FusionValidator is IValidator, ERC7739Validator {
         require(data.length != 0, NoOwnerProvided());
         require(!_isInitialized(msg.sender), ModuleAlreadyInitialized());
         address newOwner = address(bytes20(data[:20]));
+        require(newOwner != address(0), OwnerCannotBeZeroAddress());
         require(!_isContract(newOwner), NewOwnerIsContract());
         smartAccountOwners[msg.sender] = newOwner;
         if (data.length > 20) {
@@ -92,6 +88,11 @@ contract FusionValidator is IValidator, ERC7739Validator {
     /// @notice Removes a safe sender from the _safeSenders list for the smart account
     function removeSafeSender(address sender) external {
         _safeSenders.remove(msg.sender, sender);
+    }
+
+    /// @notice Checks if a sender is in the _safeSenders list for the smart account
+    function isSafeSender(address sender, address smartAccount) external view returns (bool) {
+        return _safeSenders.contains(smartAccount, sender);
     }
 
     /**
@@ -147,14 +148,7 @@ contract FusionValidator is IValidator, ERC7739Validator {
         override
         returns (bytes4 sigValidationResult)
     {
-        // check if sig is valid
-        bool success = _erc1271IsValidSignatureWithSender(sender, hash, _erc1271UnwrapSignature(signature));
-        /// @solidity memory-safe-assembly
-        assembly {
-            // `success ? bytes4(keccak256("isValidSignature(bytes32,bytes)")) : 0xffffffff`.
-            // We use `0xffffffff` for invalid, in convention with the reference implementation.
-            sigValidationResult := shl(224, or(0x1626ba7e, sub(0, iszero(success))))
-        }
+        return _erc1271IsValidSignatureWithSender(sender, hash, _erc1271UnwrapSignature(signature));
     }
 
     /// @notice ISessionValidator interface for smart session
@@ -178,7 +172,7 @@ contract FusionValidator is IValidator, ERC7739Validator {
     /// @notice Returns the name of the module
     /// @return The name of the module
     function name() external pure returns (string memory) {
-        return "FusionValidator";
+        return "K1MeeValidator";
     }
 
     /// @notice Returns the version of the module
