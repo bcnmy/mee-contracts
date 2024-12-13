@@ -58,33 +58,34 @@ fi
 }
 
 ### COPY ARTIFACTS ###
-read -r -p "Do you want to rebuild Nexus artifacts from your local sources? (y/n): " proceed
+read -r -p "Do you want to rebuild MEE artifacts from your local sources? (y/n): " proceed
 if [ $proceed = "y" ]; then
     ### BUILD ARTIFACTS ###
-    printf "Building Nexus artifacts\n"
+    printf "Building MEE artifacts\n"
     { (forge build 1> ./logs/forge-build.log 2> ./logs/forge-build-errors.log) } || {
         printf "Build failed\n See logs for more details\n"
         exit 1
     }
-    printf "Copying Nexus artifacts\n"
-    mkdir -p ./artifacts/Nexus
+    printf "Copying MEE artifacts\n"
+    mkdir -p ./artifacts/MEEEntryPoint
     mkdir -p ./artifacts/K1MeeValidator
-    cp ../../out/Nexus.sol/Nexus.json ./artifacts/Nexus/.
-    cp ../../out/K1Validator.sol/K1Validator.json ./artifacts/K1Validator/.
+    cp ../../out/MEEEntryPoint.sol/MEEEntryPoint.json ./artifacts/MEEEntryPoint/.
+    cp ../../out/K1MeeValidator.sol/K1MeeValidator.json ./artifacts/K1MeeValidator/.
     printf "Artifacts copied\n"
 
     ### CREATE VERIFICATION ARTIFACTS ###
     printf "Creating verification artifacts\n"
-    
-    forge verify-contract --show-standard-json-input $(cast address-zero) Nexus > ./artifacts/Nexus/verify.json
-    forge verify-contract --show-standard-json-input $(cast address-zero) K1Validator > ./artifacts/K1Validator/verify.json    
+    forge verify-contract --show-standard-json-input $(cast address-zero) MEEEntryPoint > ./artifacts/MEEEntryPoint/verify.json
+    forge verify-contract --show-standard-json-input $(cast address-zero) K1MeeValidator > ./artifacts/K1MeeValidator/verify.json    
 else 
     printf "Using precompiled artifacts\n"
 fi
 
-### DEPLOY NEXUS SCs ###
-printf "Addresses for Nexus SCs:\n"
-forge script DeployNexus true --sig "run(bool)" --rpc-url $CHAIN_NAME -vv | grep -e "Addr" -e "already deployed"
+### DEPLOY MEE SCs ###
+printf "Addresses for MEE SCs:\n"
+mkdir -p ./logs/$CHAIN_NAME
+forge script DeployMEE true --sig "run(bool)" --rpc-url $CHAIN_NAME -vv > ./logs/$CHAIN_NAME/$CHAIN_NAME-predeploy-mee.log
+cat ./logs/$CHAIN_NAME/$CHAIN_NAME-predeploy-mee.log | grep -e "Addr" -e "already deployed"
 printf "Do you want to proceed with the addresses above? (y/n): "
 read -r proceed
 if [ $proceed = "y" ]; then
@@ -104,13 +105,13 @@ if [ $proceed = "y" ]; then
     {   
         printf "Proceeding with deployment \n"
         mkdir -p ./logs/$CHAIN_NAME
-        forge script DeployNexus false --sig "run(bool)" --rpc-url $CHAIN_NAME --etherscan-api-key $CHAIN_NAME --private-key $PRIVATE_KEY $VERIFY -vv --broadcast --slow $GAS_SUFFIX 1> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-nexus.log 2> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-nexus-errors.log 
+        forge script DeployMEE false --sig "run(bool)" --rpc-url $CHAIN_NAME --etherscan-api-key $CHAIN_NAME --private-key $PRIVATE_KEY $VERIFY -vv --broadcast --slow $GAS_SUFFIX 1> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee.log 2> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee-errors.log 
     } || {
         printf "Deployment failed\n See logs for more details\n"
         exit 1
     }
     printf "Deployment successful\n"
-    cat ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-nexus.log | grep "deployed at"
+    cat ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee.log | grep "deployed at"
     
 else 
     printf "Exiting\n"
