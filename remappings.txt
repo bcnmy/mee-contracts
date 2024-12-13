@@ -1,4 +1,4 @@
-openzeppelin/=node_modules/openzeppelin-contracts/contracts/
+openzeppelin/=node_modules/@openzeppelin/contracts/
 account-abstraction/=node_modules/account-abstraction/contracts/
 erc7739Validator/=node_modules/erc7739-validator-base/src/
 solady/=node_modules/solady/src/

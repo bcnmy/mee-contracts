@@ -7,7 +7,7 @@ import "account-abstraction/core/BasePaymaster.sol";
 import "account-abstraction/interfaces/IEntryPoint.sol";
 import "account-abstraction/interfaces/IEntryPointSimulations.sol";
 
-contract EntryPoint is BasePaymaster, ReentrancyGuard {
+contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
     using UserOperationLib for PackedUserOperation;
 
     error EmptyMessageValue();
