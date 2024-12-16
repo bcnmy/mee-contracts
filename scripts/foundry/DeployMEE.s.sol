@@ -5,9 +5,29 @@ import {Script, console2} from "lib/forge-std/src/Script.sol";
 import {K1MeeValidator} from "contracts/validators/K1MeeValidator.sol";
 import {DeterministicDeployerLib} from "./utils/DeterministicDeployerLib.sol";
 
+type ResolverUID is bytes32;
+
+struct ModuleRecord {
+    ResolverUID resolverUID; // The unique identifier of the resolver.
+    address sender; // The address of the sender who deployed the contract
+    bytes metadata; // Additional data related to the contract deployment
+}
+
+interface IRegistryModuleManager {
+    function registerModule(
+        ResolverUID resolverUID,
+        address moduleAddress,
+        bytes calldata metadata,
+        bytes calldata resolverContext
+    ) external;
+
+    function findModule(address moduleAddress) external view returns (ModuleRecord memory);
+}
+
 contract DeployMEE is Script {
 
     address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
+    address constant MODULE_REGISTRY_ADDRESS = 0x000000000069E2a187AEFFb852bF3cCdC95151B2;
 
     bytes32 constant MEE_EP_SALT = 0x0000000000000000000000000000000000000000000000000000000000000000;
     bytes32 constant MEE_K1_VALIDATOR_SALT = 0x0000000000000000000000000000000000000000000000000000000000000000;
@@ -85,6 +105,28 @@ contract DeployMEE is Script {
         } else {
             address meeK1Validator = DeterministicDeployerLib.broadcastDeploy(bytecode, MEE_K1_VALIDATOR_SALT);
             console2.log("MEE K1 Validator deployed at: ", meeK1Validator);
+        }
+        IRegistryModuleManager registry = IRegistryModuleManager(MODULE_REGISTRY_ADDRESS);
+        ResolverUID resolverUID = ResolverUID.wrap(0xdbca873b13c783c0c9c6ddfc4280e505580bf6cc3dac83f8a0f7b44acaafca4f);
+        ModuleRecord memory moduleRecord = registry.findModule(expectedMEEK1Validator);
+
+        bool isRegistered = ResolverUID.unwrap(moduleRecord.resolverUID) != bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
+        if (isRegistered) {
+            console2.log("MEE K1 Validator already registered on registry");
+        } else {
+            vm.startBroadcast();
+            try registry.registerModule(
+                resolverUID,
+                expectedMEEK1Validator,
+                hex"",
+                hex""
+            ) {
+                console2.log("MEE K1 Validator registered on registry");
+            } catch (bytes memory reason) {
+                console2.log("MEE K1 Validator not registered on registry: registration failed");
+                console2.logBytes(reason);
+            }
+            vm.stopBroadcast();
         }
     }
 }
