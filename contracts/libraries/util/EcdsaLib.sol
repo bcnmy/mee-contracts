@@ -18,7 +18,7 @@ library EcdsaLib {
         return false;
     }
 
-    function _recoverSigner(bytes32 hash, bytes memory signature) public pure returns (address) {
+    function _recoverSigner(bytes32 hash, bytes memory signature) internal pure returns (address) {
         (address owner,,) = hash.tryRecover(signature);
         return owner;
     }
