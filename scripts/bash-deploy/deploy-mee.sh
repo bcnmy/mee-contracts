@@ -69,14 +69,17 @@ if [ $proceed = "y" ]; then
     printf "Copying MEE artifacts\n"
     mkdir -p ./artifacts/MEEEntryPoint
     mkdir -p ./artifacts/K1MeeValidator
+    mkdir -p ./artifacts/EtherForwarder
     cp ../../out/MEEEntryPoint.sol/MEEEntryPoint.json ./artifacts/MEEEntryPoint/.
     cp ../../out/K1MeeValidator.sol/K1MeeValidator.json ./artifacts/K1MeeValidator/.
+    cp ../../out/Forwarder.sol/EtherForwarder.json ./artifacts/EtherForwarder/.
     printf "Artifacts copied\n"
 
     ### CREATE VERIFICATION ARTIFACTS ###
     printf "Creating verification artifacts\n"
     forge verify-contract --show-standard-json-input $(cast address-zero) MEEEntryPoint > ./artifacts/MEEEntryPoint/verify.json
     forge verify-contract --show-standard-json-input $(cast address-zero) K1MeeValidator > ./artifacts/K1MeeValidator/verify.json    
+    forge verify-contract --show-standard-json-input $(cast address-zero) EtherForwarder > ./artifacts/EtherForwarder/verify.json
 else 
     printf "Using precompiled artifacts\n"
 fi
@@ -107,12 +110,12 @@ if [ $proceed = "y" ]; then
         mkdir -p ./logs/$CHAIN_NAME
         forge script DeployMEE false --sig "run(bool)" --rpc-url $CHAIN_NAME --etherscan-api-key $CHAIN_NAME --private-key $PRIVATE_KEY $VERIFY -vv --broadcast --slow $GAS_SUFFIX 1> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee.log 2> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee-errors.log 
     } || {
-        printf "Deployment failed\n See logs for more details\n"
+        printf "Deployment failed\n See logs for more details\n====================================\n"
         exit 1
     }
     printf "Deployment successful\n"
     cat ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee.log | grep -e "deployed at" -e "registered on registry"
-    
+    printf "====================================\n"
 else 
     printf "Exiting\n"
     exit 1

@@ -31,6 +31,7 @@ contract DeployMEE is Script {
 
     bytes32 constant MEE_EP_SALT = 0x0000000000000000000000000000000000000000000000000000000000000000;
     bytes32 constant MEE_K1_VALIDATOR_SALT = 0x0000000000000000000000000000000000000000000000000000000000000000;
+    bytes32 constant ETH_FORWARDER_SALT = 0x0000000000000000000000000000000000000000000000000000000000000000;
     
     function setUp() public {
      
@@ -74,6 +75,14 @@ contract DeployMEE is Script {
         }
         
         console2.log("MEE K1 Validator Addr: ", meeK1Validator, " || >> Code Size: ", codeSize);
+
+        // ETH Forwarder contract
+        bytecode = vm.getCode("scripts/bash-deploy/artifacts/EtherForwarder/EtherForwarder.json");
+        address expectedEtherForwarder = DeterministicDeployerLib.computeAddress(bytecode, ETH_FORWARDER_SALT);
+        assembly {
+            codeSize := extcodesize(expectedEtherForwarder)
+        }
+        console2.log("ETH Forwarder Addr: ", expectedEtherForwarder, " || >> Code Size: ", codeSize);
     }
 
     function _deployMEE() internal {
@@ -106,24 +115,51 @@ contract DeployMEE is Script {
             address meeK1Validator = DeterministicDeployerLib.broadcastDeploy(bytecode, MEE_K1_VALIDATOR_SALT);
             console2.log("MEE K1 Validator deployed at: ", meeK1Validator);
         }
+        
+        registerModule(expectedMEEK1Validator);
+
+        // ETH Forwarder contract
+        bytecode = vm.getCode("scripts/bash-deploy/artifacts/EtherForwarder/EtherForwarder.json");
+        address expectedEtherForwarder = DeterministicDeployerLib.computeAddress(bytecode, ETH_FORWARDER_SALT);
+        assembly {
+            codeSize := extcodesize(expectedEtherForwarder)
+        }
+        if (codeSize > 0) {
+            console2.log("ETH Forwarder already deployed at: ", expectedEtherForwarder, " skipping deployment");
+        } else {
+            address etherForwarder = DeterministicDeployerLib.broadcastDeploy(bytecode, ETH_FORWARDER_SALT);
+            console2.log("ETH Forwarder deployed at: ", etherForwarder);
+        }
+    }
+
+    function registerModule(address moduleAddress) internal {
         IRegistryModuleManager registry = IRegistryModuleManager(MODULE_REGISTRY_ADDRESS);
+
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(MODULE_REGISTRY_ADDRESS)
+        }
+        if (codeSize == 0) {
+            console2.log("Module registry not deployed => module not registered on registry");
+            return;
+        }
         ResolverUID resolverUID = ResolverUID.wrap(0xdbca873b13c783c0c9c6ddfc4280e505580bf6cc3dac83f8a0f7b44acaafca4f);
-        ModuleRecord memory moduleRecord = registry.findModule(expectedMEEK1Validator);
+        ModuleRecord memory moduleRecord = registry.findModule(moduleAddress);
 
         bool isRegistered = ResolverUID.unwrap(moduleRecord.resolverUID) != bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
         if (isRegistered) {
-            console2.log("MEE K1 Validator already registered on registry");
+            console2.log("Module already registered on registry");
         } else {
             vm.startBroadcast();
             try registry.registerModule(
                 resolverUID,
-                expectedMEEK1Validator,
+                moduleAddress,
                 hex"",
                 hex""
             ) {
-                console2.log("MEE K1 Validator registered on registry");
+                console2.log("Module registered on registry");
             } catch (bytes memory reason) {
-                console2.log("MEE K1 Validator not registered on registry: registration failed");
+                console2.log("Module not registered on registry: registration failed");
                 console2.logBytes(reason);
             }
             vm.stopBroadcast();

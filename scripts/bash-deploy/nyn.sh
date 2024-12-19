@@ -1,8 +1,8 @@
 # TESTNETS
-#printf '%s\n' n y n | bash deploy-mee.sh testnet sepolia
-#printf '%s\n' n y n | bash deploy-mee.sh testnet base-sepolia
-#printf '%s\n' n y n | bash deploy-mee.sh testnet scroll-sepolia
-#printf '%s\n' n y n | bash deploy-mee.sh testnet arbitrum-sepolia
+printf '%s\n' n y n | bash deploy-mee.sh testnet sepolia
+printf '%s\n' n y n | bash deploy-mee.sh testnet base-sepolia
+printf '%s\n' n y n | bash deploy-mee.sh testnet scroll-sepolia
+printf '%s\n' n y n | bash deploy-mee.sh testnet arbitrum-sepolia
 printf '%s\n' n y n | bash deploy-mee.sh testnet bsc-testnet
 { (printf '%s\n' n y n | bash deploy-mee.sh testnet gnosis-chiado) } || { (printf "Gnosis chiado :: probably errors => check logs\n") }
 printf '%s\n' n y n | bash deploy-mee.sh testnet amoy
