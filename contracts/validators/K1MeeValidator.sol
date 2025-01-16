@@ -2,11 +2,10 @@
 
 pragma solidity ^0.8.27;
 
-import {IValidator, MODULE_TYPE_VALIDATOR} from "../interfaces/IERC7579Module.sol";
+import {IValidator, MODULE_TYPE_VALIDATOR} from "erc7579/interfaces/IERC7579Module.sol";
 import {ERC7739Validator} from "erc7739Validator/ERC7739Validator.sol";
-
+import {EnumerableSet} from "EnumerableSet4337/EnumerableSet4337.sol";
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
-import {EnumerableSet} from "../libraries/storage/EnumerableSet4337.sol";
 import "../libraries/SuperTxEcdsaValidatorLib.sol";
 
 contract K1MeeValidator is IValidator, ERC7739Validator {
