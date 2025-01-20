@@ -13,6 +13,8 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
     using UserOperationLib for PackedUserOperation;
 
     uint256 public constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
+    // TODO: Measure this gas, and make it changeable
+    uint256 public constant POSTOP_GAS = 50_000;
 
     error EmptyMessageValue();
     error InsufficientBalance();
@@ -79,7 +81,7 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
         }
         */
         // TODO: 
-        // encode packed maxGasLim,it and nodeOperatorPremium, make them smaller uints to save on calldata
+        // encode packed maxGasLimit and nodeOperatorPremium, make them smaller uints to save on calldata
         (uint256 maxGasLimit, uint256 nodeOperatorPremium) =
             abi.decode(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:], (uint256, uint256));
         return (abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), maxGasLimit, nodeOperatorPremium), 0);
@@ -98,20 +100,20 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
      * @param context - the context value returned by validatePaymasterUserOp
      * @param actualGasCost - actual gas used so far (without this postOp call).
      */
-    function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 /*actualUserOpFeePerGas*/)
+    function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
         internal
         virtual
         override
-    {
+    {   
         if (mode == PostOpMode.postOpReverted) {
             return;
         }
         (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, uint256 nodeOperatorPremium) =
-            abi.decode(context, (address, uint256, uint256, uint256));
+            abi.decode(context, (address, uint256, uint256, uint256));   
 
         // TODO: it also doesn't work properly , as it tries to refund more than left
-        uint256 refund = calculateRefund(maxGasLimit, maxFeePerGas, actualGasCost, nodeOperatorPremium);
-        //console2.log("refund in MEEEntryPoint _postOp", refund);
+        uint256 refund = calculateRefund(maxGasLimit, maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, nodeOperatorPremium);
+        console2.log("refund in MEEEntryPoint _postOp", refund);
         if (refund > 0) {
             entryPoint.withdrawTo(payable(sender), refund);
         }
@@ -121,31 +123,33 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
     function calculateRefund(
         uint256 maxGasLimit,
         uint256 maxFeePerGas,
-        uint256 actualGasCost,
+        uint256 actualGasUsed,
+        uint256 actualUserOpFeePerGas,
         uint256 nodeOperatorPremium
     ) public pure returns (uint256 refund) {
 
-        //console2.log("actual gas cost  ", actualGasCost);
+        //account for postOpGas
+        actualGasUsed = actualGasUsed + POSTOP_GAS;
+
+        // Add penalty
+        // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
+        // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
+        // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
+        actualGasUsed += (maxGasLimit - actualGasUsed)/10;
+
+        console2.log("actual gas cost calculated by EP ", actualGasUsed * actualUserOpFeePerGas);
 
         // TODO: test it works properly with premiums less than 1% (for example 50000, which is 0.5%)
-        uint256 costWithPremium = (actualGasCost * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium)) / PREMIUM_CALCULATION_BASE;
+        uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium)) / PREMIUM_CALCULATION_BASE;
 
-        //console2.log("cost with premium", costWithPremium);
+        console2.log("cost with premium", costWithPremium);
 
-        uint256 maxCost = maxGasLimit * maxFeePerGas;
+        // as MEE_NODE charges user with the premium
+        uint256 maxCost = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium) / PREMIUM_CALCULATION_BASE;
 
-        // TODO: can/should we account for the postop gas cost itself? who pays for it with the current approach?
-        // should add it to actualGasCost when calculating costWithPremium
-
-        // TODO: refactor this to account for the case when costWithPremium is greater than maxCost
-        // can it happen? for example, if the premium is big enough. and if the postop gas cost is big enough. 
-        // what should we do in this case?
-
-        // maxGasLimit is provided from the outside, and it is presumably used to calculate how much SA pays to MEE node.
-        // it can already cover the postOp cost and premium (as premium is provided from off-chain as well)
-        // so this is Node's responsibility to provide maxGasLimit that covers the postOp cost and premium
-        // but I'm sure we should double check here just to extra-protect our nodes from losing money
-        
+        // We do not check for the case, when costWithPremium > maxCost
+        // maxCost charged by the MEE Node should include the premium
+        // if this is done, costWithPremium can never be > maxCost
         if (costWithPremium < maxCost) {
             refund = maxCost - costWithPremium;
         }
