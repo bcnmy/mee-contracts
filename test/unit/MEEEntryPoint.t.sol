@@ -23,7 +23,6 @@ contract MEEEntryPointTest is BaseTest {
     }
 
     function test_handleOps_success() public {
-
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
 
         uint256 valueToSet = MEE_NODE_HEX;
@@ -51,44 +50,64 @@ contract MEEEntryPointTest is BaseTest {
         userOp.paymasterAndData = pmAndData;
         userOps[0] = userOp;
 
-        // MEE should always charge user taking the premium in the account, otherwise MEE EP can be losing money
-        // This maxGasCost is how much we should charge the user. 
-        uint256 maxGasCost = maxGasLimit * unpackMaxFeePerGasMemory(userOp) * (MEE_ENTRYPOINT.PREMIUM_CALCULATION_BASE() + meeNodePremium) / MEE_ENTRYPOINT.PREMIUM_CALCULATION_BASE();
-        console2.log("maxGasCost with Premium", maxGasCost);
+        // This maxGasCostWithPremium is how much we should charge the user. 
+        // MEE should always charge user taking the premium in the account, otherwise MEE EP can be losing money.
+        uint256 maxGasCost = maxGasLimit * unpackMaxFeePerGasMemory(userOp);
+        uint256 maxGasCostWithPremium = maxGasCost * (MEE_ENTRYPOINT.PREMIUM_CALCULATION_BASE() + meeNodePremium) / MEE_ENTRYPOINT.PREMIUM_CALCULATION_BASE();
+        //console2.log("maxGasCost", maxGasCost);
+        //console2.log("maxGasCost with Premium", maxGasCostWithPremium);
         
-        // MEE_NODE should always send at least 2*maxGastCost to MEE_EP as MEE_EP has to have extra deposit at EP
-        // at the time of _postOp to send refund to the userOp.sender. Coz the proper part of a deposit is locked by EP as a prefund.
-        // To compensate this 2*maxGasCost, 
-        // The userOp.sender sends maxGastCost to MEE_NODE in a separate node payment userOp included into superTx.
-        // another maxGasCost is refunded to MEE_NODE by the OG EP as a refund to `beneficiary` which is handleOps arg.
-        // The refund sent by OG EP to MEE_NODE will also include some extra on top of maxGasCost
-        // This extra is MEE_NODE premium + what MEE_EP has overcharged because of the not tight userOp gas limits
+        // MEE_NODE should always send at least maxGasCost + maxGasCostWithPremium to MEE_EP as MEE_EP has to have extra deposit at EP
+        // at the time of _postOp to send refund to the userOp.sender. 
+        // maxGasCost is locked by EP as a prefund.
+        // The refund to userOp.sender can in theory be up to maxGasCostWithPremium so MEE_EP has to have it on deposit.
+        // To compensate what EP_NODE sent to MEE_EP, the userOp.sender sends maxGasCostWithPremium
+        // to MEE_NODE in a separate node payment userOp included into superTx.
+        // It compensates maxGasCostWithPremium part.
+        
+        // Then EP sends the `collected` part to the MEE_NODE which is set as `beneficiary` arg in EP.handleOps() call be MEE_EP. 
+        // It compensates the actual gas cost which MEE_NODE has paid to submit txn on-chain.
+
+        // So what is left to be compensated is maxGasCost + premium % of the actual gas
+        // and it indeed is compensated in MEE EntryPoint handleOps method,'
+        // when the whole MEE_EP's deposit that has left in EP is sent back to MEE_NODE
+
+        // The refund sent by OG_EP to MEE_NODE will also include some extra on top of maxGasCost and premium
+        // This extra is what MEE_EP has overcharged because of the not tight userOp verification gas limits
+        // See here: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0
+
+        // One issue here is that MEE_NODE sets the verification gas limits, and now it has an incentive to set them
+        // as loose as possible to get refunded as much extra as possible.
+        // To handle this, we need to check pmVerificationGasLimit and verificationGasLimit are tight enough.
+        // preVerificationGasLimit is used in full.
+        // 1. For pmVerificationGasLimit we introduce check in MEE_EP._validatePaymasterUserOp().
+        // 2. For verificationGasLimit it is recommended that a smart account does this in validateUserOp() method. 
+        uint256 valueToSendByMeeNode = maxGasCost + maxGasCostWithPremium;
         vm.prank(MEE_NODE_ADDRESS);
-        MEE_ENTRYPOINT.handleOps{value: 2*maxGasCost}(userOps);
+        MEE_ENTRYPOINT.handleOps{value: valueToSendByMeeNode}(userOps);
 
         assertEq(mockTarget.value(), valueToSet);   
     }
+
+    // 6370000000000000 maxGasCost
+    // 6575932680000000 sent back to MEE_NODE
+    // 0194067320000000 // in fact bonus to MEE NODE = premium + overcharge
+
+    // 0985717000000000 // actual gas cost emiited by EP
+    // 0167572000000000 // actual 17% bonus should have been charged
+
+    // 0194067320000000
+    // 0167572000000000
+    // 0026495320000000  // overcharge on top of premium, 0.00002 eth which is about 7 cents on eth mainnet
+
+
+
+
 
     // handleOps reverts with 0 value
 
     // handleOps reverts with low value
 
     // deposit is properly refunded to the node
-
-
-/// Some veridfication taken from the logs
-    // act gas used cost 986157000000000
-    // 6420000000000000 maxGastCost
-
-    // 1197500000000000 // we charged with premium
-    //  986157000000000 // actual gas cost emitted by EP
-    // 1153803000000000 this is what we should have charged with 17% node bonus
-// 0.000043697000000000 this is what we overcharge , which is about 0.15usd on Ethereum Mainnet
-    
-// 0.000211343000000000 eth we overcharge here and the imits are not tight
-
-    // 6631342680000000
-    // 6420000000000000
-// 0.000211342680000000 it includes the legit MEE_NODE premium and overcharge
 
 }

@@ -111,9 +111,8 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
         (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, uint256 nodeOperatorPremium) =
             abi.decode(context, (address, uint256, uint256, uint256));   
 
-        // TODO: it also doesn't work properly , as it tries to refund more than left
         uint256 refund = calculateRefund(maxGasLimit, maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, nodeOperatorPremium);
-        console2.log("refund in MEEEntryPoint _postOp", refund);
+        //console2.log("refund in MEEEntryPoint _postOp", refund);
         if (refund > 0) {
             entryPoint.withdrawTo(payable(sender), refund);
         }
@@ -137,21 +136,21 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
         actualGasUsed += (maxGasLimit - actualGasUsed)/10;
 
-        console2.log("actual gas cost calculated by EP ", actualGasUsed * actualUserOpFeePerGas);
+        //console2.log("actual gas cost calculated by MEE EP ", actualGasUsed * actualUserOpFeePerGas);
 
         // TODO: test it works properly with premiums less than 1% (for example 50000, which is 0.5%)
         uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium)) / PREMIUM_CALCULATION_BASE;
 
-        console2.log("cost with premium", costWithPremium);
+        //console2.log("cost with premium", costWithPremium);
 
         // as MEE_NODE charges user with the premium
-        uint256 maxCost = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium) / PREMIUM_CALCULATION_BASE;
+        uint256 maxCostWithPremium = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium) / PREMIUM_CALCULATION_BASE;
 
         // We do not check for the case, when costWithPremium > maxCost
         // maxCost charged by the MEE Node should include the premium
         // if this is done, costWithPremium can never be > maxCost
-        if (costWithPremium < maxCost) {
-            refund = maxCost - costWithPremium;
+        if (costWithPremium < maxCostWithPremium) {
+            refund = maxCostWithPremium - costWithPremium;
         }
     }
 }
