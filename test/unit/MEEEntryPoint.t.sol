@@ -15,6 +15,7 @@ contract MEEEntryPointTest is BaseTest {
 
     Vm.Wallet wallet;
     MockAccount mockAccount;
+    uint256 constant PREMIUM_CALCULATION_BASE = 100_00000;
 
     function setUp() public virtual override {
         super.setUp();
@@ -31,7 +32,7 @@ contract MEEEntryPointTest is BaseTest {
         bytes memory callData = abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData);
         PackedUserOperation memory userOp = buildUserOpWithCalldata(address(mockAccount), callData, wallet);
 
-        uint128 pmValidationGasLimit = 20e3;
+        uint128 pmValidationGasLimit = 5000;
         uint128 pmPostOpGasLimit = 3e6;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
@@ -53,7 +54,7 @@ contract MEEEntryPointTest is BaseTest {
         // This maxGasCostWithPremium is how much we should charge the user. 
         // MEE should always charge user taking the premium in the account, otherwise MEE EP can be losing money.
         uint256 maxGasCost = maxGasLimit * unpackMaxFeePerGasMemory(userOp);
-        uint256 maxGasCostWithPremium = maxGasCost * (MEE_ENTRYPOINT.PREMIUM_CALCULATION_BASE() + meeNodePremium) / MEE_ENTRYPOINT.PREMIUM_CALCULATION_BASE();
+        uint256 maxGasCostWithPremium = maxGasCost * (PREMIUM_CALCULATION_BASE + meeNodePremium) / PREMIUM_CALCULATION_BASE;
         //console2.log("maxGasCost", maxGasCost);
         //console2.log("maxGasCost with Premium", maxGasCostWithPremium);
         
@@ -79,30 +80,14 @@ contract MEEEntryPointTest is BaseTest {
         // One issue here is that MEE_NODE sets the verification gas limits, and now it has an incentive to set them
         // as loose as possible to get refunded as much extra as possible.
         // To handle this, we need to check pmVerificationGasLimit and verificationGasLimit are tight enough.
-        // preVerificationGasLimit is used in full.
-        // 1. For pmVerificationGasLimit we introduce check in MEE_EP._validatePaymasterUserOp().
-        // 2. For verificationGasLimit it is recommended that a smart account does this in validateUserOp() method. 
+        // The easiest and cheapest solution here will be checking how big this overcharge over premium is, and if it is too big,
+        // network should slash the MEE NODE for it.
         uint256 valueToSendByMeeNode = maxGasCost + maxGasCostWithPremium;
         vm.prank(MEE_NODE_ADDRESS);
         MEE_ENTRYPOINT.handleOps{value: valueToSendByMeeNode}(userOps);
 
         assertEq(mockTarget.value(), valueToSet);   
     }
-
-    // 6370000000000000 maxGasCost
-    // 6575932680000000 sent back to MEE_NODE
-    // 0194067320000000 // in fact bonus to MEE NODE = premium + overcharge
-
-    // 0985717000000000 // actual gas cost emiited by EP
-    // 0167572000000000 // actual 17% bonus should have been charged
-
-    // 0194067320000000
-    // 0167572000000000
-    // 0026495320000000  // overcharge on top of premium, 0.00002 eth which is about 7 cents on eth mainnet
-
-
-
-
 
     // handleOps reverts with 0 value
 

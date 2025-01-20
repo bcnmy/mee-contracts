@@ -12,12 +12,20 @@ import "forge-std/console2.sol";
 contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
     using UserOperationLib for PackedUserOperation;
 
-    uint256 public constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
+    uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
     // TODO: Measure this gas, and make it changeable
-    uint256 public constant POSTOP_GAS = 50_000;
+    uint256 private constant POSTOP_GAS = 50_000;
+
+    // TODO: Do it changeable
+    // Paymaster verification gas limit extra %
+    // How much % it can be more than actual pm verif gas
+    uint256 private constant PM_VGL_MAX_OVEREST_PERCENTAGE = 50;
+
+    // TODO: Do not forget to transfer ownership after deployment
 
     error EmptyMessageValue();
     error InsufficientBalance();
+    error PaymasterVerificationGasLimitTooHigh();
 
     constructor(IEntryPoint _entryPoint) payable BasePaymaster(_entryPoint) {}
 
@@ -84,7 +92,8 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
         // encode packed maxGasLimit and nodeOperatorPremium, make them smaller uints to save on calldata
         (uint256 maxGasLimit, uint256 nodeOperatorPremium) =
             abi.decode(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:], (uint256, uint256));
-        return (abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), maxGasLimit, nodeOperatorPremium), 0);
+        context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), maxGasLimit, nodeOperatorPremium);
+        validationData = 0;
     }
 
     /**

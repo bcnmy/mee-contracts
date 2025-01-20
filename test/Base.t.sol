@@ -76,7 +76,7 @@ contract BaseTest is Test {
             nonce: nonce,
             initCode: "",
             callData: "",
-            accountGasLimits: bytes32(abi.encodePacked(uint128(50e3), uint128(3e6))), // verification and call gas limit
+            accountGasLimits: bytes32(abi.encodePacked(uint128(40e3), uint128(3e6))), // verification and call gas limit
             preVerificationGas: 3e5, // Adjusted preVerificationGas
             gasFees: bytes32(abi.encodePacked(uint128(11e9), uint128(1e9))), // maxFeePerGas = 11gwei and maxPriorityFeePerGas = 1gwei
             paymasterAndData: "",
