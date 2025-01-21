@@ -137,9 +137,9 @@ contract BaseTest is Test {
             address(MEE_ENTRYPOINT), 
             pmValidationGasLimit, // pm validation gas limit
             pmPostOpGasLimit, // pm post-op gas limit
-            abi.encode(
-                maxGasLimit, // MEE Node maxGasLimit
-                meeNodePremium // MEE Node nodeOperatorPremium
+            abi.encodePacked(
+                uint128(maxGasLimit), // MEE Node maxGasLimit
+                uint128(meeNodePremium) // MEE Node nodeOperatorPremium
             )
         );
     }

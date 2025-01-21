@@ -6,6 +6,8 @@ import {Vm} from "forge-std/Test.sol";
 import {PackedUserOperation, UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {MockTarget} from "../mock/MockTarget.sol";
 import {MockAccount} from "../mock/MockAccount.sol";
+import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPointSimulations.sol";
+import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulations.sol";
 
 import "forge-std/console2.sol";
 
@@ -43,6 +45,8 @@ contract MEEEntryPointTest is BaseTest {
         uint128 pmPostOpGasLimit = 3e6;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
         uint256 meeNodePremium = 17*1e5;
+        //console2.log("maxGasLimit", maxGasLimit);
+        //console2.log("meeNodePremium", meeNodePremium);
 
         userOp.paymasterAndData = makePMAndDataForMeeEP(pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, meeNodePremium);
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
@@ -115,13 +119,6 @@ contract MEEEntryPointTest is BaseTest {
         meeNodePremium = bound(meeNodePremium, 0, 200e5);
         pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 5e3, 5e6));
         pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 20e3, 5e6));
-
-        console2.log("preVerificationGasLimit", preVerificationGasLimit);
-        console2.log("verificationGasLimit", verificationGasLimit);
-        console2.log("callGasLimit", callGasLimit);
-        console2.log("meeNodePremium", meeNodePremium);
-        console2.log("pmValidationGasLimit", pmValidationGasLimit);
-        console2.log("pmPostOpGasLimit", pmPostOpGasLimit);
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         valueToSet = MEE_NODE_HEX;
@@ -207,6 +204,34 @@ contract MEEEntryPointTest is BaseTest {
         assertGt(approxGasCostWithPremium, approxGasCost, "premium should support fractions of %");
     }
 
+    function test_simulateHandleOp_success() public {
+        (PackedUserOperation[] memory userOps, uint256 valueToSendByMeeNode) = test_handleOps_success();
+
+        // state override
+        EntryPointSimulations entryPointWithSimulations = new EntryPointSimulations();
+        vm.etch(address(ENTRYPOINT_V07_ADDRESS), address(entryPointWithSimulations).code);
+
+        userOps[0].nonce = ENTRYPOINT.getNonce(userOps[0].sender, 0);
+        IEntryPointSimulations.ExecutionResult memory result = MEE_ENTRYPOINT.simulateHandleOp{value: valueToSendByMeeNode}(userOps[0], address(mockTarget), abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet));
+        assertEq(result.targetSuccess, true, "target should be successful");
+
+        // leave the workplace as tidy as it was xdd
+        vm.etch(address(ENTRYPOINT_V07_ADDRESS), address(ENTRYPOINT).code);
+    }
+
+    function test_simulateValidation_success() public {
+        (PackedUserOperation[] memory userOps, uint256 valueToSendByMeeNode) = test_handleOps_success();
+
+        EntryPointSimulations entryPointWithSimulations = new EntryPointSimulations();
+        vm.etch(address(ENTRYPOINT_V07_ADDRESS), address(entryPointWithSimulations).code);
+
+        userOps[0].nonce = ENTRYPOINT.getNonce(userOps[0].sender, 0);
+        IEntryPointSimulations.ValidationResult memory result = MEE_ENTRYPOINT.simulateValidation{value: valueToSendByMeeNode}(userOps[0]);
+        assertEq(result.returnInfo.accountValidationData, 0, "userOp should be valid");
+
+        vm.etch(address(ENTRYPOINT_V07_ADDRESS), address(ENTRYPOINT).code);
+    }
+
 
     function assertFinancialStuffStrict(
         Vm.Log[] memory entries,
@@ -232,6 +257,6 @@ contract MEEEntryPointTest is BaseTest {
         meeNodeEarnings = MEE_NODE_ADDRESS.balance - meeNodeBalanceBefore - actualGasCost;
         
         assertTrue(meeNodeEarnings > 0, "MEE_NODE should have earned something");
-        assertTrue(meeNodeEarnings >= expectedNodePremium, "MEE_NODE should have earned more than expectedNodePremium");
+        assertTrue(meeNodeEarnings >= expectedNodePremium, "MEE_NODE should have earned more or equal to expectedNodePremium");
     }
 }
