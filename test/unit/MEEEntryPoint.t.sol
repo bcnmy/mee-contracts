@@ -45,8 +45,6 @@ contract MEEEntryPointTest is BaseTest {
         uint128 pmPostOpGasLimit = 3e6;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
         uint256 meeNodePremium = 17*1e5;
-        //console2.log("maxGasLimit", maxGasLimit);
-        //console2.log("meeNodePremium", meeNodePremium);
 
         userOp.paymasterAndData = makePMAndDataForMeeEP(pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, meeNodePremium);
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
@@ -56,8 +54,6 @@ contract MEEEntryPointTest is BaseTest {
         // MEE should always charge user taking the premium in the account, otherwise MEE EP can be losing money.
         uint256 maxGasCost = maxGasLimit * unpackMaxFeePerGasMemory(userOp);
         uint256 maxGasCostWithPremium = maxGasCost * (PREMIUM_CALCULATION_BASE + meeNodePremium) / PREMIUM_CALCULATION_BASE;
-        //console2.log("maxGasCost", maxGasCost);
-        //console2.log("maxGasCost with Premium", maxGasCostWithPremium);
         
         // MEE_NODE should always send at least maxGasCost + maxGasCostWithPremium to MEE_EP as MEE_EP has to have extra deposit at EP
         // at the time of _postOp to send refund to the userOp.sender. 
