@@ -41,9 +41,31 @@ contract MEEEntryPoint is BasePaymaster {
         if (msg.value == 0) {
             revert EmptyMessageValue();
         }
+
+        // TODO: check msg.value is >= maxGasCost + maxGasCostWithPremium for all the ops
+        // we can not do this in the validatePaymasterUserOp as the msg.value is joint for all the ops
+        // and MEE EP deposit also includes the pre deposited funds
+
+        // otherwise MEE_EP can use its own deposit from SPM mode
+        // also we do not want to revert is postOp (while idoing refund to the userOp.sender) after validating the userOp
+
         entryPoint.depositTo{value: msg.value}(address(this));
         entryPoint.handleOps(ops, payable(msg.sender));
         entryPoint.withdrawTo(payable(msg.sender), entryPoint.getDepositInfo(address(this)).deposit);
+    }
+
+    function handleOpsPreDeposited(PackedUserOperation[] calldata ops) public payable {
+        // node has an option to increase the deposit with the same call
+        // the unused deposit will NOT be refunded after the call
+        if (msg.value != 0) {
+            //add deposit and increase stake for a given node
+            _depositFor(msg.sender);
+        }
+
+        // do predeposited stuff
+        // set the 'predeposited' flag in tstore?
+        // do not need to check msg,sender balance is big enough as we will do this for every op in validatePaymasterUserOp
+
     }
 
     /**
@@ -104,7 +126,12 @@ contract MEEEntryPoint is BasePaymaster {
         virtual
         override
         returns (bytes memory context, uint256 validationData)
-    {
+    {   
+
+        // TODO: for predeposited mode: check mee node balance is big enough to account for prefund and refund to the userOp.sender for this given op
+
+
+        // TODO : rebuild this so the maxGasCost is calculated on-chain and encoded into the context
         context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
         validationData = 0;
     }
@@ -136,6 +163,10 @@ contract MEEEntryPoint is BasePaymaster {
         if (refund > 0) {
             entryPoint.withdrawTo(payable(sender), refund);
         }
+
+        // TODO:
+        // reduce node balance
+        // send the premium to the node
     }
 
     /**
@@ -157,6 +188,7 @@ contract MEEEntryPoint is BasePaymaster {
         //account for postOpGas
         actualGasUsed = actualGasUsed + postOpGas;
 
+        // TODO: do not accept it from outside, calculate it on-chain as the MEE node can manipulate it
         uint256 maxGasLimit = pmData.unpackHigh128();
         uint256 nodeOperatorPremium = pmData.unpackLow128();
 
@@ -187,4 +219,16 @@ contract MEEEntryPoint is BasePaymaster {
     function setPostOpGas(uint256 newPostOpGas) external onlyOwner {
         postOpGas = newPostOpGas;
     } 
+
+    function depositFor(address nodeId) external payable nonReentrant {
+        if (nodeId == address(0)) revert NodeIdCanNotBeZero();
+        if (msg.value == 0) revert DepositCanNotBeZero();
+        _depositFor(nodeId);
+    }
+
+    function _depositFor(address nodeId) internal {
+        if (nodeBalances[nodeId] + msg.value < minDeposit) revert LowDeposit();
+        nodeBalances[nodeId] += msg.value;
+        entryPoint.depositTo{ value: msg.value }(address(this));
+        emit NodeDeposited(nodeId, msg.value);
 }
