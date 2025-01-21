@@ -15,7 +15,7 @@ contract MEEEntryPointTest is BaseTest {
 
     Vm.Wallet wallet;
     MockAccount mockAccount;
-    uint256 constant PREMIUM_CALCULATION_BASE = 100_00000;
+    uint256 constant PREMIUM_CALCULATION_BASE = 100e5;
     uint256 valueToSet;
 
     function setUp() public virtual override {
@@ -198,6 +198,15 @@ contract MEEEntryPointTest is BaseTest {
         // assert that the userOp was not executed
         assertEq(mockTarget.value(), 0);
     }
+
+    function test_premium_suppots_fractions(uint256 meeNodePremium) public {
+        meeNodePremium = bound(meeNodePremium, 1, 200e5);
+        (, uint256 valueToSendByMeeNode) = test_handleOps_success();
+        uint256 approxGasCost = valueToSendByMeeNode / 2;
+        uint256 approxGasCostWithPremium = approxGasCost * (PREMIUM_CALCULATION_BASE + meeNodePremium) / PREMIUM_CALCULATION_BASE;
+        assertGt(approxGasCostWithPremium, approxGasCost, "premium should support fractions of %");
+    }
+
 
     function assertFinancialStuffStrict(
         Vm.Log[] memory entries,
