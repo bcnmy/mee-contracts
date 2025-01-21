@@ -52,14 +52,17 @@ contract BaseTest is Test {
     function buildUserOpWithCalldata(
         address account,
         bytes memory callData,
-        Vm.Wallet memory wallet
+        Vm.Wallet memory wallet,
+        uint256 preVerificationGasLimit,
+        uint128 verificationGasLimit,
+        uint128 callGasLimit
     )
         internal
         view
         returns (PackedUserOperation memory userOp)
     {
         uint256 nonce = ENTRYPOINT.getNonce(account, 0);
-        userOp = buildPackedUserOp(account, nonce);
+        userOp = buildPackedUserOp(account, nonce, verificationGasLimit, callGasLimit, preVerificationGasLimit);
         userOp.callData = callData;
 
         bytes memory signature = signUserOp(wallet, userOp);
@@ -70,14 +73,20 @@ contract BaseTest is Test {
     /// @param sender The sender address
     /// @param nonce The nonce
     /// @return userOp The built user operation
-    function buildPackedUserOp(address sender, uint256 nonce) internal pure returns (PackedUserOperation memory) {
+    function buildPackedUserOp(
+        address sender, 
+        uint256 nonce,
+        uint128 verificationGasLimit,
+        uint128 callGasLimit,
+        uint256 preVerificationGasLimit
+    ) internal pure returns (PackedUserOperation memory) {
         return PackedUserOperation({
             sender: sender,
             nonce: nonce,
             initCode: "",
             callData: "",
-            accountGasLimits: bytes32(abi.encodePacked(uint128(40e3), uint128(3e6))), // verification and call gas limit
-            preVerificationGas: 3e5, // Adjusted preVerificationGas
+            accountGasLimits: bytes32(abi.encodePacked(verificationGasLimit, callGasLimit)), // verification and call gas limit
+            preVerificationGas: preVerificationGasLimit, // Adjusted preVerificationGas
             gasFees: bytes32(abi.encodePacked(uint128(11e9), uint128(1e9))), // maxFeePerGas = 11gwei and maxPriorityFeePerGas = 1gwei
             paymasterAndData: "",
             signature: ""
@@ -121,6 +130,18 @@ contract BaseTest is Test {
     function unpackCallGasLimitMemory(PackedUserOperation memory userOp)
     internal pure returns (uint256) {
         return UserOperationLib.unpackLow128(userOp.accountGasLimits);
+    }
+
+    function makePMAndDataForMeeEP(uint128 pmValidationGasLimit, uint128 pmPostOpGasLimit, uint256 maxGasLimit, uint256 meeNodePremium) internal view returns (bytes memory) {
+        return abi.encodePacked(
+            address(MEE_ENTRYPOINT), 
+            pmValidationGasLimit, // pm validation gas limit
+            pmPostOpGasLimit, // pm post-op gas limit
+            abi.encode(
+                maxGasLimit, // MEE Node maxGasLimit
+                meeNodePremium // MEE Node nodeOperatorPremium
+            )
+        );
     }
 }
 

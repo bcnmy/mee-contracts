@@ -14,7 +14,7 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
 
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
     // TODO: Measure this gas, and make it changeable
-    uint256 private constant POSTOP_GAS = 50_000;
+    uint256 private constant POSTOP_GAS = 15_000;
 
     // TODO: Do it changeable
     // Paymaster verification gas limit extra %
@@ -120,7 +120,7 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
         (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, uint256 nodeOperatorPremium) =
             abi.decode(context, (address, uint256, uint256, uint256));   
 
-        uint256 refund = calculateRefund(maxGasLimit, maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, nodeOperatorPremium);
+        uint256 refund = _calculateRefund(maxGasLimit, maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, nodeOperatorPremium);
         //console2.log("refund in MEEEntryPoint _postOp", refund);
         if (refund > 0) {
             entryPoint.withdrawTo(payable(sender), refund);
@@ -128,13 +128,13 @@ contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
         // TODO: emit event with the refund amount
     }
 
-    function calculateRefund(
+    function _calculateRefund(
         uint256 maxGasLimit,
         uint256 maxFeePerGas,
         uint256 actualGasUsed,
         uint256 actualUserOpFeePerGas,
         uint256 nodeOperatorPremium
-    ) public pure returns (uint256 refund) {
+    ) internal pure returns (uint256 refund) {
 
         //account for postOpGas
         actualGasUsed = actualGasUsed + POSTOP_GAS;
