@@ -105,14 +105,6 @@ contract MEEEntryPoint is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {
-        // This check is not needed because:
-        // 1. EntryPoint already checks that the deposit is enough https://github.com/eth-infinitism/account-abstraction/blob/7af70c8993a6f42973f520ae0752386a5032abe7/contracts/core/EntryPoint.sol#L532
-        // 2. It in fact never works properly because EP deducts deposit before calling validatePaymasterUserOp https://github.com/eth-infinitism/account-abstraction/blob/7af70c8993a6f42973f520ae0752386a5032abe7/contracts/core/EntryPoint.sol#L535 
-        /*
-        if (entryPoint.getDepositInfo(address(this)).deposit < maxCost) {
-            revert InsufficientBalance();
-        }
-        */
         context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
         validationData = 0;
     }
