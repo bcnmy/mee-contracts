@@ -6,6 +6,12 @@ import "account-abstraction/core/Helpers.sol";
 import "account-abstraction/interfaces/IEntryPoint.sol";
 import "account-abstraction/interfaces/IEntryPointSimulations.sol";
 
+struct WithdrawalRequest {
+    uint256 amount;
+    address to;
+    uint256 requestSubmittedTimestamp;
+}
+
 /**
  * @title MEEEntryPoint
  * @notice A simple wrapper around the OG EntryPoint required for MEE.
@@ -18,10 +24,22 @@ contract MEEEntryPoint is BasePaymaster {
 
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
     uint256 private postOpGas = 17_000;
+    
+    // TODO: make this configurable
+    uint256 private minDeposit = 0.001 ether;
 
+    error InsufficientBalance(address nodeId, uint256 requiredBalance);
+    error NodeIdCanNotBeZero();
+    error DepositCanNotBeZero();
+    error LowDeposit();
     error EmptyMessageValue();
-    error InsufficientBalance();
-    error PaymasterVerificationGasLimitTooHigh();
+
+    event NodeDeposited(address indexed nodeId, uint256 indexed amount);
+    event OpProcessed(address indexed nodeId, bytes32 indexed opHash, uint256 gasCostCharged, uint256 premiumEarned);
+
+    mapping(address => uint256) public nodeBalances;
+    mapping(address => bool) internal _trustedNodes;
+    mapping(address nodeId => WithdrawalRequest request) internal _requests;
 
     constructor(IEntryPoint _entryPoint) payable BasePaymaster(_entryPoint) {}
 
@@ -37,36 +55,41 @@ contract MEEEntryPoint is BasePaymaster {
      * This deposit at the point of withdrawal includes the MEE_NODE's premium
      * @param ops the userOps to handle
      */
-    function handleOps(PackedUserOperation[] calldata ops) public payable {
+/*     function handleOps(PackedUserOperation[] calldata ops) public payable {
         if (msg.value == 0) {
             revert EmptyMessageValue();
         }
 
-        // TODO: check msg.value is >= maxGasCost + maxGasCostWithPremium for all the ops
+        // Check msg.value is >= maxGasCost + maxGasCostWithPremium for all the ops
         // we can not do this in the validatePaymasterUserOp as the msg.value is joint for all the ops
         // and MEE EP deposit also includes the pre deposited funds
-
-        // otherwise MEE_EP can use its own deposit from SPM mode
+        // otherwise MEE_EP can unintentionally use its own deposit from SPM mode
         // also we do not want to revert is postOp (while idoing refund to the userOp.sender) after validating the userOp
+        uint256 maxGasCostForAllOps = _getMaxGasCost(ops);
+        require(msg.value >= maxGasCostForAllOps + _applyPremium(maxGasCostForAllOps), MessageValueTooLow());
 
         entryPoint.depositTo{value: msg.value}(address(this));
         entryPoint.handleOps(ops, payable(msg.sender));
         entryPoint.withdrawTo(payable(msg.sender), entryPoint.getDepositInfo(address(this)).deposit);
-    }
+    } */
 
-    function handleOpsPreDeposited(PackedUserOperation[] calldata ops) public payable {
+    function handleOps(PackedUserOperation[] calldata ops) public payable { 
         // node has an option to increase the deposit with the same call
         // the unused deposit will NOT be refunded after the call
         if (msg.value != 0) {
-            //add deposit and increase stake for a given node
+            //deposit to the OG EP and increase balance for a given node
             _depositFor(msg.sender);
         }
-
-        // do predeposited stuff
-        // set the 'predeposited' flag in tstore?
-        // do not need to check msg,sender balance is big enough as we will do this for every op in validatePaymasterUserOp
-
+        entryPoint.handleOps(ops, payable(msg.sender));
     }
+
+    function handleOpsWithRefund(PackedUserOperation[] calldata ops) public payable {
+        handleOps(ops);
+        nodeBalances[msg.sender] = 0;
+        entryPoint.withdrawTo(payable(msg.sender), nodeBalances[msg.sender]);
+    }
+
+    // TODO: SHOULD rebuild simulation functions to use balance, not the value sent from the node?
 
     /**
      * @dev simulate the handleOp execution
@@ -127,12 +150,23 @@ contract MEEEntryPoint is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {   
+        // at this point, maxGasCost is already locked by the OG EP as the prefund.
+        // we now have to make sure that the node has enough balance to cover the refund to the userOp.sender for this given op
+        // which can be up to maxGasCostWithPremium
+        uint256 maxGasCost = _getMaxGasCost(userOp);
+        uint256 nodeOperatorPremiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
+        uint256 requiredBalance = maxGasCost + _applyPremium(maxGasCost, nodeOperatorPremiumPercentage);
+        require(nodeBalances[tx.origin] >= requiredBalance, InsufficientBalance(tx.origin, requiredBalance)); //for verbosity
+        nodeBalances[tx.origin] -= requiredBalance;
 
-        // TODO: for predeposited mode: check mee node balance is big enough to account for prefund and refund to the userOp.sender for this given op
-
-
-        // TODO : rebuild this so the maxGasCost is calculated on-chain and encoded into the context
-        context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
+        context = abi.encode(
+            userOp.sender,
+            userOp.unpackMaxFeePerGas(),
+            _getMaxGasLimit(userOp),
+            nodeOperatorPremiumPercentage,
+            requiredBalance,
+            userOpHash
+        );
         validationData = 0;
     }
 
@@ -156,60 +190,80 @@ contract MEEEntryPoint is BasePaymaster {
         if (mode == PostOpMode.postOpReverted) {
             return;
         }
-        (address sender, uint256 maxFeePerGas, bytes32 pmData) =
-            abi.decode(context, (address, uint256, bytes32));
+        (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, uint256 nodeOperatorPremiumPercentage, uint256 charged, bytes32 userOpHash) =
+            abi.decode(context, (address, uint256, uint256, uint256, uint256, bytes32));
 
-        uint256 refund = _calculateRefund(maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, pmData);
-        if (refund > 0) {
-            entryPoint.withdrawTo(payable(sender), refund);
+        // Refund the userOp.sender
+        (uint256 opSenderRefund, uint256 actualGasUsed) = _calculateRefund(
+            {
+                maxGasLimit: maxGasLimit, 
+                maxFeePerGas: maxFeePerGas, 
+                actualGasUsed: actualGasCost/actualUserOpFeePerGas, 
+                actualUserOpFeePerGas: actualUserOpFeePerGas, 
+                nodeOperatorPremiumPercentage: nodeOperatorPremiumPercentage
+            }
+        );
+        if (opSenderRefund > 0) {
+            entryPoint.withdrawTo(payable(sender), opSenderRefund);
         }
 
-        // TODO:
-        // reduce node balance
-        // send the premium to the node
+        // update actualGasCost accounting for postOp and penalty
+        actualGasCost = actualGasUsed * actualUserOpFeePerGas;
+        
+        // Refund node balance
+        // Spends:
+        // - actualGasCost is gas that was used by userOp. It is deducted from MEE_EP deposit by OG EP and refunded to the mee node by OG EP
+        //   This amount is slightly higher that the actual gas used by the userOp (see _calculateRefund for details)
+        //   That means MEE EP slightly overcharges the MEE_NODE, MEE_NODE should account for that when setting up the premium
+        //   To make this overcharge as low as possible, MEE_NODE should set the verificationGasLimit and pmVerificationGasLimit as tight as possible
+        // - opSenderRefund is also sent from the MEE_EP's deposit at OG EP
+        nodeBalances[tx.origin] += charged - actualGasCost - opSenderRefund;
+        emit OpProcessed(tx.origin, userOpHash, actualGasCost, _getPremium(actualGasCost, nodeOperatorPremiumPercentage));
     }
 
     /**
      * @dev calculate the refund that will be sent to the userOp.sender
      * It is required as userOp.sender has paid the maxCostWithPremium, but the actual cost was lower
+     * @param maxGasLimit the max gas limit
      * @param maxFeePerGas the max fee per gas
      * @param actualGasUsed the actual gas used
      * @param actualUserOpFeePerGas the actual userOp fee per gas
-     * @param pmData the pm data : maxGasLimit and nodeOperatorPremium encoded as a single bytes32
+     * @param nodeOperatorPremiumPercentage the node operator premium percentage
      * @return refund the refund amount
      */
     function _calculateRefund(
+        uint256 maxGasLimit,
         uint256 maxFeePerGas,
         uint256 actualGasUsed,
         uint256 actualUserOpFeePerGas,
-        bytes32 pmData
-    ) internal view returns (uint256 refund) {
+        uint256 nodeOperatorPremiumPercentage
+    ) internal view returns (uint256, uint256) {
 
-        //account for postOpGas
+        // account for postOpGas. postOpGas is overestimated as we do not know the actual gas used by postOp in OG EP
         actualGasUsed = actualGasUsed + postOpGas;
-
-        // TODO: do not accept it from outside, calculate it on-chain as the MEE node can manipulate it
-        uint256 maxGasLimit = pmData.unpackHigh128();
-        uint256 nodeOperatorPremium = pmData.unpackLow128();
 
         // Add penalty
         // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
-        // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
+        // If they are not tight, we overcharge userOp.sender, as verification part of maxGasLimit is > verification part of actualGasUsed =>
+        // => penalty is higher than actual penalty => actualGasUsed is overestimated and refund is smaller.
+        // This will be fixed when OG EP sends the actual penalty to the PM.
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
         actualGasUsed += (maxGasLimit - actualGasUsed)/10;
         
         // account for MEE Node premium
-        uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium)) / PREMIUM_CALCULATION_BASE;
+        uint256 actualCostWithPremium = _applyPremium(actualGasUsed * actualUserOpFeePerGas, nodeOperatorPremiumPercentage);
 
         // as MEE_NODE charges user with the premium
-        uint256 maxCostWithPremium = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium) / PREMIUM_CALCULATION_BASE;
+        uint256 maxCostWithPremium = _applyPremium(maxGasLimit * maxFeePerGas, nodeOperatorPremiumPercentage);
 
         // We do not check for the case, when costWithPremium > maxCost
         // maxCost charged by the MEE Node should include the premium
         // if this is done, costWithPremium can never be > maxCost
-        if (costWithPremium < maxCostWithPremium) {
-            refund = maxCostWithPremium - costWithPremium;
+        uint256 refund;
+        if (actualCostWithPremium < maxCostWithPremium) {
+            refund = maxCostWithPremium - actualCostWithPremium;
         }
+        return (refund, actualGasUsed);
     }
 
     /**
@@ -220,7 +274,7 @@ contract MEEEntryPoint is BasePaymaster {
         postOpGas = newPostOpGas;
     } 
 
-    function depositFor(address nodeId) external payable nonReentrant {
+    function depositFor(address nodeId) external payable {
         if (nodeId == address(0)) revert NodeIdCanNotBeZero();
         if (msg.value == 0) revert DepositCanNotBeZero();
         _depositFor(nodeId);
@@ -231,4 +285,32 @@ contract MEEEntryPoint is BasePaymaster {
         nodeBalances[nodeId] += msg.value;
         entryPoint.depositTo{ value: msg.value }(address(this));
         emit NodeDeposited(nodeId, msg.value);
+    }
+
+    function _getMaxGasCost(PackedUserOperation[] calldata ops) internal view returns (uint256 maxGasCost) {
+        uint256 length = ops.length;
+        for (uint256 i = 0; i < length; i++) {
+            maxGasCost += _getMaxGasCost(ops[i]);
+        }
+    }
+
+    function _getMaxGasCost(PackedUserOperation calldata op) internal view returns (uint256) {
+        return _getMaxGasLimit(op) * op.unpackMaxFeePerGas();
+    }
+
+    function _getMaxGasLimit(PackedUserOperation calldata op) internal view returns (uint256) {
+        return op.preVerificationGas + op.unpackVerificationGasLimit() + op.unpackCallGasLimit() + op.unpackPaymasterVerificationGasLimit() + op.unpackPostOpGasLimit();
+    }
+
+    function _applyPremium(uint256 cost, uint256 nodeOperatorPremiumPercentage) internal view returns (uint256 costWithPremium) {
+        return cost * (PREMIUM_CALCULATION_BASE + nodeOperatorPremiumPercentage) / PREMIUM_CALCULATION_BASE;
+    }
+
+    function _getPremium(uint256 cost, uint256 nodeOperatorPremiumPercentage) internal view returns (uint256 premium) {
+        return _applyPremium(cost, nodeOperatorPremiumPercentage) - cost;
+    }
+
+    // TODO : use custom base contract
+    // so deposit() can not be used
+    // how do we withdraw the leftovers only, never nodes' balances?
 }
