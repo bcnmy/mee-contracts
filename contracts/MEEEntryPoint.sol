@@ -17,7 +17,7 @@ contract MEEEntryPoint is BasePaymaster {
     using UserOperationLib for bytes32;
 
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
-    uint256 private postOpGas = 17_000;
+    uint256 private postOpGas = 21_000;
 
     error EmptyMessageValue();
     error InsufficientBalance();
@@ -105,7 +105,8 @@ contract MEEEntryPoint is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {
-        context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
+        uint256 nodeOperatorPremiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
+        context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), _getMaxGasLimit(userOp), nodeOperatorPremiumPercentage);
         validationData = 0;
     }
 
@@ -129,10 +130,10 @@ contract MEEEntryPoint is BasePaymaster {
         if (mode == PostOpMode.postOpReverted) {
             return;
         }
-        (address sender, uint256 maxFeePerGas, bytes32 pmData) =
-            abi.decode(context, (address, uint256, bytes32));
+        (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, uint256 nodeOperatorPremiumPercentage) =
+            abi.decode(context, (address, uint256, uint256, uint256));
 
-        uint256 refund = _calculateRefund(maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, pmData);
+        uint256 refund = _calculateRefund(maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, maxGasLimit, nodeOperatorPremiumPercentage);
         if (refund > 0) {
             entryPoint.withdrawTo(payable(sender), refund);
         }
@@ -144,21 +145,20 @@ contract MEEEntryPoint is BasePaymaster {
      * @param maxFeePerGas the max fee per gas
      * @param actualGasUsed the actual gas used
      * @param actualUserOpFeePerGas the actual userOp fee per gas
-     * @param pmData the pm data : maxGasLimit and nodeOperatorPremium encoded as a single bytes32
+     * @param maxGasLimit the max gas limit
+     * @param nodeOperatorPremiumPercentage the nodeOperatorPremiumPercentage
      * @return refund the refund amount
      */
     function _calculateRefund(
         uint256 maxFeePerGas,
         uint256 actualGasUsed,
         uint256 actualUserOpFeePerGas,
-        bytes32 pmData
+        uint256 maxGasLimit,
+        uint256 nodeOperatorPremiumPercentage
     ) internal view returns (uint256 refund) {
 
         //account for postOpGas
         actualGasUsed = actualGasUsed + postOpGas;
-
-        uint256 maxGasLimit = pmData.unpackHigh128();
-        uint256 nodeOperatorPremium = pmData.unpackLow128();
 
         // Add penalty
         // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
@@ -167,10 +167,10 @@ contract MEEEntryPoint is BasePaymaster {
         actualGasUsed += (maxGasLimit - actualGasUsed)/10;
         
         // account for MEE Node premium
-        uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium)) / PREMIUM_CALCULATION_BASE;
+        uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremiumPercentage)) / PREMIUM_CALCULATION_BASE;
 
         // as MEE_NODE charges user with the premium
-        uint256 maxCostWithPremium = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremium) / PREMIUM_CALCULATION_BASE;
+        uint256 maxCostWithPremium = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremiumPercentage) / PREMIUM_CALCULATION_BASE;
 
         // We do not check for the case, when costWithPremium > maxCost
         // maxCost charged by the MEE Node should include the premium
@@ -187,4 +187,12 @@ contract MEEEntryPoint is BasePaymaster {
     function setPostOpGas(uint256 newPostOpGas) external onlyOwner {
         postOpGas = newPostOpGas;
     } 
+
+    function _getMaxGasCost(PackedUserOperation calldata op) internal view returns (uint256) {
+        return _getMaxGasLimit(op) * op.unpackMaxFeePerGas();
+    }
+
+    function _getMaxGasLimit(PackedUserOperation calldata op) internal view returns (uint256) {
+        return op.preVerificationGas + op.unpackVerificationGasLimit() + op.unpackCallGasLimit() + op.unpackPaymasterVerificationGasLimit() + op.unpackPostOpGasLimit();
+    }
 }

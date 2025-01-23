@@ -41,7 +41,7 @@ contract MEEEntryPointTest is BaseTest {
             }
         );
 
-        uint128 pmValidationGasLimit = 5000;
+        uint128 pmValidationGasLimit = 10000;
         uint128 pmPostOpGasLimit = 3e6;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
         uint256 meeNodePremium = 17*1e5;
@@ -113,8 +113,8 @@ contract MEEEntryPointTest is BaseTest {
         verificationGasLimit = uint128(bound(verificationGasLimit, 40e3, 5e6));
         callGasLimit = uint128(bound(callGasLimit, 100e3, 5e6));
         meeNodePremium = bound(meeNodePremium, 0, 200e5);
-        pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 5e3, 5e6));
-        pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 20e3, 5e6));
+        pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 10e3, 5e6));
+        pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 25e3, 5e6));
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         valueToSet = MEE_NODE_HEX;
