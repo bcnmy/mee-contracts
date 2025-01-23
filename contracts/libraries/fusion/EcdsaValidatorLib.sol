@@ -65,7 +65,7 @@ library EcdsaValidatorLib {
         if (!MerkleProof.verify(proof, superTxHash, hash)) {
             return false;
         }
-        
+
         return true;
     }
 }
