@@ -177,6 +177,7 @@ library TxValidatorLib {
         uint256 pos = signedTx.length - 2 * TIMESTAMP_BYTE_SIZE - 1;
         for (proofItemsCount; proofItemsCount > 0; proofItemsCount--) {
             proof[proofItemsCount - 1] = bytes32(signedTx.slice(pos - PROOF_ITEM_BYTE_SIZE, PROOF_ITEM_BYTE_SIZE));
+            pos = pos - PROOF_ITEM_BYTE_SIZE;
         }
     }
 
