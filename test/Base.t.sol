@@ -29,7 +29,9 @@ contract BaseTest is Test {
     }
 
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
-        NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, meeNodeAddress);
+        NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        assertEq(NODE_PAYMASTER.meeNodeAddress(), MEE_NODE_ADDRESS, "NodePM bytecode should be fixed");
+
         vm.deal(address(NODE_PAYMASTER), 100 ether);
 
         vm.prank(address(NODE_PAYMASTER));

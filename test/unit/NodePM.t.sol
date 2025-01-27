@@ -9,6 +9,7 @@ import {MockAccount} from "../mock/MockAccount.sol";
 import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPointSimulations.sol";
 import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulations.sol";
 import {NodePaymaster} from "contracts/NodePaymaster.sol";
+import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 
 import "forge-std/console2.sol";
 
@@ -69,7 +70,7 @@ contract PMPerNodeTest is BaseTest {
 
     // fuzz tests with different gas values =>
     // check all the charges and refunds are handled properly
-    function test_handleOps_fuzz(
+    function test_pm_per_node_fuzz(
         uint256 preVerificationGasLimit, 
         uint128 verificationGasLimit, 
         uint128 callGasLimit,
@@ -140,6 +141,19 @@ contract PMPerNodeTest is BaseTest {
         
         assertTrue(meeNodeEarnings > 0, "MEE_NODE should have earned something");
         assertTrue(meeNodeEarnings >= expectedNodePremium, "MEE_NODE should have earned more or equal to expectedNodePremium");
+    }
+
+    function test_bytecode_is_fixed() public {
+        address otherNodeAddress = address(0xdeafbeef);
+        vm.prank(otherNodeAddress);
+        NodePaymaster nodePM = new NodePaymaster(ENTRYPOINT, otherNodeAddress);
+        bytes32 OG_NODEPM_CODEHASH;
+        bytes32 codeHash;
+        assembly {
+            OG_NODEPM_CODEHASH := extcodehash(sload(NODE_PAYMASTER.slot))
+            codeHash := extcodehash(nodePM)
+        }
+        assertEq(codeHash, OG_NODEPM_CODEHASH, "NodePM bytecode should be fixed");
     }
 
     function assertFinancialStuffStrict(

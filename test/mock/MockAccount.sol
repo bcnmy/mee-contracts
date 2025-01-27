@@ -4,6 +4,8 @@ pragma solidity ^0.8.23;
 import {IAccount} from "account-abstraction/interfaces/IAccount.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
 
+import {console2} from "forge-std/console2.sol";
+
 contract MockAccount is IAccount {
 
     event MockAccountValidateUserOp(PackedUserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds);
@@ -12,23 +14,17 @@ contract MockAccount is IAccount {
 
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds) external returns (uint256 vd) {
         emit MockAccountValidateUserOp(userOp, userOpHash, missingAccountFunds);
-        
-        
-/*       
-        // this approach requires making node premium non immutable to ensure same bytecode for all pm's 
-        // not dependent on the node premium size
+               
         address pm = address(uint160(bytes20(userOp.paymasterAndData[0:20])));
-         assembly {
-            if eq(extcodehash(pm), 0x01) {
+        bytes32 pmCodeHash;
+        assembly {
+            pmCodeHash := extcodehash(pm)
+            if iszero(eq(pmCodeHash, 0x18b7b0306c9360afe7da0c2dfbf330a236ebcbe58270f37958dac5e907dee670)) {
                 vd := 0x01 // validation failed
             }
-            // otherwise vd is 0x00 (validation passed)
-        } */
-
-
-        // another way
-
-        // vd = 0x00 (validation passed)
+        }
+        // else vd remains 0x00 (validation passed)
+        // console2.logBytes32(pmCodeHash);
     }
 
     function execute(address to, uint256 value, bytes calldata data) external returns (bool success, bytes memory result) {
