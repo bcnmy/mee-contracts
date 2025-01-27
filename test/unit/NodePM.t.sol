@@ -61,7 +61,8 @@ contract PMPerNodeTest is BaseTest {
 
         assertEq(mockTarget.value(), valueToSet);   
 
-        assertFinancialStuffStrict(entries, premiumPercentage, nodePMDepositBefore, maxGasLimit*unpackMaxFeePerGasMemory(userOp), 0.10e18); // 10% difference
+        // When verification gas limits are tight, the difference is really small
+        assertFinancialStuffStrict(entries, premiumPercentage, nodePMDepositBefore, maxGasLimit*unpackMaxFeePerGasMemory(userOp), 0.05e18); // 5% difference
 
         return (userOps);
     }
