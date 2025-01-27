@@ -25,7 +25,7 @@ contract NodePaymaster is BasePaymaster {
     error EmptyMessageValue();
     error InsufficientBalance();
     error PaymasterVerificationGasLimitTooHigh();
-
+    error Disabled();
     error OnlySponsorOwnStuff();
 
     constructor(
@@ -149,10 +149,10 @@ contract NodePaymaster is BasePaymaster {
     }
 
     function renounceOwnership() public override onlyOwner {
-        revert(); // no renouncing ownership
+        revert Disabled(); // no renouncing ownership
     }
 
     function transferOwnership(address newOwner) public override onlyOwner {
-        revert(); // no transferring ownership
+        revert Disabled(); // no transferring ownership
     }
 }

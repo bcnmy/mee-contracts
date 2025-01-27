@@ -19,12 +19,12 @@ contract MockAccount is IAccount {
         bytes32 pmCodeHash;
         assembly {
             pmCodeHash := extcodehash(pm)
-            if iszero(eq(pmCodeHash, 0x18b7b0306c9360afe7da0c2dfbf330a236ebcbe58270f37958dac5e907dee670)) {
+            if iszero(eq(pmCodeHash, 0x2c9740fb1b5995a966b700aafdc1da8297f2f60a2f12ce6aeb77d9856e532be1)) {
                 vd := 0x01 // validation failed
             }
         }
         // else vd remains 0x00 (validation passed)
-        // console2.logBytes32(pmCodeHash);
+       // console2.logBytes32(pmCodeHash);
     }
 
     function execute(address to, uint256 value, bytes calldata data) external returns (bool success, bytes memory result) {

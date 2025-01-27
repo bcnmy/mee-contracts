@@ -173,6 +173,20 @@ contract PMPerNodeTest is BaseTest {
         assertEq(receiver.balance, 1 ether, "Balance should not be changed");
     }
 
+    function test_renounce_ownership_disabled() public {
+        vm.prank(MEE_NODE_ADDRESS);
+        vm.expectRevert(abi.encodeWithSignature("Disabled()"));
+        NODE_PAYMASTER.renounceOwnership();
+    }
+
+    function test_transfer_ownership_disabled() public {
+        vm.prank(MEE_NODE_ADDRESS);
+        vm.expectRevert(abi.encodeWithSignature("Disabled()"));
+        NODE_PAYMASTER.transferOwnership(address(0xdeadbeef));
+    }
+
+    // ============ HELPERS ==============
+
     function assertFinancialStuffStrict(
         Vm.Log[] memory entries,
         uint256 meeNodePremium,
