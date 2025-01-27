@@ -67,6 +67,57 @@ contract PMPerNodeTest is BaseTest {
         return (userOps);
     }
 
+    // fuzz tests with different gas values =>
+    // check all the charges and refunds are handled properly
+    function test_handleOps_fuzz(
+        uint256 preVerificationGasLimit, 
+        uint128 verificationGasLimit, 
+        uint128 callGasLimit,
+        uint256 premiumPercentage,
+        uint128 pmValidationGasLimit,
+        uint128 pmPostOpGasLimit
+    ) public {
+        preVerificationGasLimit = bound(preVerificationGasLimit, 1e5, 5e6);
+        verificationGasLimit = uint128(bound(verificationGasLimit, 45e3, 5e6));
+        callGasLimit = uint128(bound(callGasLimit, 100e3, 5e6));
+        premiumPercentage = bound(premiumPercentage, 0, 200e5);
+        pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 20e3, 5e6));
+        pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 40e3, 5e6));
+
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
+        valueToSet = MEE_NODE_HEX;
+
+        bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
+        bytes memory callData = abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData);
+        PackedUserOperation memory userOp = buildUserOpWithCalldata(
+            {
+                account: address(mockAccount), 
+                callData: callData, 
+                wallet: wallet, 
+                preVerificationGasLimit: preVerificationGasLimit, 
+                verificationGasLimit: verificationGasLimit, 
+                callGasLimit: callGasLimit
+            }
+        );
+
+        uint256 maxGasLimit = preVerificationGasLimit + verificationGasLimit + callGasLimit + pmValidationGasLimit + pmPostOpGasLimit;
+        
+        userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
+        userOps[0] = userOp;
+
+        uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
+        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.recordLogs();
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+
+        assertEq(mockTarget.value(), valueToSet); 
+
+        // now assert financial stuff 
+        assertFinancialStuff(entries, premiumPercentage, nodePMDepositBefore, maxGasLimit*unpackMaxFeePerGasMemory(userOp));
+    }
+
     function assertFinancialStuff(
         Vm.Log[] memory entries,
         uint256 meeNodePremium,
@@ -89,9 +140,6 @@ contract PMPerNodeTest is BaseTest {
         
         assertTrue(meeNodeEarnings > 0, "MEE_NODE should have earned something");
         assertTrue(meeNodeEarnings >= expectedNodePremium, "MEE_NODE should have earned more or equal to expectedNodePremium");
-        console2.log("meeNodeEarnings", meeNodeEarnings);
-        console2.log("expectedPremium", expectedNodePremium);
-
     }
 
     function assertFinancialStuffStrict(
