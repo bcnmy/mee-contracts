@@ -13,18 +13,13 @@ import "account-abstraction/interfaces/IEntryPointSimulations.sol";
  * @dev Should be deployed via Factory only.
  */
 
- struct PMConfig {
-    address meeNodeAddress;
-    uint96 nodeOperatorPremiumPercentage;
- }
-
 contract NodePaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
 
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
-    PMConfig public pmConfig;
-    uint256 private postOpGas = 50_000;
+    uint256 private constant POST_OP_GAS = 50_000;
+    address public meeNodeAddress;
     mapping(bytes32 => bool) private executedUserOps;
 
     error EmptyMessageValue();
@@ -33,19 +28,11 @@ contract NodePaymaster is BasePaymaster {
 
     error OnlySponsorOwnStuff();
 
-    // TODO: fix argument for ownable as it is msg.sender now while need to be meeNodeAddress
-
-    // TODO: fix Base Paymaster in terms of exposed methods, does this one work or we need custom BasePaymaster?
-
     constructor(
         IEntryPoint _entryPoint,
-        address _meeNodeAddress,
-        uint96 _nodeOperatorPremiumPercentage
+        address _meeNodeAddress
     ) payable BasePaymaster(_entryPoint) {
-        pmConfig = PMConfig({
-            meeNodeAddress: _meeNodeAddress,
-            nodeOperatorPremiumPercentage: _nodeOperatorPremiumPercentage
-        });
+        meeNodeAddress = _meeNodeAddress;
     }
 
     /**
@@ -63,11 +50,9 @@ contract NodePaymaster is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {   
-        PMConfig memory pmConfig = pmConfig;
-        require(tx.origin == pmConfig.meeNodeAddress, OnlySponsorOwnStuff());
-        
-        context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), _getMaxGasLimit(userOp), pmConfig.nodeOperatorPremiumPercentage, userOpHash);
-        validationData = 0;
+        require(tx.origin == meeNodeAddress, OnlySponsorOwnStuff());
+        uint256 premiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
+        context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), _getMaxGasLimit(userOp), userOpHash, premiumPercentage);
     }
 
     /**
@@ -90,8 +75,8 @@ contract NodePaymaster is BasePaymaster {
         if (mode == PostOpMode.postOpReverted) {
             return;
         }
-        (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, uint96 premiumPercentage, bytes32 userOpHash) =
-            abi.decode(context, (address, uint256, uint256, uint96, bytes32));
+        (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, bytes32 userOpHash, uint256 premiumPercentage) =
+            abi.decode(context, (address, uint256, uint256, bytes32, uint256));
 
         executedUserOps[userOpHash] = true;
 
@@ -115,11 +100,11 @@ contract NodePaymaster is BasePaymaster {
         uint256 actualGasUsed,
         uint256 actualUserOpFeePerGas,
         uint256 maxGasLimit,
-        uint96 premiumPercentage
+        uint256 premiumPercentage
     ) internal view returns (uint256 refund) {
 
         //account for postOpGas
-        actualGasUsed = actualGasUsed + postOpGas;
+        actualGasUsed = actualGasUsed + POST_OP_GAS;  
 
         // Add penalty
         // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
@@ -127,7 +112,8 @@ contract NodePaymaster is BasePaymaster {
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
         actualGasUsed += (maxGasLimit - actualGasUsed)/10;
 
-        //uint256 premiumPercentageMemory = NODE_OPERATOR_PREMIUM_PERCENTAGE; 
+        // cache premiumPercentage
+        //uint96 premiumPercentage = pmConfig.meeNodePremiumPercentage;
         
         // account for MEE Node premium
         uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)) / PREMIUM_CALCULATION_BASE;
@@ -143,19 +129,30 @@ contract NodePaymaster is BasePaymaster {
         }
     }
 
-    /**
-     * @dev set the gas cost for the post op executions
-     * @param newPostOpGas the new gas cost
-     */
-    function setPostOpGas(uint256 newPostOpGas) external onlyOwner {
-        postOpGas = newPostOpGas;
-    } 
-
     function _getMaxGasCost(PackedUserOperation calldata op) internal view returns (uint256) {
         return _getMaxGasLimit(op) * op.unpackMaxFeePerGas();
     }
 
     function _getMaxGasLimit(PackedUserOperation calldata op) internal view returns (uint256) {
         return op.preVerificationGas + op.unpackVerificationGasLimit() + op.unpackCallGasLimit() + op.unpackPaymasterVerificationGasLimit() + op.unpackPostOpGasLimit();
+    }
+
+    // Doing this block instead of putting base paymaster into the repo.
+    // So we can use base pm from the already audited account-abstraction repo
+
+    // @dev override checkOwner to check if the sender is the MEENode
+    // owner() is still used to check the factory that has deployed the paymaster
+    function _checkOwner() internal virtual override view {
+        if (meeNodeAddress != _msgSender()) {
+            revert OwnableUnauthorizedAccount(_msgSender());
+        }
+    }
+
+    function renounceOwnership() public override onlyOwner {
+        revert(); // no renouncing ownership
+    }
+
+    function transferOwnership(address newOwner) public override onlyOwner {
+        revert(); // no transferring ownership
     }
 }

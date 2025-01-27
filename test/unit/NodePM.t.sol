@@ -8,7 +8,7 @@ import {MockTarget} from "../mock/MockTarget.sol";
 import {MockAccount} from "../mock/MockAccount.sol";
 import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPointSimulations.sol";
 import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulations.sol";
-import {PMPerNode} from "contracts/PMPerNode.sol";
+import {NodePaymaster} from "contracts/NodePaymaster.sol";
 
 import "forge-std/console2.sol";
 
@@ -21,17 +21,17 @@ contract PMPerNodeTest is BaseTest {
     uint256 constant PREMIUM_CALCULATION_BASE = 100e5;
     uint256 valueToSet;
 
-    PMPerNode pmPerNode;
+    NodePaymaster nodePaymaster;
 
     function setUp() public virtual override {
         super.setUp();
         mockAccount = deployMockAccount();
         wallet = createAndFundWallet("wallet", 1 ether);
-        pmPerNode = new PMPerNode(ENTRYPOINT, MEE_NODE_ADDRESS, 17e5);
-        vm.deal(address(pmPerNode), 100 ether);
+        nodePaymaster = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        vm.deal(address(nodePaymaster), 100 ether);
 
-        vm.prank(address(pmPerNode));
-        ENTRYPOINT.depositTo{value: 10 ether}(address(pmPerNode));
+        vm.prank(address(nodePaymaster));
+        ENTRYPOINT.depositTo{value: 10 ether}(address(nodePaymaster));
     }
 
     function test_pm_per_node() public returns (PackedUserOperation[] memory userOps) {
@@ -77,13 +77,19 @@ contract PMPerNodeTest is BaseTest {
 
         function makePMAndDataForOwnPM(uint128 pmValidationGasLimit, uint128 pmPostOpGasLimit, uint256 maxGasLimit) internal view returns (bytes memory) {
         return abi.encodePacked(
-            address(pmPerNode), 
+            address(nodePaymaster), 
             pmValidationGasLimit, // pm validation gas limit
-            pmPostOpGasLimit // pm post-op gas limit
+            pmPostOpGasLimit, // pm post-op gas limit
+            uint256(17_00000) // premium percentage
         );
     }
 //1_014_815
 //1_011_014
 //1_015_347
+
+
+// test bytecode is fixed
+
+// test mee node is owner, not the factory
     
 }
