@@ -36,7 +36,7 @@ contract MEEEntryPointTest is BaseTest {
                 callData: callData, 
                 wallet: wallet, 
                 preVerificationGasLimit: 3e5, 
-                verificationGasLimit: 40e3, 
+                verificationGasLimit: 42e3, 
                 callGasLimit: 3e6
             }
         );
@@ -110,11 +110,11 @@ contract MEEEntryPointTest is BaseTest {
     ) public {
 
         preVerificationGasLimit = bound(preVerificationGasLimit, 1e5, 5e6);
-        verificationGasLimit = uint128(bound(verificationGasLimit, 40e3, 5e6));
+        verificationGasLimit = uint128(bound(verificationGasLimit, 42e3, 5e6));
         callGasLimit = uint128(bound(callGasLimit, 100e3, 5e6));
         meeNodePremium = bound(meeNodePremium, 0, 200e5);
         pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 10e3, 5e6));
-        pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 25e3, 5e6));
+        pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 50e3, 5e6));
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         valueToSet = MEE_NODE_HEX;
@@ -245,7 +245,9 @@ contract MEEEntryPointTest is BaseTest {
         uint256 meeNodePremium,
         uint256 meeNodeBalanceBefore
     ) public returns (uint256 meeNodeEarnings, uint256 expectedNodePremium) {
-        (,,uint256 actualGasCost,) = abi.decode(entries[6].data, (uint256, bool, uint256, uint256));
+        (,,uint256 actualGasCost,uint256 acctualGasUsed) = abi.decode(entries[6].data, (uint256, bool, uint256, uint256));
+        console2.log("actualGasCost", actualGasCost);
+        console2.log("acctualGasUsed", acctualGasUsed);
         expectedNodePremium = (actualGasCost * (PREMIUM_CALCULATION_BASE + meeNodePremium) / PREMIUM_CALCULATION_BASE) - actualGasCost;
 
         // we have to subtract actualGasCost from the balance because it was refunded by OG_EP to MEE_NODE

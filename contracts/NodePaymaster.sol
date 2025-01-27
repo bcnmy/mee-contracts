@@ -6,93 +6,47 @@ import "account-abstraction/core/Helpers.sol";
 import "account-abstraction/interfaces/IEntryPoint.sol";
 import "account-abstraction/interfaces/IEntryPointSimulations.sol";
 
-import "forge-std/console2.sol";
-
 /**
- * @title MEEEntryPoint
- * @notice A simple wrapper around the OG EntryPoint required for MEE.
- * Acts as a paymaster as well to pay for userOp processing.
+ * @title Node Paymaster
+ * @notice A paymaster every MEE Node should deploy.
+ * It is used to sponsor userOps. Introduced for gas efficient MEE flow.
+ * @dev Should be deployed via Factory only.
  */
 
-contract MEEEntryPoint is BasePaymaster {
+ struct PMConfig {
+    address meeNodeAddress;
+    uint96 nodeOperatorPremiumPercentage;
+ }
+
+contract NodePaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
 
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
+    PMConfig public pmConfig;
     uint256 private postOpGas = 50_000;
-
-    mapping(address => mapping(bytes32 => bool)) private executedUserOps;
+    mapping(bytes32 => bool) private executedUserOps;
 
     error EmptyMessageValue();
     error InsufficientBalance();
     error PaymasterVerificationGasLimitTooHigh();
 
-    constructor(IEntryPoint _entryPoint) payable BasePaymaster(_entryPoint) {}
+    error OnlySponsorOwnStuff();
 
-    /**
-     * EntryPoint section
-     */
+    // TODO: fix argument for ownable as it is msg.sender now while need to be meeNodeAddress
 
-    /**
-     * @dev handle the userOps\
-     * @dev Accepts the value from the MEE_NODE and deposits it to the OG EntryPoint
-     * @dev Calls handleOps
-     * @dev Withdraws its own deposit from the OG EntryPoint to the msg.sender which is MEE_NODE
-     * This deposit at the point of withdrawal includes the MEE_NODE's premium
-     * @param ops the userOps to handle
-     */
-    function handleOps(PackedUserOperation[] calldata ops) public payable {
-        if (msg.value == 0) {
-            revert EmptyMessageValue();
-        }
-        entryPoint.depositTo{value: msg.value}(address(this));
-        entryPoint.handleOps(ops, payable(msg.sender));
-        entryPoint.withdrawTo(payable(msg.sender), entryPoint.getDepositInfo(address(this)).deposit);
+    // TODO: fix Base Paymaster in terms of exposed methods, does this one work or we need custom BasePaymaster?
+
+    constructor(
+        IEntryPoint _entryPoint,
+        address _meeNodeAddress,
+        uint96 _nodeOperatorPremiumPercentage
+    ) payable BasePaymaster(_entryPoint) {
+        pmConfig = PMConfig({
+            meeNodeAddress: _meeNodeAddress,
+            nodeOperatorPremiumPercentage: _nodeOperatorPremiumPercentage
+        });
     }
-
-    /**
-     * @dev simulate the handleOp execution
-     * @dev To be used with state overrides. Won't work in the wild as EP doesn't implement simulateHandleOp
-     * @param op the userOp to execute
-     * @param target the target address to call
-     * @param callData the call data
-     * @return executionResult the execution result
-     */
-    function simulateHandleOp(PackedUserOperation calldata op, address target, bytes calldata callData)
-        external
-        payable
-        returns (IEntryPointSimulations.ExecutionResult memory)
-    {
-        if (msg.value == 0) {
-            revert EmptyMessageValue();
-        }
-        IEntryPointSimulations entryPointWithSimulations = IEntryPointSimulations(address(entryPoint));
-        entryPointWithSimulations.depositTo{value: msg.value}(address(this));
-        return entryPointWithSimulations.simulateHandleOp(op, target, callData);
-    }
-
-    /**
-     * @dev simulate the validation of the userOp
-     * @dev To be used with state overrides. Won't work in the wild as EP doesn't implement simulateValidation
-     * @param op the userOp to validate
-     * @return validationResult the validation result
-     */
-    function simulateValidation(PackedUserOperation calldata op)
-        external
-        payable
-        returns (IEntryPointSimulations.ValidationResult memory)
-    {
-        if (msg.value == 0) {
-            revert EmptyMessageValue();
-        }
-        IEntryPointSimulations entryPointWithSimulations = IEntryPointSimulations(address(entryPoint));
-        entryPointWithSimulations.depositTo{value: msg.value}(address(this));
-        return entryPointWithSimulations.simulateValidation(op);
-    }
-
-    /**
-     * Paymaster section
-     */
 
     /**
      * @dev Accepts all userOps
@@ -108,9 +62,11 @@ contract MEEEntryPoint is BasePaymaster {
         virtual
         override
         returns (bytes memory context, uint256 validationData)
-    {
-        uint256 nodeOperatorPremiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
-        context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), _getMaxGasLimit(userOp), nodeOperatorPremiumPercentage, userOpHash);
+    {   
+        PMConfig memory pmConfig = pmConfig;
+        require(tx.origin == pmConfig.meeNodeAddress, OnlySponsorOwnStuff());
+        
+        context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), _getMaxGasLimit(userOp), pmConfig.nodeOperatorPremiumPercentage, userOpHash);
         validationData = 0;
     }
 
@@ -134,12 +90,12 @@ contract MEEEntryPoint is BasePaymaster {
         if (mode == PostOpMode.postOpReverted) {
             return;
         }
-        (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, uint256 nodeOperatorPremiumPercentage, bytes32 userOpHash) =
-            abi.decode(context, (address, uint256, uint256, uint256, bytes32));
+        (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, uint96 premiumPercentage, bytes32 userOpHash) =
+            abi.decode(context, (address, uint256, uint256, uint96, bytes32));
 
-        executedUserOps[tx.origin][userOpHash] = true;
+        executedUserOps[userOpHash] = true;
 
-        uint256 refund = _calculateRefund(maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, maxGasLimit, nodeOperatorPremiumPercentage);
+        uint256 refund = _calculateRefund(maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, maxGasLimit, premiumPercentage);
         if (refund > 0) {
             entryPoint.withdrawTo(payable(sender), refund);
         }
@@ -152,7 +108,6 @@ contract MEEEntryPoint is BasePaymaster {
      * @param actualGasUsed the actual gas used
      * @param actualUserOpFeePerGas the actual userOp fee per gas
      * @param maxGasLimit the max gas limit
-     * @param nodeOperatorPremiumPercentage the nodeOperatorPremiumPercentage
      * @return refund the refund amount
      */
     function _calculateRefund(
@@ -160,7 +115,7 @@ contract MEEEntryPoint is BasePaymaster {
         uint256 actualGasUsed,
         uint256 actualUserOpFeePerGas,
         uint256 maxGasLimit,
-        uint256 nodeOperatorPremiumPercentage
+        uint96 premiumPercentage
     ) internal view returns (uint256 refund) {
 
         //account for postOpGas
@@ -172,13 +127,13 @@ contract MEEEntryPoint is BasePaymaster {
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
         actualGasUsed += (maxGasLimit - actualGasUsed)/10;
 
-        console2.log('penalty', (maxGasLimit - actualGasUsed)/10);
+        //uint256 premiumPercentageMemory = NODE_OPERATOR_PREMIUM_PERCENTAGE; 
         
         // account for MEE Node premium
-        uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremiumPercentage)) / PREMIUM_CALCULATION_BASE;
+        uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)) / PREMIUM_CALCULATION_BASE;
 
         // as MEE_NODE charges user with the premium
-        uint256 maxCostWithPremium = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + nodeOperatorPremiumPercentage) / PREMIUM_CALCULATION_BASE;
+        uint256 maxCostWithPremium = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage) / PREMIUM_CALCULATION_BASE;
 
         // We do not check for the case, when costWithPremium > maxCost
         // maxCost charged by the MEE Node should include the premium
