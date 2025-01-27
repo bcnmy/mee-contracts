@@ -37,7 +37,7 @@ contract NodePaymaster is BasePaymaster {
 
     /**
      * @dev Accepts all userOps
-     * In fact just repacks the data into the context and sends it to the postOp
+     * Verifies that the handleOps is called by the MEE Node, so it sponsors only for superTxns by owner MEE Node
      * @param userOp the userOp to validate
      * @param userOpHash the hash of the userOp
      * @param maxCost the max cost of the userOp
@@ -154,5 +154,9 @@ contract NodePaymaster is BasePaymaster {
 
     function transferOwnership(address newOwner) public override onlyOwner {
         revert Disabled(); // no transferring ownership
+    }
+
+    function wasUserOpExecuted(bytes32 userOpHash) public view returns (bool) {
+        return executedUserOps[userOpHash];
     }
 }

@@ -54,6 +54,8 @@ contract PMPerNodeTest is BaseTest {
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
 
+        // TODO: add description for money flows here
+
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
         vm.recordLogs();
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
@@ -114,33 +116,7 @@ contract PMPerNodeTest is BaseTest {
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         assertEq(mockTarget.value(), valueToSet); 
-
-        // now assert financial stuff 
         assertFinancialStuff(entries, premiumPercentage, nodePMDepositBefore, maxGasLimit*unpackMaxFeePerGasMemory(userOp));
-    }
-
-    function assertFinancialStuff(
-        Vm.Log[] memory entries,
-        uint256 meeNodePremium,
-        uint256 nodePMDepositBefore,
-        uint256 maxGasCost
-    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodePremium) {
-        (,,uint256 actualGasCost,uint256 acctualGasUsed) = abi.decode(entries[entries.length - 1].data, (uint256, bool, uint256, uint256));
-
-        uint256 expectedRefund =  applyPremium(maxGasCost, meeNodePremium) - applyPremium(actualGasCost, meeNodePremium);
-        uint256 expectedRefundNoPremium = applyPremium(maxGasCost, meeNodePremium) - actualGasCost;
-
-        // OG EP takes gas cost from the PM's deposit and sends it to the beneficiary, in this case MEE_NODE
-        // in the postOp this PM refunds the unused gas cost to the userOp.sender
-        // so the remaining deposit should be like this
-        uint256 expectedNodeDepositAfter = nodePMDepositBefore - expectedRefund - actualGasCost;
-        uint256 expectedNodeDepositAfterNoPremium = nodePMDepositBefore - expectedRefundNoPremium - actualGasCost;
-        expectedNodePremium = getPremium(actualGasCost, meeNodePremium);
-
-        meeNodeEarnings = getDeposit(address(NODE_PAYMASTER)) - expectedNodeDepositAfterNoPremium;
-        
-        assertTrue(meeNodeEarnings > 0, "MEE_NODE should have earned something");
-        assertTrue(meeNodeEarnings >= expectedNodePremium, "MEE_NODE should have earned more or equal to expectedNodePremium");
     }
 
     function test_bytecode_is_fixed() public {
@@ -157,7 +133,6 @@ contract PMPerNodeTest is BaseTest {
     }
 
     function test_MEE_Node_is_Owner() public {
-        
         address payable receiver = payable(address(0xdeadbeef));
         
         vm.prank(MEE_NODE_ADDRESS);
@@ -185,7 +160,46 @@ contract PMPerNodeTest is BaseTest {
         NODE_PAYMASTER.transferOwnership(address(0xdeadbeef));
     }
 
+    // TODO: 
+
+    // Test it reverts for non-MEE Node superTxns
+
+    // Test postOp reverted in _postOp
+
+    // test executed userOps are logged properly
+
+    // if the userOp.sender is malicious and spends too much gas, postOp would revert as called with a limit
+
+    // add natspecs
+
+    // ...
+
     // ============ HELPERS ==============
+
+    function assertFinancialStuff(
+        Vm.Log[] memory entries,
+        uint256 meeNodePremium,
+        uint256 nodePMDepositBefore,
+        uint256 maxGasCost
+    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodePremium) {
+        (,,uint256 actualGasCost,uint256 acctualGasUsed) = abi.decode(entries[entries.length - 1].data, (uint256, bool, uint256, uint256));
+
+        uint256 expectedRefund =  applyPremium(maxGasCost, meeNodePremium) - applyPremium(actualGasCost, meeNodePremium);
+        // we apply premium to the maxGasCost, because maxGasCost is wat is always sent by the userOp.sender to MEE Node in a payment userOp
+        uint256 expectedRefundNoPremium = applyPremium(maxGasCost, meeNodePremium) - actualGasCost;
+
+        // OG EP takes gas cost from the PM's deposit and sends it to the beneficiary, in this case MEE_NODE
+        // in the postOp this PM refunds the unused gas cost to the userOp.sender
+        // so the remaining deposit should be like this
+        uint256 expectedNodeDepositAfter = nodePMDepositBefore - expectedRefund - actualGasCost;
+        uint256 expectedNodeDepositAfterNoPremium = nodePMDepositBefore - expectedRefundNoPremium - actualGasCost;
+        expectedNodePremium = getPremium(actualGasCost, meeNodePremium);
+
+        meeNodeEarnings = getDeposit(address(NODE_PAYMASTER)) - expectedNodeDepositAfterNoPremium;
+        
+        assertTrue(meeNodeEarnings > 0, "MEE_NODE should have earned something");
+        assertTrue(meeNodeEarnings >= expectedNodePremium, "MEE_NODE should have earned more or equal to expectedNodePremium");
+    }
 
     function assertFinancialStuffStrict(
         Vm.Log[] memory entries,
