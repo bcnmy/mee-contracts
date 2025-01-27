@@ -10,7 +10,7 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {MockAccount} from "./mock/MockAccount.sol";
 import {MockTarget} from "./mock/MockTarget.sol";
-
+import {NodePaymaster} from "../contracts/NodePaymaster.sol";
 contract BaseTest is Test {
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
@@ -18,18 +18,22 @@ contract BaseTest is Test {
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
 
     IEntryPoint internal ENTRYPOINT;
-    MEEEntryPoint internal MEE_ENTRYPOINT;
+    NodePaymaster internal NODE_PAYMASTER;
     MockTarget internal mockTarget;
 
     function setUp() public virtual {
         setupEntrypoint();
-        deployMEEEntrypoint(ENTRYPOINT);
         vm.deal(MEE_NODE_ADDRESS, 1_000 ether);
+        deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
         mockTarget = new MockTarget();
     }
 
-    function deployMEEEntrypoint(IEntryPoint ep) internal {
-        MEE_ENTRYPOINT = new MEEEntryPoint(ep);
+    function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
+        NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, meeNodeAddress);
+        vm.deal(address(NODE_PAYMASTER), 100 ether);
+
+        vm.prank(address(NODE_PAYMASTER));
+        ENTRYPOINT.depositTo{value: 10 ether}(address(NODE_PAYMASTER));
     }
 
     function deployMockAccount() internal returns (MockAccount) {
@@ -132,13 +136,5 @@ contract BaseTest is Test {
         return UserOperationLib.unpackLow128(userOp.accountGasLimits);
     }
 
-    function makePMAndDataForMeeEP(uint128 pmValidationGasLimit, uint128 pmPostOpGasLimit, uint256 maxGasLimit, uint256 meeNodePremium) internal view returns (bytes memory) {
-        return abi.encodePacked(
-            address(MEE_ENTRYPOINT), 
-            pmValidationGasLimit, // pm validation gas limit
-            pmPostOpGasLimit, // pm post-op gas limit
-            meeNodePremium
-        );
-    }
 }
 

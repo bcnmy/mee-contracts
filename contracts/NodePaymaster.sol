@@ -18,7 +18,7 @@ contract NodePaymaster is BasePaymaster {
     using UserOperationLib for bytes32;
 
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
-    uint256 private constant POST_OP_GAS = 50_000;
+    uint256 private constant POST_OP_GAS = 40_000;
     address public meeNodeAddress;
     mapping(bytes32 => bool) private executedUserOps;
 
@@ -71,7 +71,7 @@ contract NodePaymaster is BasePaymaster {
         internal
         virtual
         override
-    {   
+    {  
         if (mode == PostOpMode.postOpReverted) {
             return;
         }
