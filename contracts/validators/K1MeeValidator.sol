@@ -124,6 +124,10 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         override
         returns (uint256)
     {
+
+        // TODO: For the MEE flows only: introduce codehash check
+        // to make sure the canonical Node PM implementation is used
+
         address owner = smartAccountOwners[userOp.sender];
         return SuperTxEcdsaValidatorLib.validateUserOp(userOp, userOpHash, owner);
     }

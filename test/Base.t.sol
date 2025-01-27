@@ -2,7 +2,6 @@
 pragma solidity ^0.8.23;
 
 import { Test, Vm } from "forge-std/Test.sol";
-import {MEEEntryPoint} from "../contracts/MEEEntryPoint.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {EntryPoint} from "account-abstraction/core/EntryPoint.sol";
 import {PackedUserOperation, UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
@@ -20,6 +19,8 @@ contract BaseTest is Test {
     IEntryPoint internal ENTRYPOINT;
     NodePaymaster internal NODE_PAYMASTER;
     MockTarget internal mockTarget;
+    
+    address nodePmFactory = address(0x011a23423423423);
 
     function setUp() public virtual {
         setupEntrypoint();
@@ -29,8 +30,10 @@ contract BaseTest is Test {
     }
 
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
+        vm.prank(nodePmFactory);
         NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
-        assertEq(NODE_PAYMASTER.meeNodeAddress(), MEE_NODE_ADDRESS, "NodePM bytecode should be fixed");
+
+        assertEq(NODE_PAYMASTER.meeNodeAddress(), MEE_NODE_ADDRESS, "Node addressshould be properly set");
 
         vm.deal(address(NODE_PAYMASTER), 100 ether);
 

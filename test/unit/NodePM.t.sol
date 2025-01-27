@@ -156,6 +156,23 @@ contract PMPerNodeTest is BaseTest {
         assertEq(codeHash, OG_NODEPM_CODEHASH, "NodePM bytecode should be fixed");
     }
 
+    function test_MEE_Node_is_Owner() public {
+        
+        address payable receiver = payable(address(0xdeadbeef));
+        
+        vm.prank(MEE_NODE_ADDRESS);
+        NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
+        assertEq(receiver.balance, 1 ether, "MEE_NODE should be the owner of the NodePM");
+
+        assertEq(NODE_PAYMASTER.owner(), address(nodePmFactory));
+        
+        vm.startPrank(address(nodePmFactory));
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", address(nodePmFactory)));
+        NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
+        vm.stopPrank();
+        assertEq(receiver.balance, 1 ether, "Balance should not be changed");
+    }
+
     function assertFinancialStuffStrict(
         Vm.Log[] memory entries,
         uint256 meeNodePremium,
@@ -195,9 +212,5 @@ contract PMPerNodeTest is BaseTest {
     function getDeposit(address account) internal view returns (uint256) {
         return ENTRYPOINT.getDepositInfo(account).deposit;
     }
-
-// test bytecode is fixed
-
-// test mee node is owner, not the factory
     
 }
