@@ -28,6 +28,18 @@ contract PMPerNodeTest is BaseTest {
         wallet = createAndFundWallet("wallet", 1 ether);
     }
 
+    // Node paymaster is owned by MEE_NODE_ADDRESS.
+    // Every MEE Node should deploy its own NodePaymaster.
+    // Then node uses it to sponsor userOps within a superTxn that this node is processing
+    // by putting address of its NodePaymaster in the userOp.paymasterAndData field.
+    // Native token flows here are as follows:
+    // 1. Node paymaster has a deposit at ENTRYPOINT
+    // 2. UserOp.sender sends the sum of maxGasCost and premium for all the userOps
+    //    within a superTxn to the node in a separate payment userOp.
+    // 3. Node PM refunds the unused gas cost to the userOp.sender (maxGasCost - actualGasCost)*premium
+    // 4. EP refunds the actual gas cost to the Node as it is used as a `beneficiary` in the handleOps call
+    // Both of those amounts are deducted from the Node PM's deposit at ENTRYPOINT.
+
     function test_pm_per_node() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
         uint256 premiumPercentage = 17_00000;
@@ -53,8 +65,6 @@ contract PMPerNodeTest is BaseTest {
         userOps[0] = userOp;
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
-
-        // TODO: add description for money flows here
 
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
         vm.recordLogs();
@@ -149,20 +159,35 @@ contract PMPerNodeTest is BaseTest {
         assertEq(receiver.balance, 1 ether, "Balance should not be changed");
     }
 
-    // TODO: 
+    function test_premium_suppots_fractions(uint256 meeNodePremium, uint256 approxGasCost  ) public {
+        meeNodePremium = bound(meeNodePremium, 1e3, 200e5);
+        approxGasCost = bound(approxGasCost, 50_000, 5e6);
+        uint256 approxGasCostWithPremium = approxGasCost * (PREMIUM_CALCULATION_BASE + meeNodePremium) / PREMIUM_CALCULATION_BASE;
+        assertGt(approxGasCostWithPremium, approxGasCost, "premium should support fractions of %");
+    }
 
     // Test it reverts for non-MEE Node superTxns
-
-    // Test postOp reverted in _postOp
+    function test_non_mee_node_superTxns_revert() public {
+        PackedUserOperation[] memory userOps = test_pm_per_node();
+        userOps[0].nonce = ENTRYPOINT.getNonce(userOps[0].sender, 0);
+        //no need to re-sign the userOp as mock account does not check the signature
+        bytes memory revertReason = abi.encodeWithSignature("FailedOpWithRevert(uint256,string,bytes)", 0, "AA33 reverted", abi.encodeWithSignature("OnlySponsorOwnStuff()"));
+        vm.startPrank(address(0xdeadbeef));
+        vm.expectRevert(revertReason);
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
+    }
 
     // test executed userOps are logged properly
+    function test_executed_userOps_logged_properly() public {
+        PackedUserOperation[] memory userOps = test_pm_per_node();
+        bytes32 userOpHash = ENTRYPOINT.getUserOpHash(userOps[0]);
+        assertEq(NODE_PAYMASTER.wasUserOpExecuted(userOpHash), true);
+    }
 
-    // if the userOp.sender is malicious and spends too much gas, postOp would revert as called with a limit
-
-    // add natspecs
-
-    // ...
-
+    // if the userOp.sender is malicious and spends too much gas, nodePM.postOp 
+    // will revert on EP.withdrawTo as postOp is called with a gas limit
+    
     // ============ HELPERS ==============
 
     function assertFinancialStuff(

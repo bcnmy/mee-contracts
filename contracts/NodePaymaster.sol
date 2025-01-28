@@ -57,7 +57,7 @@ contract NodePaymaster is BasePaymaster {
     /**
      * Post-operation handler.
      * Checks mode and refunds the userOp.sender if needed.
-     * @param mode enum with the following options:
+     * param PostOpMode enum with the following options: // not used
      *      opSucceeded - user operation succeeded.
      *      opReverted  - user op reverted. still has to pay for gas.
      *      postOpReverted - user op succeeded, but caused postOp (in mode=opSucceeded) to revert.
@@ -66,14 +66,11 @@ contract NodePaymaster is BasePaymaster {
      * @param actualGasCost - actual gas used so far (without this postOp call).
      * @param actualUserOpFeePerGas - actual userOp fee per gas
      */
-    function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+    function _postOp(PostOpMode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
         internal
         virtual
         override
     {  
-        if (mode == PostOpMode.postOpReverted) {
-            return;
-        }
         (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, bytes32 userOpHash, uint256 premiumPercentage) =
             abi.decode(context, (address, uint256, uint256, bytes32, uint256));
 
@@ -128,14 +125,29 @@ contract NodePaymaster is BasePaymaster {
         }
     }
 
+    /**
+     * @dev calculate the max gas cost of the userOp
+     * @param op the userOp
+     * @return maxGasCost the max gas cost
+     */
     function _getMaxGasCost(PackedUserOperation calldata op) internal view returns (uint256) {
         return _getMaxGasLimit(op) * op.unpackMaxFeePerGas();
     }
 
+    /**
+     * @dev calculate the max gas limit of the userOp
+     * @param op the userOp
+     * @return maxGasLimit the max gas limit
+     */
     function _getMaxGasLimit(PackedUserOperation calldata op) internal view returns (uint256) {
         return op.preVerificationGas + op.unpackVerificationGasLimit() + op.unpackCallGasLimit() + op.unpackPaymasterVerificationGasLimit() + op.unpackPostOpGasLimit();
     }
 
+    /**
+     * @dev check if the userOp was executed
+     * @param userOpHash the hash of the userOp
+     * @return executed true if the userOp was executed, false otherwise
+     */ 
     function wasUserOpExecuted(bytes32 userOpHash) public view returns (bool) {
         return executedUserOps[userOpHash];
     }
