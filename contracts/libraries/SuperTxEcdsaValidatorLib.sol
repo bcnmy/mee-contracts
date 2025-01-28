@@ -8,8 +8,6 @@ import {EcdsaValidatorLib} from "./fusion/EcdsaValidatorLib.sol";
 import {UserOpValidatorLib} from "./fusion/UserOpValidatorLib.sol";
 import {BytesLib} from "byteslib/BytesLib.sol";
 
-import "forge-std/console2.sol";
-
 library SuperTxEcdsaValidatorLib {
     using BytesLib for bytes;
 
@@ -26,13 +24,14 @@ library SuperTxEcdsaValidatorLib {
 
 
         if (sigType == SIG_TYPE_OFF_CHAIN) {
-            return EcdsaValidatorLib.validateUserOp(userOp, userOp.signature[1:], owner);
+            return EcdsaValidatorLib.validateUserOp(userOp, userOp.signature[5:], owner);
         } else if (sigType == SIG_TYPE_ON_CHAIN) {
-            return TxValidatorLib.validateUserOp(userOp, userOp.signature[1:], owner);
+            return TxValidatorLib.validateUserOp(userOp, userOp.signature[5:], owner);
         } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
-            return PermitValidatorLib.validateUserOp(userOp, userOp.signature[1:], owner);
+            return PermitValidatorLib.validateUserOp(userOp, userOp.signature[5:], owner);
         } else {
-            return UserOpValidatorLib.validateUserOp(userOpHash, userOp.signature[1:], owner);
+            // fallback flow => non MEE flow => no prefix
+            return UserOpValidatorLib.validateUserOp(userOpHash, userOp.signature, owner);
         }
     }
 
@@ -44,19 +43,15 @@ library SuperTxEcdsaValidatorLib {
         bytes4 sigType = bytes4(signature[0:4]);
 
         if (sigType == SIG_TYPE_OFF_CHAIN) {
-            return EcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature[1:]);
+            return EcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature[5:]);
         } else if (sigType == SIG_TYPE_ON_CHAIN) {
-            return TxValidatorLib.validateSignatureForOwner(owner, hash, signature[1:]);
+            return TxValidatorLib.validateSignatureForOwner(owner, hash, signature[5:]);
         } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
-            return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[1:]);
+            return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[5:]);
         } else {
-            return UserOpValidatorLib.validateSignatureForOwner(owner, hash, signature[1:]);
+            // fallback flow => non MEE flow => no prefix
+            return UserOpValidatorLib.validateSignatureForOwner(owner, hash, signature);
         } 
-    }
-
-    function _checkPMCodeHash(PackedUserOperation calldata userOp) internal pure returns (bool) {
-        // TODO: For the MEE flows only: introduce codehash check
-        // to make sure the canonical Node PM implementation is used
     }
 
 }

@@ -162,9 +162,6 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         pure
         returns (bool validSig)
    {
-        // every permission that uses this validator as SessionValidator
-        // SHOULD have the userOp policy included
-        // that checks that the PM is a legit Node PM
         require(data.length == 20, InvalidDataLength());
         address owner = address(bytes20(data[0:20]));
         return _validateSignatureForOwner(owner, hash, sig);

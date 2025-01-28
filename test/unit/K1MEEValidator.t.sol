@@ -34,7 +34,7 @@ contract K1MEEValidatorTest is BaseTest {
 
     function test_regular_userOp_flow_success() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
-        uint256 premiumPercentage = 17_00000;
+        
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
         bytes memory callData = abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData);
         PackedUserOperation memory userOp = buildUserOpWithCalldata(
@@ -48,16 +48,16 @@ contract K1MEEValidatorTest is BaseTest {
             }
         );
 
-        uint128 pmValidationGasLimit = 20_000;
-        uint128 pmPostOpGasLimit = 40_000;
-        uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
+        userOp = makeMEEUserOp({
+            userOp: userOp, 
+            pmValidationGasLimit: 20_000, 
+            pmPostOpGasLimit: 40_000, 
+            premiumPercentage: 17_00000, 
+            wallet: wallet, 
+            sigType: bytes4(0)
+        });
 
-        userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
-        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
-        
-        userOp.signature = signUserOp(wallet, userOp);
-        userOp.signature = abi.encodePacked(uint8(0xff), userOp.signature);
-        
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);     
         userOps[0] = userOp;
 
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
@@ -69,7 +69,5 @@ contract K1MEEValidatorTest is BaseTest {
 
         return (userOps);
     }
-
-
     
 }

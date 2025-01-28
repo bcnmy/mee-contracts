@@ -122,6 +122,23 @@ contract BaseTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
+    function makeMEEUserOp(
+        PackedUserOperation memory userOp,
+        uint128 pmValidationGasLimit,
+        uint128 pmPostOpGasLimit,
+        uint256 premiumPercentage,
+        Vm.Wallet memory wallet,
+        bytes4 sigType
+    ) internal view returns (PackedUserOperation memory) {
+        uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
+        userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
+        userOp.signature = signUserOp(wallet, userOp);
+        if (sigType != bytes4(0)) {
+            userOp.signature = abi.encodePacked(sigType, userOp.signature);
+        }
+        return userOp;
+    }
+
     function createAndFundWallet(string memory name, uint256 amount) internal returns (Vm.Wallet memory) {
         Vm.Wallet memory wallet = newWallet(name);
         vm.deal(wallet.addr, amount);
