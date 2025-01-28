@@ -62,7 +62,7 @@ contract K1MEEValidatorTest is BaseTest {
 
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
         vm.recordLogs();
-        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertEq(mockTarget.value(), valueToSet);   

@@ -12,7 +12,6 @@ import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol
  * @title Node Paymaster
  * @notice A paymaster every MEE Node should deploy.
  * It is used to sponsor userOps. Introduced for gas efficient MEE flow.
- * @dev Should be deployed via Factory only.
  */
 
 contract NodePaymaster is BasePaymaster {

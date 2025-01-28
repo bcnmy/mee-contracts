@@ -11,15 +11,18 @@ import {MockAccount} from "./mock/MockAccount.sol";
 import {MockTarget} from "./mock/MockTarget.sol";
 import {NodePaymaster} from "../contracts/NodePaymaster.sol";
 import {K1MeeValidator} from "../contracts/validators/K1MeeValidator.sol";
-
+import {MEEEntryPoint} from "../contracts/MEEEntryPoint.sol";
 
 contract BaseTest is Test {
+
+    bytes32 constant NODE_PM_CODE_HASH = 0x8f46e1604f0921523160dcfa21321e96920fce89525d1bb71ae9848a2b8bb317;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address constant MEE_NODE_ADDRESS = 0x177EE170D31177Ee170D31177ee170d31177eE17;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
 
     IEntryPoint internal ENTRYPOINT;
+    MEEEntryPoint internal MEE_ENTRYPOINT;
     NodePaymaster internal NODE_PAYMASTER;
     K1MeeValidator internal k1MeeValidator;
     
@@ -28,10 +31,15 @@ contract BaseTest is Test {
 
     function setUp() public virtual {
         setupEntrypoint();
+        deployMEEEntryPoint();
         vm.deal(MEE_NODE_ADDRESS, 1_000 ether);
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
+    }
+
+    function deployMEEEntryPoint() internal {
+        MEE_ENTRYPOINT = new MEEEntryPoint(ENTRYPOINT, NODE_PM_CODE_HASH);
     }
 
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {

@@ -25,18 +25,6 @@ contract MockAccount is IAccount {
         if (address(validator) != address(0)) {
             vd = validator.validateUserOp(userOp, userOpHash);    
         }
-
-        // else vd remains 0x00 (validation passed)
-        
-        // local code sample of checking pm code hash
-        /* address pm = address(uint160(bytes20(userOp.paymasterAndData[0:20])));
-        bytes32 pmCodeHash;
-        assembly {
-            pmCodeHash := extcodehash(pm)
-            if iszero(eq(pmCodeHash, 0x8fcfd2eda2b860a51c1b6ae188dffaf27777d33cf4162083bb3845caf5687bd2)) {
-                vd := 0x01 // validation failed
-            }
-        } */
        
     }
 

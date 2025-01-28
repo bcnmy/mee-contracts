@@ -70,7 +70,7 @@ contract PMPerNodeTest is BaseTest {
 
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
         vm.recordLogs();
-        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
@@ -123,7 +123,7 @@ contract PMPerNodeTest is BaseTest {
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
         vm.recordLogs();
-        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
@@ -131,7 +131,7 @@ contract PMPerNodeTest is BaseTest {
         assertFinancialStuff(entries, premiumPercentage, nodePMDepositBefore, maxGasLimit*unpackMaxFeePerGasMemory(userOp));
     }
 
-    function test_bytecode_is_fixed() public {
+    function test_bytecode_is_fixed_for_different_nodes() public {
         address otherNodeAddress = address(0xdeafbeef);
         vm.prank(otherNodeAddress);
         NodePaymaster nodePM = new NodePaymaster(ENTRYPOINT, otherNodeAddress);
@@ -176,7 +176,7 @@ contract PMPerNodeTest is BaseTest {
         bytes memory revertReason = abi.encodeWithSignature("FailedOpWithRevert(uint256,string,bytes)", 0, "AA33 reverted", abi.encodeWithSignature("OnlySponsorOwnStuff()"));
         vm.startPrank(address(0xdeadbeef));
         vm.expectRevert(revertReason);
-        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
     }
 

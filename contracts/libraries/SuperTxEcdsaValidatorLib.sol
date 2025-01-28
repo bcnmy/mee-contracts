@@ -10,47 +10,20 @@ import {BytesLib} from "byteslib/BytesLib.sol";
 
 import "forge-std/console2.sol";
 
-/* enum SuperSignatureType {
-    OFF_CHAIN,
-    ON_CHAIN,
-    ERC20_PERMIT,
-    USEROP
-}
- */
 library SuperTxEcdsaValidatorLib {
     using BytesLib for bytes;
 
-    uint8 constant SIG_TYPE_OFF_CHAIN = 0x00;
-    uint8 constant SIG_TYPE_ON_CHAIN = 0x01;
-    uint8 constant SIG_TYPE_ERC20_PERMIT = 0x02;
-    // ...leave space for other sig types: ERC-7683, Permit2, etc
-    uint8 constant SIG_TYPE_USEROP = 0xff;
-
-/*     struct SuperSignature {
-        SuperSignatureType signatureType;
-        bytes signature;
-    } */
+    bytes4 constant SIG_TYPE_OFF_CHAIN = 0x177eee00;
+    bytes4 constant SIG_TYPE_ON_CHAIN = 0x177eee01;
+    bytes4 constant SIG_TYPE_ERC20_PERMIT = 0x177eee02;
+    // ...other sig types: ERC-7683, Permit2, etc
 
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, address owner)
         internal
         returns (uint256)
     {
-/*         SuperSignature memory decodedSig = decodeSignature(userOp.signature);
+        bytes4 sigType = bytes4(userOp.signature[0:4]);
 
-        // insert from previous code
-        if (decodedSig.signatureType == SuperSignatureType.OFF_CHAIN) {
-            return EcdsaValidatorLib.validateUserOp(userOp, decodedSig.signature, owner);
-        } else if (decodedSig.signatureType == SuperSignatureType.ON_CHAIN) {
-            return TxValidatorLib.validateUserOp(userOp, decodedSig.signature, owner);
-        } else if (decodedSig.signatureType == SuperSignatureType.ERC20_PERMIT) {
-            return PermitValidatorLib.validateUserOp(userOp, decodedSig.signature, owner);
-        } else if (decodedSig.signatureType == SuperSignatureType.USEROP) {
-            return UserOpValidatorLib.validateUserOp(userOpHash, decodedSig.signature, owner);
-        } else {
-            revert("SuperTxEcdsaValidatorLib:: invalid userOp sig type");
-        } */
-
-        uint8 sigType = uint8(userOp.signature[0]);
 
         if (sigType == SIG_TYPE_OFF_CHAIN) {
             return EcdsaValidatorLib.validateUserOp(userOp, userOp.signature[1:], owner);
@@ -58,10 +31,8 @@ library SuperTxEcdsaValidatorLib {
             return TxValidatorLib.validateUserOp(userOp, userOp.signature[1:], owner);
         } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
             return PermitValidatorLib.validateUserOp(userOp, userOp.signature[1:], owner);
-        } else if (sigType == SIG_TYPE_USEROP) {
-            return UserOpValidatorLib.validateUserOp(userOpHash, userOp.signature[1:], owner);
         } else {
-            revert("SuperTxEcdsaValidatorLib:: invalid userOp sig type");
+            return UserOpValidatorLib.validateUserOp(userOpHash, userOp.signature[1:], owner);
         }
     }
 
@@ -70,7 +41,7 @@ library SuperTxEcdsaValidatorLib {
         pure
         returns (bool)
     {   
-        uint8 sigType = uint8(signature[0]);
+        bytes4 sigType = bytes4(signature[0:4]);
 
         if (sigType == SIG_TYPE_OFF_CHAIN) {
             return EcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature[1:]);
@@ -78,24 +49,14 @@ library SuperTxEcdsaValidatorLib {
             return TxValidatorLib.validateSignatureForOwner(owner, hash, signature[1:]);
         } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
             return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[1:]);
-        } else if (sigType == SIG_TYPE_USEROP) {
+        } else {
             return UserOpValidatorLib.validateSignatureForOwner(owner, hash, signature[1:]);
-        } else {
-            revert("SuperTxEcdsaValidatorLib:: invalid userOp sig type");
-        }
-        /* SuperSignature memory decodedSig = decodeSignature(signature);
+        } 
+    }
 
-        if (decodedSig.signatureType == SuperSignatureType.OFF_CHAIN) {
-            return EcdsaValidatorLib.validateSignatureForOwner(owner, hash, decodedSig.signature);
-        } else if (decodedSig.signatureType == SuperSignatureType.ON_CHAIN) {
-            return TxValidatorLib.validateSignatureForOwner(owner, hash, decodedSig.signature);
-        } else if (decodedSig.signatureType == SuperSignatureType.ERC20_PERMIT) {
-            return PermitValidatorLib.validateSignatureForOwner(owner, hash, decodedSig.signature);
-        } else if (decodedSig.signatureType == SuperSignatureType.USEROP) {
-            return UserOpValidatorLib.validateSignatureForOwner(owner, hash, decodedSig.signature);
-        } else {
-            revert("SuperTxEcdsaValidatorLib:: invalid userOp sig type");
-        } */
+    function _checkPMCodeHash(PackedUserOperation calldata userOp) internal pure returns (bool) {
+        // TODO: For the MEE flows only: introduce codehash check
+        // to make sure the canonical Node PM implementation is used
     }
 
 }
