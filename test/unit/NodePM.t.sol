@@ -24,7 +24,9 @@ contract PMPerNodeTest is BaseTest {
 
     function setUp() public virtual override {
         super.setUp();
-        mockAccount = deployMockAccount();
+        mockAccount = deployMockAccount({
+            validator: address(0)
+        });
         wallet = createAndFundWallet("wallet", 1 ether);
     }
 
@@ -234,21 +236,6 @@ contract PMPerNodeTest is BaseTest {
 
     function getPremium(uint256 amount, uint256 premiumPercentage) internal pure returns (uint256) {
         return applyPremium(amount, premiumPercentage) - amount;
-    }
-
-    function makePMAndDataForOwnPM(
-        address nodePM, 
-        uint128 pmValidationGasLimit, 
-        uint128 pmPostOpGasLimit, 
-        uint256 maxGasLimit, 
-        uint256 premiumPercentage
-    ) internal view returns (bytes memory) {
-        return abi.encodePacked(
-            nodePM, 
-            pmValidationGasLimit, // pm validation gas limit
-            pmPostOpGasLimit, // pm post-op gas limit
-            premiumPercentage
-        );
     }
 
     function getDeposit(address account) internal view returns (uint256) {

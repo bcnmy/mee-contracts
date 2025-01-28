@@ -10,6 +10,9 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {MockAccount} from "./mock/MockAccount.sol";
 import {MockTarget} from "./mock/MockTarget.sol";
 import {NodePaymaster} from "../contracts/NodePaymaster.sol";
+import {K1MeeValidator} from "../contracts/validators/K1MeeValidator.sol";
+
+
 contract BaseTest is Test {
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
@@ -18,8 +21,9 @@ contract BaseTest is Test {
 
     IEntryPoint internal ENTRYPOINT;
     NodePaymaster internal NODE_PAYMASTER;
-    MockTarget internal mockTarget;
+    K1MeeValidator internal k1MeeValidator;
     
+    MockTarget internal mockTarget;
     address nodePmDeployer = address(0x011a23423423423);
 
     function setUp() public virtual {
@@ -27,6 +31,7 @@ contract BaseTest is Test {
         vm.deal(MEE_NODE_ADDRESS, 1_000 ether);
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
         mockTarget = new MockTarget();
+        k1MeeValidator = new K1MeeValidator();
     }
 
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
@@ -41,8 +46,8 @@ contract BaseTest is Test {
         ENTRYPOINT.depositTo{value: 10 ether}(address(NODE_PAYMASTER));
     }
 
-    function deployMockAccount() internal returns (MockAccount) {
-        return new MockAccount();
+    function deployMockAccount(address validator) internal returns (MockAccount) {
+        return new MockAccount(validator);
     }
 
     function setupEntrypoint() internal {
@@ -139,6 +144,21 @@ contract BaseTest is Test {
     function unpackCallGasLimitMemory(PackedUserOperation memory userOp)
     internal pure returns (uint256) {
         return UserOperationLib.unpackLow128(userOp.accountGasLimits);
+    }
+
+    function makePMAndDataForOwnPM(
+        address nodePM, 
+        uint128 pmValidationGasLimit, 
+        uint128 pmPostOpGasLimit, 
+        uint256 maxGasLimit, 
+        uint256 premiumPercentage
+    ) internal view returns (bytes memory) {
+        return abi.encodePacked(
+            nodePM, 
+            pmValidationGasLimit, // pm validation gas limit
+            pmPostOpGasLimit, // pm post-op gas limit
+            premiumPercentage
+        );
     }
 
 }
