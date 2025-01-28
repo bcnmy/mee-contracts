@@ -6,8 +6,6 @@ import {ECDSA} from "solady/utils/ECDSA.sol";
 library EcdsaLib {
     using ECDSA for bytes32;
 
-    // TODO: change OZ to solady
-
     function isValidSignature(address expectedSigner, bytes32 hash, bytes memory signature)
         internal
         view

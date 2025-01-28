@@ -24,6 +24,12 @@ library UserOpValidatorLib {
         return SIG_VALIDATION_SUCCESS;
     }
 
+    /**
+     * @notice Validates the signature against the expected signer (owner)
+     * @param expectedSigner Signer expected to be recovered
+     * @param hash Hash of the userOp
+     * @param parsedSignature Signature
+     */
     function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature)
         internal
         view

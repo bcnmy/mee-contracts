@@ -6,11 +6,8 @@ import {PermitValidatorLib} from "./fusion/PermitValidatorLib.sol";
 import {TxValidatorLib} from "./fusion/TxValidatorLib.sol";
 import {EcdsaValidatorLib} from "./fusion/EcdsaValidatorLib.sol";
 import {UserOpValidatorLib} from "./fusion/UserOpValidatorLib.sol";
-import {BytesLib} from "byteslib/BytesLib.sol";
 
 library SuperTxEcdsaValidatorLib {
-    using BytesLib for bytes;
-
     bytes4 constant SIG_TYPE_OFF_CHAIN = 0x177eee00;
     bytes4 constant SIG_TYPE_ON_CHAIN = 0x177eee01;
     bytes4 constant SIG_TYPE_ERC20_PERMIT = 0x177eee02;
