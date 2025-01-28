@@ -19,7 +19,6 @@ contract NodePaymaster is BasePaymaster {
 
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
     uint256 private constant POST_OP_GAS = 40_000;
-    address public meeNodeAddress;
     mapping(bytes32 => bool) private executedUserOps;
 
     error EmptyMessageValue();
@@ -32,7 +31,7 @@ contract NodePaymaster is BasePaymaster {
         IEntryPoint _entryPoint,
         address _meeNodeAddress
     ) payable BasePaymaster(_entryPoint) {
-        meeNodeAddress = _meeNodeAddress;
+        _transferOwnership(_meeNodeAddress);
     }
 
     /**
@@ -50,7 +49,7 @@ contract NodePaymaster is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {   
-        require(tx.origin == meeNodeAddress, OnlySponsorOwnStuff());
+        require(tx.origin == owner(), OnlySponsorOwnStuff());
         uint256 premiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
         context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), _getMaxGasLimit(userOp), userOpHash, premiumPercentage);
     }
@@ -135,25 +134,6 @@ contract NodePaymaster is BasePaymaster {
 
     function _getMaxGasLimit(PackedUserOperation calldata op) internal view returns (uint256) {
         return op.preVerificationGas + op.unpackVerificationGasLimit() + op.unpackCallGasLimit() + op.unpackPaymasterVerificationGasLimit() + op.unpackPostOpGasLimit();
-    }
-
-    // Doing this block instead of putting base paymaster into the repo.
-    // So we can use base pm from the already audited account-abstraction repo
-
-    // @dev override checkOwner to check if the sender is the MEENode
-    // owner() is still used to check the factory that has deployed the paymaster
-    function _checkOwner() internal virtual override view {
-        if (meeNodeAddress != _msgSender()) {
-            revert OwnableUnauthorizedAccount(_msgSender());
-        }
-    }
-
-    function renounceOwnership() public override onlyOwner {
-        revert Disabled(); // no renouncing ownership
-    }
-
-    function transferOwnership(address newOwner) public override onlyOwner {
-        revert Disabled(); // no transferring ownership
     }
 
     function wasUserOpExecuted(bytes32 userOpHash) public view returns (bool) {

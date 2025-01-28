@@ -20,7 +20,7 @@ contract BaseTest is Test {
     NodePaymaster internal NODE_PAYMASTER;
     MockTarget internal mockTarget;
     
-    address nodePmFactory = address(0x011a23423423423);
+    address nodePmDeployer = address(0x011a23423423423);
 
     function setUp() public virtual {
         setupEntrypoint();
@@ -30,10 +30,10 @@ contract BaseTest is Test {
     }
 
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
-        vm.prank(nodePmFactory);
+        vm.prank(nodePmDeployer);
         NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
 
-        assertEq(NODE_PAYMASTER.meeNodeAddress(), MEE_NODE_ADDRESS, "Node addressshould be properly set");
+        assertEq(NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS, "Owner should be properly set");
 
         vm.deal(address(NODE_PAYMASTER), 100 ether);
 

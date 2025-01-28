@@ -19,7 +19,7 @@ contract MockAccount is IAccount {
         bytes32 pmCodeHash;
         assembly {
             pmCodeHash := extcodehash(pm)
-            if iszero(eq(pmCodeHash, 0x19e712abe2f3a5ec82e6d5b679f3925c981c9ec06b3fce5a777630bb751098af)) {
+            if iszero(eq(pmCodeHash, 0x3a36175e1c3a5df4d00673be58cd8ad8fe16872d7ccf05da8e52cfafe9938619)) {
                 vd := 0x01 // validation failed
             }
         }

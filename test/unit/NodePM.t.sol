@@ -28,7 +28,7 @@ contract PMPerNodeTest is BaseTest {
         wallet = createAndFundWallet("wallet", 1 ether);
     }
 
-    function test_pm_per_node() public returns (PackedUserOperation[] memory userOps) {
+    function test_pm_per_node() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
         uint256 premiumPercentage = 17_00000;
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
@@ -138,26 +138,15 @@ contract PMPerNodeTest is BaseTest {
         vm.prank(MEE_NODE_ADDRESS);
         NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
         assertEq(receiver.balance, 1 ether, "MEE_NODE should be the owner of the NodePM");
-
-        assertEq(NODE_PAYMASTER.owner(), address(nodePmFactory));
         
-        vm.startPrank(address(nodePmFactory));
-        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", address(nodePmFactory)));
+        // node pm is owned by MEE_NODE_ADDRESS
+        assertEq(NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS);
+        
+        vm.startPrank(address(nodePmDeployer));
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", address(nodePmDeployer)));
         NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
         vm.stopPrank();
         assertEq(receiver.balance, 1 ether, "Balance should not be changed");
-    }
-
-    function test_renounce_ownership_disabled() public {
-        vm.prank(MEE_NODE_ADDRESS);
-        vm.expectRevert(abi.encodeWithSignature("Disabled()"));
-        NODE_PAYMASTER.renounceOwnership();
-    }
-
-    function test_transfer_ownership_disabled() public {
-        vm.prank(MEE_NODE_ADDRESS);
-        vm.expectRevert(abi.encodeWithSignature("Disabled()"));
-        NODE_PAYMASTER.transferOwnership(address(0xdeadbeef));
     }
 
     // TODO: 
