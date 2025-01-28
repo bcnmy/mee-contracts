@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.27;
 
+// Had to keep it copypasted as the og lib https://github.com/bakaoh/solidity-rlp-encode has incompatible solc version
+
 import "byteslib/BytesLib.sol";
 
 /**

@@ -8,6 +8,8 @@ library EcdsaLib {
     using MessageHashUtils for bytes32;
     using ECDSA for bytes32;
 
+    // TODO: change OZ to solady
+
     function isValidSignature(address expectedSigner, bytes32 hash, bytes memory signature)
         internal
         pure
