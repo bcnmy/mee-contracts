@@ -124,12 +124,7 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         override
         returns (uint256)
     {
-
-        // TODO: For the MEE flows only: introduce codehash check
-        // to make sure the canonical Node PM implementation is used
-
-        address owner = smartAccountOwners[userOp.sender];
-        return SuperTxEcdsaValidatorLib.validateUserOp(userOp, userOpHash, owner);
+        return SuperTxEcdsaValidatorLib.validateUserOp(userOp, userOpHash, smartAccountOwners[userOp.sender]);
     }
 
     /**
@@ -159,12 +154,11 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
     /// @param data The data to validate against (owner address in this case)
     function validateSignatureWithData(bytes32 hash, bytes calldata sig, bytes calldata data)
         external
-        pure
+        view
         returns (bool validSig)
    {
-        require(data.length == 20, InvalidDataLength());
-        address owner = address(bytes20(data[0:20]));
-        return _validateSignatureForOwner(owner, hash, sig);
+        require(data.length >= 20, InvalidDataLength());
+        return _validateSignatureForOwner(address(bytes20(data[0:20])), hash, sig);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -229,7 +223,7 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
     /// @param signature The signature data
     function _validateSignatureForOwner(address owner, bytes32 hash, bytes calldata signature)
         internal
-        pure
+        view
         returns (bool)
     {
         return SuperTxEcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature);

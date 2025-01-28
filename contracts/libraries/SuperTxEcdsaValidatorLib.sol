@@ -37,7 +37,7 @@ library SuperTxEcdsaValidatorLib {
 
     function validateSignatureForOwner(address owner, bytes32 hash, bytes calldata signature)
         internal
-        pure
+        view
         returns (bool)
     {   
         bytes4 sigType = bytes4(signature[0:4]);

@@ -15,7 +15,7 @@ library UserOpValidatorLib {
      */
     function validateUserOp(bytes32 userOpHash, bytes memory parsedSignature, address expectedSigner)
         internal
-        pure
+        view 
         returns (uint256)
     {
         if (!EcdsaLib.isValidSignature(expectedSigner, userOpHash, parsedSignature)) {
@@ -26,7 +26,7 @@ library UserOpValidatorLib {
 
     function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature)
         internal
-        pure
+        view
         returns (bool)
     {
         return EcdsaLib.isValidSignature(expectedSigner, hash, parsedSignature);

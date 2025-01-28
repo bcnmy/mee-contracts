@@ -100,7 +100,7 @@ library PermitValidatorLib {
 
     function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature)
         internal
-        pure
+        view
         returns (bool)
     {
         DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));

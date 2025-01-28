@@ -49,7 +49,7 @@ library EcdsaValidatorLib {
 
     function validateSignatureForOwner(address owner, bytes32 hash, bytes memory parsedSignature)
         internal
-        pure
+        view 
         returns (bool)
     {
         (

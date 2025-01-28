@@ -96,7 +96,7 @@ library TxValidatorLib {
 
     function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature)
         internal
-        pure
+        view
         returns (bool)
     {
         TxData memory decodedTx = decodeTx(parsedSignature);
