@@ -22,7 +22,7 @@ library EcdsaValidatorLib {
      * @param parsedSignature Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
      * @param expectedSigner Signer expected to be recovered when decoding the ERC20OPermit signature.
      */
-    function validateUserOp(PackedUserOperation calldata userOp, bytes memory parsedSignature, address expectedSigner)
+    function validateUserOp(PackedUserOperation calldata userOp, bytes memory signatureData, address expectedSigner)
         internal
         view
         returns (uint256)
@@ -32,11 +32,11 @@ library EcdsaValidatorLib {
             bytes32[] memory proof,
             uint48 lowerBoundTimestamp,
             uint48 upperBoundTimestamp,
-            bytes memory userEcdsaSignature
-        ) = abi.decode(parsedSignature, (bytes32, bytes32[], uint48, uint48, bytes));
+            bytes memory secp256k1Signature
+        ) = abi.decode(signatureData, (bytes32, bytes32[], uint48, uint48, bytes));
 
         bytes32 calculatedUserOpHash = UserOpLib.getUserOpHash(userOp, lowerBoundTimestamp, upperBoundTimestamp);
-        if (!EcdsaLib.isValidSignature(expectedSigner, superTxHash, userEcdsaSignature)) {
+        if (!EcdsaLib.isValidSignature(expectedSigner, superTxHash, secp256k1Signature)) {
             return SIG_VALIDATION_FAILED;
         }
 
@@ -47,7 +47,7 @@ library EcdsaValidatorLib {
         return _packValidationData(false, upperBoundTimestamp, lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address owner, bytes32 hash, bytes memory parsedSignature)
+    function validateSignatureForOwner(address owner, bytes32 hash, bytes memory signatureData)
         internal
         view 
         returns (bool)
@@ -55,10 +55,10 @@ library EcdsaValidatorLib {
         (
             bytes32 superTxHash, //super tx hash
             bytes32[] memory proof,
-            bytes memory userEcdsaSignature
-        ) = abi.decode(parsedSignature, (bytes32, bytes32[], bytes));
+            bytes memory secp256k1Signature
+        ) = abi.decode(signatureData, (bytes32, bytes32[], bytes));
 
-        if (!EcdsaLib.isValidSignature(owner, superTxHash, userEcdsaSignature)) {
+        if (!EcdsaLib.isValidSignature(owner, superTxHash, secp256k1Signature)) {
             return false;
         }
 

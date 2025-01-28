@@ -18,8 +18,7 @@ library SuperTxEcdsaValidatorLib {
         returns (uint256)
     {
         bytes4 sigType = bytes4(userOp.signature[0:4]);
-
-
+        
         if (sigType == SIG_TYPE_OFF_CHAIN) {
             return EcdsaValidatorLib.validateUserOp(userOp, userOp.signature[5:], owner);
         } else if (sigType == SIG_TYPE_ON_CHAIN) {
