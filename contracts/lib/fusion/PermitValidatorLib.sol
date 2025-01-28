@@ -2,12 +2,11 @@
 pragma solidity ^0.8.27;
 
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import "openzeppelin/utils/cryptography/MerkleProof.sol";
-import "account-abstraction/interfaces/PackedUserOperation.sol";
+import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
+import {EcdsaLib} from "../util/EcdsaLib.sol";
+import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
+import {IERC20Permit} from "../../interfaces/IERC20Permit.sol";
 import "account-abstraction/core/Helpers.sol";
-import "../../interfaces/IERC20Permit.sol";
-import "../util/EcdsaLib.sol";
-import "../util/UserOpLib.sol";
 
 library PermitValidatorLib {
     uint8 constant EIP_155_MIN_V_VALUE = 37;
@@ -51,18 +50,18 @@ library PermitValidatorLib {
      * In that case, the function will also perform the Permit approval on the given token in case the
      * isPermitTx flag was set to true in the decoded signature struct.
      *
-     * @param userOp UserOp being validated.
+     * @param userOpHash UserOp hash being validated.
      * @param parsedSignature Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
      * @param expectedSigner Signer expected to be recovered when decoding the ERC20OPermit signature.
      */
-    function validateUserOp(PackedUserOperation calldata userOp, bytes memory parsedSignature, address expectedSigner)
+    function validateUserOp(bytes32 userOpHash, bytes memory parsedSignature, address expectedSigner)
         internal
         returns (uint256)
     {
         DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));
 
-        bytes32 userOpHash =
-            UserOpLib.getUserOpHash(userOp, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
+        bytes32 meeUserOpHash =
+            MEEUserOpLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
 
         uint8 vAdjusted = _adjustV(decodedSig.v);
         uint256 deadline = uint256(decodedSig.appendedHash);
@@ -85,25 +84,27 @@ library PermitValidatorLib {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(decodedSig.proof, decodedSig.appendedHash, userOpHash)) {
+        if (!MerkleProof.verify(decodedSig.proof, decodedSig.appendedHash, meeUserOpHash)) {
             return SIG_VALIDATION_FAILED;
         }
 
         if (decodedSig.isPermitTx) {
             decodedSig.token.permit(
-                expectedSigner, userOp.sender, decodedSig.amount, deadline, vAdjusted, decodedSig.r, decodedSig.s
+                expectedSigner, decodedSig.spender, decodedSig.amount, deadline, vAdjusted, decodedSig.r, decodedSig.s
             );
         }
 
         return _packValidationData(false, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature)
+    function validateSignatureForOwner(address expectedSigner, bytes32 userOpHash, bytes memory parsedSignature)
         internal
         view
         returns (bool)
     {
         DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));
+
+        bytes32 meeUserOpHash = MEEUserOpLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
 
         uint8 vAdjusted = _adjustV(decodedSig.v);
         uint256 deadline = uint256(decodedSig.appendedHash);
@@ -126,7 +127,7 @@ library PermitValidatorLib {
             return false;
         }
 
-        if (!MerkleProof.verify(decodedSig.proof, decodedSig.appendedHash, hash)) {
+        if (!MerkleProof.verify(decodedSig.proof, decodedSig.appendedHash, meeUserOpHash)) {
             return false;
         }
 

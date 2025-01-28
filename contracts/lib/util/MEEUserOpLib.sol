@@ -6,26 +6,22 @@
  */
 pragma solidity ^0.8.27;
 
-import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
-import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
-
-library UserOpLib {
-    using UserOperationLib for PackedUserOperation;
+library MEEUserOpLib {
 
     /**
      * Calculates userOp hash. Almost works like a regular 4337 userOp hash with few fields added.
      *
-     * @param userOp userOp to calculate the hash for
+     * @param userOpHash userOp hash to calculate the hash for
      * @param lowerBoundTimestamp lower bound timestamp set when constructing userOp
      * @param upperBoundTimestamp upper bound timestamp set when constructing userOp
      */
-    function getUserOpHash(
-        PackedUserOperation calldata userOp,
+    function getMEEUserOpHash(
+        bytes32 userOpHash,
         uint256 lowerBoundTimestamp,
         uint256 upperBoundTimestamp
-    ) internal view returns (bytes32 userOpHash) {
-        userOpHash = keccak256(
-            bytes.concat(keccak256(abi.encode(userOp.hash(), lowerBoundTimestamp, upperBoundTimestamp, block.chainid)))
+    ) internal pure returns (bytes32 meeUserOpHash) {
+        meeUserOpHash = keccak256(
+            bytes.concat(keccak256(abi.encode(userOpHash, lowerBoundTimestamp, upperBoundTimestamp)))
         );
     }
 }

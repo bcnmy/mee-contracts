@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "openzeppelin/utils/cryptography/MerkleProof.sol";
-import "account-abstraction/interfaces/PackedUserOperation.sol";
-import "account-abstraction/core/Helpers.sol";
+import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {RLPReader as RLPDecoder} from "rlp-reader/RLPReader.sol";
 import {RLPEncoder} from "../rlp/RLPEncoder.sol";
-import "../util/UserOpLib.sol";
-import "../util/EcdsaLib.sol";
-import "byteslib/BytesLib.sol";
-
+import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
+import {EcdsaLib} from "../util/EcdsaLib.sol";
+import {BytesLib} from "byteslib/BytesLib.sol";
+import "account-abstraction/core/Helpers.sol";
 library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;
     uint8 constant EIP1559_TX_TYPE = 0x02;
@@ -64,7 +62,7 @@ library TxValidatorLib {
      *
      * Returns true if the expected signer did indeed approve the given expectedHash by signing an on-chain transaction.
      *
-     * @param userOp UserOp being validated.
+     * @param userOpHash UserOp hash being validated.
      * @param parsedSignature Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
      *                        Expecting to receive fully signed serialized EVM transcaction here of type 0x00 (LEGACY)
      *                        or 0x02 (EIP1556).
@@ -72,41 +70,43 @@ library TxValidatorLib {
      *                        already contains 0x02 prefix.
      * @param expectedSigner Expected EOA signer of the given userOp and the EVM transaction.
      */
-    function validateUserOp(PackedUserOperation calldata userOp, bytes memory parsedSignature, address expectedSigner)
+    function validateUserOp(bytes32 userOpHash, bytes memory parsedSignature, address expectedSigner)
         internal
         view
         returns (uint256)
     {
         TxData memory decodedTx = decodeTx(parsedSignature);
 
-        bytes32 userOpHash =
-            UserOpLib.getUserOpHash(userOp, decodedTx.lowerBoundTimestamp, decodedTx.upperBoundTimestamp);
+        bytes32 meeUserOpHash =
+            MEEUserOpLib.getMEEUserOpHash(userOpHash, decodedTx.lowerBoundTimestamp, decodedTx.upperBoundTimestamp);
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, userOpHash)) {
+        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, meeUserOpHash)) {
             return SIG_VALIDATION_FAILED;
         }
 
         return _packValidationData(false, decodedTx.upperBoundTimestamp, decodedTx.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature)
+    function validateSignatureForOwner(address expectedSigner, bytes32 userOpHash, bytes memory parsedSignature)
         internal
         view
         returns (bool)
     {
         TxData memory decodedTx = decodeTx(parsedSignature);
 
+        bytes32 meeUserOpHash = MEEUserOpLib.getMEEUserOpHash(userOpHash, decodedTx.lowerBoundTimestamp, decodedTx.upperBoundTimestamp);
+
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return false;
         }
 
-        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, hash)) {
+        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, meeUserOpHash)) {
             return false;
         }
 

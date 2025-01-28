@@ -6,9 +6,14 @@ import {IValidator, MODULE_TYPE_VALIDATOR} from "erc7579/interfaces/IERC7579Modu
 import {ERC7739Validator} from "erc7739Validator/ERC7739Validator.sol";
 import {ISessionValidator} from "contracts/interfaces/ISessionValidator.sol";
 import {EnumerableSet} from "EnumerableSet4337/EnumerableSet4337.sol";
-
+import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
+import {SIG_TYPE_OFF_CHAIN, SIG_TYPE_ON_CHAIN, SIG_TYPE_ERC20_PERMIT} from "contracts/types/Constants.sol";
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
-import "../libraries/SuperTxEcdsaValidatorLib.sol";
+import {PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
+import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
+import {EcdsaValidatorLib} from "contracts/lib/fusion/EcdsaValidatorLib.sol";
+import {UserOpValidatorLib} from "contracts/lib/fusion/UserOpValidatorLib.sol";
+
 
 contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
     // using SignatureCheckerLib for address;
@@ -124,7 +129,19 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         override
         returns (uint256)
     {
-        return SuperTxEcdsaValidatorLib.validateUserOp(userOp, userOpHash, smartAccountOwners[userOp.sender]);
+        bytes4 sigType = bytes4(userOp.signature[0:4]);
+        address owner = smartAccountOwners[userOp.sender];
+        
+        if (sigType == SIG_TYPE_OFF_CHAIN) {
+            return EcdsaValidatorLib.validateUserOp(userOpHash, userOp.signature[5:], owner);
+        } else if (sigType == SIG_TYPE_ON_CHAIN) {
+            return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[5:], owner);
+        } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
+            return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[5:], owner);
+        } else {
+            // fallback flow => non MEE flow => no prefix
+            return UserOpValidatorLib.validateUserOp(userOpHash, userOp.signature, owner);
+        }
     }
 
     /**
@@ -158,7 +175,7 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         returns (bool validSig)
    {
         require(data.length >= 20, InvalidDataLength());
-        return _validateSignatureForOwner(address(bytes20(data[0:20])), hash, sig);
+        return _validateSignatureForOwner(address(bytes20(data[:20])), hash, sig);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -226,7 +243,18 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         view
         returns (bool)
     {
-        return SuperTxEcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature);
+        bytes4 sigType = bytes4(signature[0:4]);
+
+        if (sigType == SIG_TYPE_OFF_CHAIN) {
+            return EcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature[5:]);
+        } else if (sigType == SIG_TYPE_ON_CHAIN) {
+            return TxValidatorLib.validateSignatureForOwner(owner, hash, signature[5:]);
+        } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
+            return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[5:]);
+        } else {
+            // fallback flow => non MEE flow => no prefix
+            return UserOpValidatorLib.validateSignatureForOwner(owner, hash, signature);
+        } 
     }
 
     // @notice Fills the _safeSenders list from the given data
