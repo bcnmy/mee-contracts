@@ -6,9 +6,9 @@ import "account-abstraction/interfaces/PackedUserOperation.sol";
 import "account-abstraction/core/Helpers.sol";
 import "../rlp/RLPDecoder.sol";
 import "../rlp/RLPEncoder.sol";
-import "../util/BytesLib.sol";
 import "../util/UserOpLib.sol";
 import "../util/EcdsaLib.sol";
+import "byteslib/BytesLib.sol";
 
 library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;

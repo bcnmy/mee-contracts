@@ -6,7 +6,7 @@ import "./fusion/PermitValidatorLib.sol";
 import "./fusion/TxValidatorLib.sol";
 import "./fusion/EcdsaValidatorLib.sol";
 import "./fusion/UserOpValidatorLib.sol";
-import "./util/BytesLib.sol";
+import "byteslib/BytesLib.sol";
 
 library SuperTxEcdsaValidatorLib {
     using BytesLib for bytes;
