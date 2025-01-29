@@ -12,13 +12,13 @@ import {SIG_TYPE_SIMPLE, SIG_TYPE_ON_CHAIN, SIG_TYPE_ERC20_PERMIT} from "contrac
 import {PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
 import {SimpleValidatorLib} from "contracts/lib/fusion/SimpleValidatorLib.sol";
-import {UserOpValidatorLib} from "contracts/lib/fusion/UserOpValidatorLib.sol";
+import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
 
+import "forge-std/console2.sol";
 
 contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
     // using SignatureCheckerLib for address;
     using EnumerableSet for EnumerableSet.AddressSet;
-
     /*//////////////////////////////////////////////////////////////////////////
                             CONSTANTS & STORAGE
     //////////////////////////////////////////////////////////////////////////*/
@@ -128,12 +128,10 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         external
         override
         returns (uint256)
-    {
+    {   
         bytes4 sigType = bytes4(userOp.signature[0:4]);
         address owner = smartAccountOwners[userOp.sender];
 
-        // TODO : does it make sense to cache userOp.signature[5:] in the memory?
-        
         if (sigType == SIG_TYPE_SIMPLE) {
             return SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[4:], owner);
         } else if (sigType == SIG_TYPE_ON_CHAIN) {
@@ -142,7 +140,7 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
             return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[4:], owner);
         } else {
             // fallback flow => non MEE flow => no prefix
-            return UserOpValidatorLib.validateUserOp(userOpHash, userOp.signature, owner);
+            return NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
         }
     }
 
@@ -175,9 +173,13 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         external
         view
         returns (bool validSig)
-   {
+    {
         require(data.length >= 20, InvalidDataLength());
         return _validateSignatureForOwner(address(bytes20(data[:20])), hash, sig);
+    }
+
+    function getOwner(address smartAccount) external view returns (address) {
+        return smartAccountOwners[smartAccount];
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -255,7 +257,7 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
             return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else {
             // fallback flow => non MEE flow => no prefix
-            return UserOpValidatorLib.validateSignatureForOwner(owner, hash, signature);
+            return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
         } 
     }
 

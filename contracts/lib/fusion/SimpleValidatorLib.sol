@@ -4,10 +4,9 @@ pragma solidity ^0.8.27;
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
+import "account-abstraction/core/Helpers.sol";
 
 import "forge-std/console2.sol";
-
-import "account-abstraction/core/Helpers.sol";
 
 library SimpleValidatorLib {
     /**
@@ -54,10 +53,10 @@ library SimpleValidatorLib {
     /**
      * @notice Validates the signature against the expected signer (owner)
      * @param owner Signer expected to be recovered
-     * @param userOpHash UserOp hash being validated.
+     * @param dataHash data hash being validated.
      * @param signatureData Signature
      */
-    function validateSignatureForOwner(address owner, bytes32 userOpHash, bytes memory signatureData)
+    function validateSignatureForOwner(address owner, bytes32 dataHash, bytes memory signatureData)
         internal
         view 
         returns (bool)
@@ -65,17 +64,14 @@ library SimpleValidatorLib {
         (
             bytes32 superTxHash, //super tx hash
             bytes32[] memory proof,
-            uint48 lowerBoundTimestamp,
-            uint48 upperBoundTimestamp,
             bytes memory secp256k1Signature
-        ) = abi.decode(signatureData, (bytes32, bytes32[], uint48, uint48, bytes));
+        ) = abi.decode(signatureData, (bytes32, bytes32[], bytes));
         
-        bytes32 calculatedUserOpHash = MEEUserOpLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
         if (!EcdsaLib.isValidSignature(owner, superTxHash, secp256k1Signature)) {
             return false;
         }
 
-        if (!MerkleProof.verify(proof, superTxHash, calculatedUserOpHash)) {
+        if (!MerkleProof.verify(proof, superTxHash, dataHash)) {
             return false;
         }
 

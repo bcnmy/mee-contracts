@@ -10,12 +10,23 @@ import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPoint
 import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulations.sol";
 import {NodePaymaster} from "contracts/NodePaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
+import {MEEUserOpLib} from "contracts/lib/util/MEEUserOpLib.sol";
 
 import "forge-std/console2.sol";
+
+interface IGetOwner {
+    function getOwner(address account) external view returns (address);
+}
+
+struct signedHash {
+    bytes32 hash;
+    bytes signature;
+}
 
 contract K1MEEValidatorTest is BaseTest {
 
     using UserOperationLib for PackedUserOperation;
+    using MEEUserOpLib for PackedUserOperation;
 
     Vm.Wallet wallet;
     MockAccount mockAccount;
@@ -64,13 +75,12 @@ contract K1MEEValidatorTest is BaseTest {
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
-        console2.log("value", mockTarget.value());
         assertEq(mockTarget.value(), valueToSet); 
 
         return (userOps);
     }
 
-    function test_superTxFlow_offChain_mode_success() public returns (PackedUserOperation[] memory) {
+    function test_superTxFlow_simple_mode_ValidateUserOp_success() public returns (PackedUserOperation[] memory) {
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
         PackedUserOperation memory userOp = buildSimpleMEEUserOpWithCalldata({
@@ -90,7 +100,28 @@ contract K1MEEValidatorTest is BaseTest {
         vm.stopPrank();
         
         assertEq(mockTarget.counter(), counterBefore + numOfClones + 1);
+        return userOps;
     }
+
+    function test_superTxFlow_simple_mode_1271_and_WithData_success() public {
+        uint256 numOfObjs = 2;
+        bytes[] memory meeSigs = new bytes[](numOfObjs);
+        bytes32 baseHash = keccak256(abi.encode("test"));
+        meeSigs = makeSuperTxSignatures({
+            baseHash: baseHash,
+            total: numOfObjs,
+            superTxSigner: wallet
+        });
+
+        for(uint256 i=0; i<numOfObjs; i++) {
+            bytes32 signedHash = keccak256(abi.encode(baseHash, i));
+            assertTrue(mockAccount.isValidSignature_test(signedHash, meeSigs[i]));
+            assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
+        }
+    }
+    function test_superTxFlow_permit2_mode_success() public {
+
+    }       
 
     // ================================
 

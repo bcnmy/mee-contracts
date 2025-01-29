@@ -17,10 +17,12 @@ import {MEEUserOpLib} from "../contracts/lib/util/MEEUserOpLib.sol";
 import {Merkle} from "murky-trees/Merkle.sol";
 import {CopyUserOpLib} from "./util/CopyUserOpLib.sol";
 import "contracts/types/Constants.sol";
+import {LibZip} from "solady/utils/LibZip.sol";
 
 contract BaseTest is Test {
 
     using CopyUserOpLib for PackedUserOperation;
+    using LibZip for bytes;
 
     bytes32 constant NODE_PM_CODE_HASH = 0x953893521ff5c48cec7282fcc5835105a4621aeaad353558e80c85277b46fa08;
 
@@ -185,13 +187,6 @@ contract BaseTest is Test {
         for (uint256 i = 0; i < userOps.length; i++) {
             superTxUserOps[i] = userOps[i].deepCopy();
             bytes32[] memory proof = tree.getProof(leaves, i);
-            /*
-            bytes32 superTxHash,
-            bytes32[] memory proof,
-            uint48 lowerBoundTimestamp,
-            uint48 upperBoundTimestamp,
-            bytes memory secp256k1Signature
-            */
             bytes memory signature = 
                 abi.encodePacked(
                     SIG_TYPE_SIMPLE,
@@ -201,23 +196,40 @@ contract BaseTest is Test {
                         lowerBoundTimestamp,
                         upperBoundTimestamp,
                         superTxHashSignature
-                    )
+                    )//.flzCompress()
             );
             superTxUserOps[i].signature = signature;
         }
-
-        // sign superTxHash
-
-        // updateUserOps with superTx signatures
-
-
-
-
-
         return superTxUserOps;
     }
 
     // TODO: makeSuperTx with custom timestamps
+
+    function makeSuperTxSignatures(bytes32 baseHash, uint256 total, Vm.Wallet memory superTxSigner
+    ) internal returns (bytes[] memory) {
+        bytes[] memory meeSigs = new bytes[](total);
+        require(total > 0, "total must be greater than 0");
+
+        bytes32[] memory leaves = new bytes32[](total);
+
+        for(uint256 i=0; i<total; i++) {
+            bytes32 hash = keccak256(abi.encode(baseHash, i));
+            leaves[i] = hash;
+        }
+
+        Merkle tree = new Merkle();
+        bytes32 root = tree.getRoot(leaves);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(superTxSigner.privateKey, root);
+        bytes memory superTxHashSignature = abi.encodePacked(r, s, v);
+
+        for(uint256 i=0; i<total; i++) {
+            bytes32[] memory proof = tree.getProof(leaves, i);
+            bytes memory signature = abi.encodePacked(SIG_TYPE_SIMPLE, abi.encode(root, proof, superTxHashSignature));
+            meeSigs[i] = signature;
+        }
+        return meeSigs;
+    }
 
     function createAndFundWallet(string memory name, uint256 amount) internal returns (Vm.Wallet memory) {
         Vm.Wallet memory wallet = newWallet(name);

@@ -5,7 +5,7 @@ import "account-abstraction/interfaces/PackedUserOperation.sol";
 import "account-abstraction/core/Helpers.sol";
 import "../util/EcdsaLib.sol";
 
-library UserOpValidatorLib {
+library NoMeeFlowLib {
     /**
      * Standard userOp validator - validates by simply checking if the userOpHash was signed by the account's EOA owner.
      *
