@@ -18,13 +18,15 @@ import {Merkle} from "murky-trees/Merkle.sol";
 import {CopyUserOpLib} from "./util/CopyUserOpLib.sol";
 import "contracts/types/Constants.sol";
 import {LibZip} from "solady/utils/LibZip.sol";
-
+import {ERC20Permit} from "openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
+import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
+import {PERMIT_TYPEHASH, DecodedErc20PermitSig, PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
 contract BaseTest is Test {
 
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0x953893521ff5c48cec7282fcc5835105a4621aeaad353558e80c85277b46fa08;
+    bytes32 constant NODE_PM_CODE_HASH = 0x945f9e6fbb3515eff44a0742841fd39b0b23b57731b04712b441e102b791b4d4;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address constant MEE_NODE_ADDRESS = 0x177EE170D31177Ee170D31177ee170d31177eE17;
@@ -131,6 +133,8 @@ contract BaseTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
+    // ============ MEE USER OP SUPER TX UTILS ============
+
     function makeMEEUserOp(
         PackedUserOperation memory userOp,
         uint128 pmValidationGasLimit,
@@ -165,18 +169,25 @@ contract BaseTest is Test {
         return userOps;
     }
 
-    function makeSimpleSuperTx(PackedUserOperation[] memory userOps, Vm.Wallet memory superTxSigner) internal returns (PackedUserOperation[] memory) {
-        PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
+    function buildLeavesOutOfUserOps(
+        PackedUserOperation[] memory userOps, 
+        uint48 lowerBoundTimestamp, 
+        uint48 upperBoundTimestamp
+    ) internal view returns (bytes32[] memory) {
         bytes32[] memory leaves = new bytes32[](userOps.length);
-
-        uint48 lowerBoundTimestamp = uint48(block.timestamp);
-        uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
-
-        // build leaves
         for (uint256 i = 0; i < userOps.length; i++) {
             bytes32 userOpHash = ENTRYPOINT.getUserOpHash(userOps[i]);
             leaves[i] = MEEUserOpLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
         }
+        return leaves;
+    }
+                // ==== SIMPLE SUPER TX UTILS ====
+
+    function makeSimpleSuperTx(PackedUserOperation[] memory userOps, Vm.Wallet memory superTxSigner) internal returns (PackedUserOperation[] memory) {
+        PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
+        uint48 lowerBoundTimestamp = uint48(block.timestamp);
+        uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
+        bytes32[] memory leaves = buildLeavesOutOfUserOps(userOps, lowerBoundTimestamp, upperBoundTimestamp);
 
         // make a tree
         Merkle tree = new Merkle();
@@ -203,9 +214,10 @@ contract BaseTest is Test {
         return superTxUserOps;
     }
 
-    // TODO: makeSuperTx with custom timestamps
-
-    function makeSuperTxSignatures(bytes32 baseHash, uint256 total, Vm.Wallet memory superTxSigner
+    function makeSimpleSuperTxSignatures(
+        bytes32 baseHash,
+        uint256 total,
+        Vm.Wallet memory superTxSigner
     ) internal returns (bytes[] memory) {
         bytes[] memory meeSigs = new bytes[](total);
         require(total > 0, "total must be greater than 0");
@@ -231,6 +243,72 @@ contract BaseTest is Test {
         return meeSigs;
     }
 
+                // ==== PERMIT SUPER TX UTILS ====
+    function makePermitSuperTx(
+            PackedUserOperation[] memory userOps,
+            IERC20Permit token, 
+            Vm.Wallet memory signer,
+            address spender, 
+            uint256 amount
+    ) internal returns (PackedUserOperation[] memory) {
+        PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
+        uint48 lowerBoundTimestamp = uint48(block.timestamp);
+        uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
+        bytes32[] memory leaves = buildLeavesOutOfUserOps(userOps, lowerBoundTimestamp, upperBoundTimestamp);
+
+        // make a tree
+        Merkle tree = new Merkle();
+        bytes32 root = tree.getRoot(leaves);
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PERMIT_TYPEHASH,
+                signer.addr,
+                spender,
+                amount,
+                token.nonces(signer.addr),//nonce
+                root //we use deadline field to store the super tx root hash
+            )
+        );
+
+        bytes32 dataHashToSign = MessageHashUtils.toTypedDataHash(token.DOMAIN_SEPARATOR(), structHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.privateKey, dataHashToSign);
+
+        for (uint256 i = 0; i < userOps.length; i++) {
+            superTxUserOps[i] = userOps[i].deepCopy();
+            bytes32[] memory proof = tree.getProof(leaves, i);
+
+            bytes memory signature = abi.encodePacked(
+                SIG_TYPE_ERC20_PERMIT,
+                abi.encode(
+                    DecodedErc20PermitSig({
+                        token: token,
+                        spender: spender,
+                        domainSeparator: token.DOMAIN_SEPARATOR(),
+                        amount: amount,                    
+                        nonce: token.nonces(signer.addr),
+                        isPermitTx: i == 0 ? true : false,
+                        appendedHash: root,
+                        proof: proof,
+                        lowerBoundTimestamp: lowerBoundTimestamp,
+                        upperBoundTimestamp: upperBoundTimestamp,
+                        v: v,
+                        r: r,
+                        s: s
+                    })
+                )
+            );
+
+            superTxUserOps[i].signature = signature;
+        }
+        return superTxUserOps;
+    }
+
+
+
+    // ============ WALLET UTILS ============
+
     function createAndFundWallet(string memory name, uint256 amount) internal returns (Vm.Wallet memory) {
         Vm.Wallet memory wallet = newWallet(name);
         vm.deal(wallet.addr, amount);
@@ -242,6 +320,8 @@ contract BaseTest is Test {
         vm.label(wallet.addr, name);
         return wallet;
     }
+
+    // ============ USER OP UTILS ============
 
     function unpackMaxPriorityFeePerGasMemory(PackedUserOperation memory userOp)
     internal pure returns (uint256) {
@@ -262,6 +342,8 @@ contract BaseTest is Test {
     internal pure returns (uint256) {
         return UserOperationLib.unpackLow128(userOp.accountGasLimits);
     }
+
+    // ============ PM DATA UTILS ============
 
     function makePMAndDataForOwnPM(
         address nodePM, 

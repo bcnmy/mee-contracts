@@ -5,31 +5,35 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
-import {IERC20Permit} from "../../interfaces/IERC20Permit.sol";
+//import {IERC20Permit} from "../../interfaces/IERC20Permit.sol";
+import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import "account-abstraction/core/Helpers.sol";
+
+bytes32 constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+
+struct DecodedErc20PermitSig {
+    IERC20Permit token;
+    address spender;
+    //bytes32 permitTypehash;
+    bytes32 domainSeparator;
+    uint256 amount;
+    //uint256 chainId;
+    uint256 nonce;
+    bool isPermitTx;
+    bytes32 appendedHash;
+    bytes32[] proof;
+    uint48 lowerBoundTimestamp;
+    uint48 upperBoundTimestamp;
+    uint256 v;
+    bytes32 r;
+    bytes32 s;
+}
 
 library PermitValidatorLib {
     uint8 constant EIP_155_MIN_V_VALUE = 37;
 
     using MessageHashUtils for bytes32;
-
-    struct DecodedErc20PermitSig {
-        IERC20Permit token;
-        address spender;
-        bytes32 permitTypehash;
-        bytes32 domainSeparator;
-        uint256 amount;
-        uint256 chainId;
-        uint256 nonce;
-        bool isPermitTx;
-        bytes32 appendedHash;
-        bytes32[] proof;
-        uint48 lowerBoundTimestamp;
-        uint48 upperBoundTimestamp;
-        uint256 v;
-        bytes32 r;
-        bytes32 s;
-    }
 
     /**
      * This function parses the given userOpSignature into a DecodedErc20PermitSig data structure.
@@ -68,7 +72,7 @@ library PermitValidatorLib {
 
         bytes32 structHash = keccak256(
             abi.encode(
-                decodedSig.permitTypehash,
+                PERMIT_TYPEHASH, // decodedSig.permitTypehash
                 expectedSigner,
                 decodedSig.spender,
                 decodedSig.amount,
@@ -111,7 +115,7 @@ library PermitValidatorLib {
 
         bytes32 structHash = keccak256(
             abi.encode(
-                decodedSig.permitTypehash,
+                PERMIT_TYPEHASH, // decodedSig.permitTypehash
                 expectedSigner,
                 decodedSig.spender,
                 decodedSig.amount,

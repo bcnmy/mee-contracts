@@ -11,16 +11,12 @@ import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulati
 import {NodePaymaster} from "contracts/NodePaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {MEEUserOpLib} from "contracts/lib/util/MEEUserOpLib.sol";
+import {MockERC20PermitToken} from "../mock/MockERC20PermitToken.sol";
 
 import "forge-std/console2.sol";
 
 interface IGetOwner {
     function getOwner(address account) external view returns (address);
-}
-
-struct signedHash {
-    bytes32 hash;
-    bytes signature;
 }
 
 contract K1MEEValidatorTest is BaseTest {
@@ -60,8 +56,8 @@ contract K1MEEValidatorTest is BaseTest {
 
         userOp = makeMEEUserOp({
             userOp: userOp, 
-            pmValidationGasLimit: 20_000, 
-            pmPostOpGasLimit: 41_000, 
+            pmValidationGasLimit: 22_000, 
+            pmPostOpGasLimit: 45_000, 
             premiumPercentage: 17_00000, 
             wallet: wallet, 
             sigType: bytes4(0)
@@ -107,7 +103,7 @@ contract K1MEEValidatorTest is BaseTest {
         uint256 numOfObjs = 2;
         bytes[] memory meeSigs = new bytes[](numOfObjs);
         bytes32 baseHash = keccak256(abi.encode("test"));
-        meeSigs = makeSuperTxSignatures({
+        meeSigs = makeSimpleSuperTxSignatures({
             baseHash: baseHash,
             total: numOfObjs,
             superTxSigner: wallet
@@ -119,8 +115,41 @@ contract K1MEEValidatorTest is BaseTest {
             assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
         }
     }
-    function test_superTxFlow_permit2_mode_success() public {
 
+    function test_superTxFlow_permit_mode_ValidateUserOp_success() public {
+        MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
+        deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
+        address bob = address(0xb0bb0b);
+        assertEq(erc20.balanceOf(bob), 0);
+        uint256 amountToTransfer = 1 ether;
+
+        // userOps will transfer tokens from wallet, not from mockAccount
+        // because of permit applies in the first userop validation
+        bytes memory innerCallData = abi.encodeWithSelector(erc20.transferFrom.selector, wallet.addr, bob, amountToTransfer);
+
+        PackedUserOperation memory userOp = buildSimpleMEEUserOpWithCalldata({
+            callData: abi.encodeWithSelector(mockAccount.execute.selector, address(erc20), uint256(0), innerCallData),
+            account: address(mockAccount),
+            userOpSigner: wallet
+        });
+
+        uint256 numOfClones = 5;
+        PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
+
+        userOps = makePermitSuperTx({
+            userOps: userOps, 
+            token: erc20, 
+            signer: wallet, 
+            spender: address(mockAccount), 
+            amount: amountToTransfer*userOps.length 
+        });
+
+        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.recordLogs();
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
+
+        assertEq(erc20.balanceOf(bob), amountToTransfer*numOfClones+1e18);
     }       
 
     // ================================
@@ -137,8 +166,8 @@ contract K1MEEValidatorTest is BaseTest {
 
         userOp = makeMEEUserOp({
             userOp: userOp, 
-            pmValidationGasLimit: 20_000, 
-            pmPostOpGasLimit: 41_000, 
+            pmValidationGasLimit: 22_000, 
+            pmPostOpGasLimit: 45_000, 
             premiumPercentage: 17_00000, 
             wallet: userOpSigner, 
             sigType: bytes4(0)
