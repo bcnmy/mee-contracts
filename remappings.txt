@@ -7,3 +7,4 @@ erc7579/=node_modules/erc7579-implementation/src/
 EnumerableSet4337/=node_modules/@erc7579/enumerablemap4337/src/
 byteslib/=node_modules/solidity-bytes-utils/contracts/
 rlp-reader/=node_modules/Solidity-RLP/contracts/
+murky-trees/=node_modules/murky/src/

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import { Test, Vm } from "forge-std/Test.sol";
+import { Test, Vm, console2 } from "forge-std/Test.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {EntryPoint} from "account-abstraction/core/EntryPoint.sol";
 import {PackedUserOperation, UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
@@ -12,10 +12,17 @@ import {MockTarget} from "./mock/MockTarget.sol";
 import {NodePaymaster} from "../contracts/NodePaymaster.sol";
 import {K1MeeValidator} from "../contracts/validators/K1MeeValidator.sol";
 import {MEEEntryPoint} from "../contracts/MEEEntryPoint.sol";
+import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
+import {MEEUserOpLib} from "../contracts/lib/util/MEEUserOpLib.sol";
+import {Merkle} from "murky-trees/Merkle.sol";
+import {CopyUserOpLib} from "./util/CopyUserOpLib.sol";
+import "contracts/types/Constants.sol";
 
 contract BaseTest is Test {
 
-    bytes32 constant NODE_PM_CODE_HASH = 0x8f46e1604f0921523160dcfa21321e96920fce89525d1bb71ae9848a2b8bb317;
+    using CopyUserOpLib for PackedUserOperation;
+
+    bytes32 constant NODE_PM_CODE_HASH = 0x953893521ff5c48cec7282fcc5835105a4621aeaad353558e80c85277b46fa08;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address constant MEE_NODE_ADDRESS = 0x177EE170D31177Ee170D31177ee170d31177eE17;
@@ -138,6 +145,79 @@ contract BaseTest is Test {
         }
         return userOp;
     }
+
+    function duplicateUserOpAndIncrementNonce(PackedUserOperation memory userOp, Vm.Wallet memory userOpSigner) internal view returns (PackedUserOperation memory) {
+        PackedUserOperation memory newUserOp = userOp.deepCopy();
+        newUserOp.nonce = userOp.nonce + 1;
+        newUserOp.signature = signUserOp(userOpSigner, newUserOp);
+        return newUserOp;
+    }
+
+    function cloneUserOpToAnArray(PackedUserOperation memory userOp, Vm.Wallet memory userOpSigner, uint256 numOfClones) internal view returns (PackedUserOperation[] memory) {
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](numOfClones+1);
+        userOps[0] = userOp;
+        for (uint256 i = 0; i < numOfClones; i++) {
+            assertEq(userOps[i].nonce, i);
+            userOps[i+1] = duplicateUserOpAndIncrementNonce(userOps[i], userOpSigner);
+        }
+        return userOps;
+    }
+
+    function makeSimpleSuperTx(PackedUserOperation[] memory userOps, Vm.Wallet memory superTxSigner) internal returns (PackedUserOperation[] memory) {
+        PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
+        bytes32[] memory leaves = new bytes32[](userOps.length);
+
+        uint48 lowerBoundTimestamp = uint48(block.timestamp);
+        uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
+
+        // build leaves
+        for (uint256 i = 0; i < userOps.length; i++) {
+            bytes32 userOpHash = ENTRYPOINT.getUserOpHash(userOps[i]);
+            leaves[i] = MEEUserOpLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
+        }
+
+        // make a tree
+        Merkle tree = new Merkle();
+        bytes32 root = tree.getRoot(leaves);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(superTxSigner.privateKey, root);
+        bytes memory superTxHashSignature = abi.encodePacked(r, s, v);
+
+        for (uint256 i = 0; i < userOps.length; i++) {
+            superTxUserOps[i] = userOps[i].deepCopy();
+            bytes32[] memory proof = tree.getProof(leaves, i);
+            /*
+            bytes32 superTxHash,
+            bytes32[] memory proof,
+            uint48 lowerBoundTimestamp,
+            uint48 upperBoundTimestamp,
+            bytes memory secp256k1Signature
+            */
+            bytes memory signature = 
+                abi.encodePacked(
+                    SIG_TYPE_SIMPLE,
+                    abi.encode(
+                        root,
+                        proof,
+                        lowerBoundTimestamp,
+                        upperBoundTimestamp,
+                        superTxHashSignature
+                    )
+            );
+            superTxUserOps[i].signature = signature;
+        }
+
+        // sign superTxHash
+
+        // updateUserOps with superTx signatures
+
+
+
+
+
+        return superTxUserOps;
+    }
+
+    // TODO: makeSuperTx with custom timestamps
 
     function createAndFundWallet(string memory name, uint256 amount) internal returns (Vm.Wallet memory) {
         Vm.Wallet memory wallet = newWallet(name);

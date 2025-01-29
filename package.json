@@ -17,6 +17,7 @@
     "account-abstraction": "https://github.com/eth-infinitism/account-abstraction#v0.7.0",
     "erc7579-implementation": "github:erc7579/erc7579-implementation",
     "erc7739-validator-base": "https://github.com/erc7579/erc7739Validator#v1.0.0",
+    "murky": "github:dmfxyz/murky",
     "openzeppelin-contracts": "@openzeppelin/contracts#v5.1.0",
     "solady": "github:vectorized/solady#v0.0.271",
     "solidity-bytes-utils": "github:GNSPS/solidity-bytes-utils",

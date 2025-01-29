@@ -5,15 +5,18 @@ import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
 
+import "forge-std/console2.sol";
+
 import "account-abstraction/core/Helpers.sol";
 
-library EcdsaValidatorLib {
+library SimpleValidatorLib {
     /**
      * This function parses the given userOpSignature into a Supertransaction signature
      *
      * Once parsed, the function will check for two conditions:
      *      1. is the root supertransaction hash signed by the account owner's EOA
-     *      2. is the userOp actually a part of the given supertransaction
+     *      2. is the userOp actually a part of the given supertransaction 
+     *      by checking the leaf based on this userOpHash is a part of the merkle tree represented by root hash = superTxHash
      *
      * If both conditions are met - outside contract can be sure that the expected signer has indeed
      * approved the given userOp - and the userOp is successfully validate.
@@ -35,12 +38,12 @@ library EcdsaValidatorLib {
             bytes memory secp256k1Signature
         ) = abi.decode(signatureData, (bytes32, bytes32[], uint48, uint48, bytes));
 
-        bytes32 calculatedUserOpHash = MEEUserOpLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
+        bytes32 leaf  = MEEUserOpLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
         if (!EcdsaLib.isValidSignature(expectedSigner, superTxHash, secp256k1Signature)) {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(proof, superTxHash, calculatedUserOpHash)) {
+        if (!MerkleProof.verify(proof, superTxHash, leaf)) {
             return SIG_VALIDATION_FAILED;
         }
 

@@ -7,11 +7,11 @@ import {ERC7739Validator} from "erc7739Validator/ERC7739Validator.sol";
 import {ISessionValidator} from "contracts/interfaces/ISessionValidator.sol";
 import {EnumerableSet} from "EnumerableSet4337/EnumerableSet4337.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
-import {SIG_TYPE_OFF_CHAIN, SIG_TYPE_ON_CHAIN, SIG_TYPE_ERC20_PERMIT} from "contracts/types/Constants.sol";
+import {SIG_TYPE_SIMPLE, SIG_TYPE_ON_CHAIN, SIG_TYPE_ERC20_PERMIT} from "contracts/types/Constants.sol";
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
 import {PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
-import {EcdsaValidatorLib} from "contracts/lib/fusion/EcdsaValidatorLib.sol";
+import {SimpleValidatorLib} from "contracts/lib/fusion/SimpleValidatorLib.sol";
 import {UserOpValidatorLib} from "contracts/lib/fusion/UserOpValidatorLib.sol";
 
 
@@ -131,13 +131,15 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
     {
         bytes4 sigType = bytes4(userOp.signature[0:4]);
         address owner = smartAccountOwners[userOp.sender];
+
+        // TODO : does it make sense to cache userOp.signature[5:] in the memory?
         
-        if (sigType == SIG_TYPE_OFF_CHAIN) {
-            return EcdsaValidatorLib.validateUserOp(userOpHash, userOp.signature[5:], owner);
+        if (sigType == SIG_TYPE_SIMPLE) {
+            return SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[4:], owner);
         } else if (sigType == SIG_TYPE_ON_CHAIN) {
-            return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[5:], owner);
+            return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[4:], owner);
         } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
-            return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[5:], owner);
+            return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[4:], owner);
         } else {
             // fallback flow => non MEE flow => no prefix
             return UserOpValidatorLib.validateUserOp(userOpHash, userOp.signature, owner);
@@ -245,12 +247,12 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
     {
         bytes4 sigType = bytes4(signature[0:4]);
 
-        if (sigType == SIG_TYPE_OFF_CHAIN) {
-            return EcdsaValidatorLib.validateSignatureForOwner(owner, hash, signature[5:]);
+        if (sigType == SIG_TYPE_SIMPLE) {
+            return SimpleValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else if (sigType == SIG_TYPE_ON_CHAIN) {
-            return TxValidatorLib.validateSignatureForOwner(owner, hash, signature[5:]);
+            return TxValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
-            return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[5:]);
+            return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else {
             // fallback flow => non MEE flow => no prefix
             return UserOpValidatorLib.validateSignatureForOwner(owner, hash, signature);
