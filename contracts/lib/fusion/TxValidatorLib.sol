@@ -8,6 +8,9 @@ import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
 import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {BytesLib} from "byteslib/BytesLib.sol";
 import "account-abstraction/core/Helpers.sol";
+
+import {console2} from "forge-std/console2.sol";
+
 library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;
     uint8 constant EIP1559_TX_TYPE = 0x02;
@@ -26,6 +29,18 @@ library TxValidatorLib {
     using BytesLib for bytes;
 
     struct TxData {
+        uint8 txType;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        bytes32 utxHash;
+        bytes32 superTxHash;
+        bytes32[] proof;
+        uint48 lowerBoundTimestamp;
+        uint48 upperBoundTimestamp;
+    }
+
+    struct TxDataShort {
         uint8 txType;
         uint8 v;
         bytes32 r;
@@ -98,6 +113,8 @@ library TxValidatorLib {
         TxData memory decodedTx = decodeTx(parsedSignature);
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
+        console2.log("signature");
+        console2.logBytes(signature);
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return false;
         }
@@ -105,7 +122,7 @@ library TxValidatorLib {
         if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, dataHash)) {
             return false;
         }
-
+        console2.log("valid");
         return true;
     }
 

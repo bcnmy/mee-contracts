@@ -380,8 +380,8 @@ contract BaseTest is Test {
         Merkle tree = new Merkle();
         bytes32 root = tree.getRoot(leaves);
 
-        console2.log("super tx root");
-        console2.logBytes32(root);
+        //console2.log("super tx root");
+        //console2.logBytes32(root);
 
         for (uint256 i = 0; i < userOps.length; i++) {
             superTxUserOps[i] = userOps[i].deepCopy();
@@ -397,6 +397,45 @@ contract BaseTest is Test {
             superTxUserOps[i].signature = signature;
         }
         return superTxUserOps;
+    }
+
+    function makeOnChainTxnSuperTxSignatures(
+        bytes32 baseHash,
+        uint256 total,
+        bytes memory serializedTx
+    ) internal returns (bytes[] memory) {
+        bytes[] memory meeSigs = new bytes[](total);
+        require(total > 0, "total must be greater than 0");
+
+        bytes32[] memory leaves = new bytes32[](total);
+
+        for(uint256 i=0; i<total; i++) {
+            bytes32 hash = keccak256(abi.encode(baseHash, i));
+            leaves[i] = hash;
+        }
+
+        Merkle tree = new Merkle();
+        bytes32 root = tree.getRoot(leaves);
+
+        console2.log("super tx root");
+        console2.logBytes32(root);
+
+        uint48 lowerBoundTimestamp = uint48(block.timestamp);
+        uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
+
+        for(uint256 i=0; i<total; i++) {
+            bytes32[] memory proof = tree.getProof(leaves, i);
+            bytes memory signature = abi.encodePacked(
+                SIG_TYPE_ON_CHAIN, 
+                serializedTx,
+                abi.encodePacked(proof), 
+                uint8(proof.length), 
+                lowerBoundTimestamp, 
+                upperBoundTimestamp
+            );
+            meeSigs[i] = signature;
+        }
+        return meeSigs;
     }
 
 

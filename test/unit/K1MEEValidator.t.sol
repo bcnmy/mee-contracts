@@ -216,7 +216,21 @@ contract K1MEEValidatorTest is BaseTest {
         assertEq(erc20.balanceOf(bob), amountToTransfer*(numOfClones+1));
     }
 
-    // make mixed mode : one userOp from different trees (permit, simple, txn) - one handleOps call
+    function test_superTxFlow_txn_mode_1271_and_WithData_success() public {
+        uint256 numOfObjs = 5;
+        bytes[] memory meeSigs = new bytes[](numOfObjs);
+        bytes32 baseHash = keccak256(abi.encode("test"));
+
+        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec58000008ce608b04d1260f58d9abf45effacae12833078a5ee976729e262414887e402c001a045383e3318ab1dacaf8979f9ec8d2ec213cae7605571655dee8f81131aa914dba069918c469a0980a6d1be39f624c91d7944c459da62c4212b37ac15bc4bd14663";
+        
+        meeSigs = makeOnChainTxnSuperTxSignatures(baseHash, numOfObjs, serializedTx);
+
+        for(uint256 i=0; i<numOfObjs; i++) {
+            bytes32 signedHash = keccak256(abi.encode(baseHash, i));
+            assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
+            assertTrue(mockAccount.isValidSignature_test(signedHash, meeSigs[i]));
+        }
+    }
 
     // ================================
 

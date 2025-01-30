@@ -162,6 +162,9 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         override
         returns (bytes4 sigValidationResult)
     {
+        // TODO:
+        // Send signature to the appropriate library first to clean it up
+        // Then send the signature over hash itself to _erc1271IsValidSignatureWithSender 
         return _erc1271IsValidSignatureWithSender(sender, hash, _erc1271UnwrapSignature(signature));
     }
 
@@ -220,6 +223,9 @@ contract K1MeeValidator is IValidator, ERC7739Validator, ISessionValidator {
         returns (bool)
     {
         // call custom internal function to validate the signature against credentials
+
+        // TODO: jsut do normal K1 validation here
+
         return _validateSignatureForOwner(smartAccountOwners[msg.sender], hash, signature);
     }
 
