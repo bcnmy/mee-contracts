@@ -15,16 +15,26 @@ bytes32 constant PERMIT_TYPEHASH =
 struct DecodedErc20PermitSig {
     IERC20Permit token;
     address spender;
-    //bytes32 permitTypehash;
     bytes32 domainSeparator;
     uint256 amount;
-    //uint256 chainId;
     uint256 nonce;
     bool isPermitTx;
-    bytes32 appendedHash;
+    bytes32 superTxHash;
     bytes32[] proof;
     uint48 lowerBoundTimestamp;
     uint48 upperBoundTimestamp;
+    uint256 v;
+    bytes32 r;
+    bytes32 s;
+}
+
+struct DecodedErc20PermitSigShort {
+    address spender;
+    bytes32 domainSeparator;
+    uint256 amount;
+    uint256 nonce;
+    bytes32 superTxHash;
+    bytes32[] proof;
     uint256 v;
     bytes32 r;
     bytes32 s;
@@ -58,7 +68,7 @@ library PermitValidatorLib {
      * @param parsedSignature Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
      * @param expectedSigner Signer expected to be recovered when decoding the ERC20OPermit signature.
      */
-    function validateUserOp(bytes32 userOpHash, bytes memory parsedSignature, address expectedSigner)
+    function validateUserOp(bytes32 userOpHash, bytes calldata parsedSignature, address expectedSigner)
         internal
         returns (uint256)
     {
@@ -68,54 +78,63 @@ library PermitValidatorLib {
             MEEUserOpLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
 
         uint8 vAdjusted = _adjustV(decodedSig.v);
-        uint256 deadline = uint256(decodedSig.appendedHash);
 
-        bytes32 structHash = keccak256(
-            abi.encode(
-                PERMIT_TYPEHASH, // decodedSig.permitTypehash
+        if (!EcdsaLib.isValidSignature(
                 expectedSigner,
-                decodedSig.spender,
-                decodedSig.amount,
-                decodedSig.nonce,
-                deadline
+                _getSignedDataHash(expectedSigner, decodedSig),
+                abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted)
             )
-        );
-
-        bytes32 signedDataHash = _hashTypedDataV4(structHash, decodedSig.domainSeparator);
-        bytes memory signature = abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted);
-
-        if (!EcdsaLib.isValidSignature(expectedSigner, signedDataHash, signature)) {
+        ) {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(decodedSig.proof, decodedSig.appendedHash, meeUserOpHash)) {
+        if (!MerkleProof.verify(decodedSig.proof, decodedSig.superTxHash, meeUserOpHash)) {
             return SIG_VALIDATION_FAILED;
         }
 
         if (decodedSig.isPermitTx) {
             decodedSig.token.permit(
-                expectedSigner, decodedSig.spender, decodedSig.amount, deadline, vAdjusted, decodedSig.r, decodedSig.s
+                expectedSigner, decodedSig.spender, decodedSig.amount, uint256(decodedSig.superTxHash), vAdjusted, decodedSig.r, decodedSig.s
             );
         }
 
         return _packValidationData(false, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 userOpHash, bytes memory parsedSignature)
+
+    // TODO:
+    // use shorter struct with less fields
+    // try to squeeze some gas from both structs with calldata parsing
+    function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes memory parsedSignature)
         internal
         view
         returns (bool)
     {
-        DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));
-
-        bytes32 meeUserOpHash = MEEUserOpLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
-
+        DecodedErc20PermitSigShort memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSigShort));
         uint8 vAdjusted = _adjustV(decodedSig.v);
-        uint256 deadline = uint256(decodedSig.appendedHash);
+
+        if (!EcdsaLib.isValidSignature(
+                expectedSigner, 
+                _getSignedDataHash(expectedSigner, decodedSig), 
+                abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted)
+            )
+        ) {
+            return false;
+        }
+
+        if (!MerkleProof.verify(decodedSig.proof, decodedSig.superTxHash, dataHash)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function _getSignedDataHash(address expectedSigner, DecodedErc20PermitSig memory decodedSig) private pure returns (bytes32) {
+        uint256 deadline = uint256(decodedSig.superTxHash);
 
         bytes32 structHash = keccak256(
             abi.encode(
-                PERMIT_TYPEHASH, // decodedSig.permitTypehash
+                PERMIT_TYPEHASH, 
                 expectedSigner,
                 decodedSig.spender,
                 decodedSig.amount,
@@ -123,22 +142,26 @@ library PermitValidatorLib {
                 deadline
             )
         );
-
-        bytes32 signedDataHash = _hashTypedDataV4(structHash, decodedSig.domainSeparator);
-        bytes memory signature = abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted);
-
-        if (!EcdsaLib.isValidSignature(expectedSigner, signedDataHash, signature)) {
-            return false;
-        }
-
-        if (!MerkleProof.verify(decodedSig.proof, decodedSig.appendedHash, meeUserOpHash)) {
-            return false;
-        }
-
-        return true;
+        return _hashTypedData(structHash, decodedSig.domainSeparator);
     }
 
-    function _hashTypedDataV4(bytes32 structHash, bytes32 domainSeparator) private pure returns (bytes32) {
+    function _getSignedDataHash(address expectedSigner, DecodedErc20PermitSigShort memory decodedSig) private pure returns (bytes32) {
+        uint256 deadline = uint256(decodedSig.superTxHash);
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PERMIT_TYPEHASH, 
+                expectedSigner,
+                decodedSig.spender,
+                decodedSig.amount,
+                decodedSig.nonce,
+                deadline
+            )
+        );
+        return _hashTypedData(structHash, decodedSig.domainSeparator);
+    }
+
+    function _hashTypedData(bytes32 structHash, bytes32 domainSeparator) private pure returns (bytes32) {
         return MessageHashUtils.toTypedDataHash(domainSeparator, structHash);
     }
 

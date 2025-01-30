@@ -20,13 +20,13 @@ import "contracts/types/Constants.sol";
 import {LibZip} from "solady/utils/LibZip.sol";
 import {ERC20Permit} from "openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
-import {PERMIT_TYPEHASH, DecodedErc20PermitSig, PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
+import {PERMIT_TYPEHASH, DecodedErc20PermitSig, DecodedErc20PermitSigShort, PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
 contract BaseTest is Test {
 
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0x945f9e6fbb3515eff44a0742841fd39b0b23b57731b04712b441e102b791b4d4;
+    bytes32 constant NODE_PM_CODE_HASH = 0x26756099ccffe84f0b21613d4ce4fcd5cebbfdc93c46713ea2cd280edd909252;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address constant MEE_NODE_ADDRESS = 0x177EE170D31177Ee170D31177ee170d31177eE17;
@@ -207,7 +207,7 @@ contract BaseTest is Test {
                         lowerBoundTimestamp,
                         upperBoundTimestamp,
                         superTxHashSignature
-                    )//.flzCompress()
+                    )
             );
             superTxUserOps[i].signature = signature;
         }
@@ -289,7 +289,7 @@ contract BaseTest is Test {
                         amount: amount,                    
                         nonce: token.nonces(signer.addr),
                         isPermitTx: i == 0 ? true : false,
-                        appendedHash: root,
+                        superTxHash: root,
                         proof: proof,
                         lowerBoundTimestamp: lowerBoundTimestamp,
                         upperBoundTimestamp: upperBoundTimestamp,
@@ -303,6 +303,65 @@ contract BaseTest is Test {
             superTxUserOps[i].signature = signature;
         }
         return superTxUserOps;
+    }
+
+    function makePermitSuperTxSignatures(
+        bytes32 baseHash,
+        uint256 total,
+        IERC20Permit token,
+        Vm.Wallet memory signer,
+        address spender,
+        uint256 amount
+    ) internal returns (bytes[] memory) {
+        bytes[] memory meeSigs = new bytes[](total);
+        require(total > 0, "total must be greater than 0");
+
+        bytes32[] memory leaves = new bytes32[](total);
+
+        for(uint256 i=0; i<total; i++) {
+            bytes32 hash = keccak256(abi.encode(baseHash, i));
+            leaves[i] = hash;
+        }
+
+        Merkle tree = new Merkle();
+        bytes32 root = tree.getRoot(leaves);
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PERMIT_TYPEHASH,
+                signer.addr,
+                spender,
+                amount,
+                token.nonces(signer.addr),//nonce
+                root //we use deadline field to store the super tx root hash
+            )
+        );
+
+        bytes32 dataHashToSign = MessageHashUtils.toTypedDataHash(token.DOMAIN_SEPARATOR(), structHash); 
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.privateKey, dataHashToSign);
+
+        for(uint256 i=0; i<total; i++) {
+            bytes32[] memory proof = tree.getProof(leaves, i);
+            bytes memory signature = abi.encodePacked(
+                SIG_TYPE_ERC20_PERMIT, 
+                abi.encode(
+                    DecodedErc20PermitSigShort({
+                        spender: spender,
+                        domainSeparator: token.DOMAIN_SEPARATOR(),
+                        amount: amount,
+                        nonce: token.nonces(signer.addr),
+                        superTxHash: root,
+                        proof: proof,
+                        v: v,
+                        r: r,
+                        s: s
+                    })
+                )
+            );
+            meeSigs[i] = signature;
+        }
+        return meeSigs;
     }
 
 

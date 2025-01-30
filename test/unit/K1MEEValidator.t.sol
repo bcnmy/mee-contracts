@@ -12,7 +12,7 @@ import {NodePaymaster} from "contracts/NodePaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {MEEUserOpLib} from "contracts/lib/util/MEEUserOpLib.sol";
 import {MockERC20PermitToken} from "../mock/MockERC20PermitToken.sol";
-
+import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import "forge-std/console2.sol";
 
 interface IGetOwner {
@@ -151,6 +151,32 @@ contract K1MEEValidatorTest is BaseTest {
 
         assertEq(erc20.balanceOf(bob), amountToTransfer*numOfClones+1e18);
     }       
+
+    function test_superTxFlow_permit_mode_1271_and_WithData_success() public {
+        MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
+        uint256 numOfObjs = 5;
+        bytes[] memory meeSigs = new bytes[](numOfObjs);
+        bytes32 baseHash = keccak256(abi.encode("test"));
+
+        meeSigs = makePermitSuperTxSignatures({
+            baseHash: baseHash,
+            total: numOfObjs,
+            token: erc20,
+            signer: wallet,
+            spender: address(mockAccount),
+            amount: 1e18
+        });
+
+        for(uint256 i=0; i<numOfObjs; i++) {
+            bytes32 signedHash = keccak256(abi.encode(baseHash, i));
+            assertTrue(mockAccount.isValidSignature_test(signedHash, meeSigs[i]));
+            assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
+        }
+    }
+
+    // test txn mode
+
+    // make mixed mode : one userOp from different trees (permit, simple, txn) - one handleOps call
 
     // ================================
 

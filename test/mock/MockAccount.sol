@@ -24,8 +24,6 @@ contract MockAccount is IAccount {
     }
 
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds) external returns (uint256 vd) {
-        emit MockAccountValidateUserOp(userOp, userOpHash, missingAccountFunds);
-        
         if (address(validator) != address(0)) {
             vd = validator.validateUserOp(userOp, userOpHash);    
         }
@@ -41,13 +39,11 @@ contract MockAccount is IAccount {
     }
 
     function validateSignatureWithData(bytes32 signedHash, bytes calldata signature, bytes calldata signerData) external view returns (bool) {
-
-    bool res = IStatelessValidator(address(validator)).validateSignatureWithData({
-            hash: signedHash,
-            signature: signature,
-            data: signerData
-        });
-        return res;
+        return IStatelessValidator(address(validator)).validateSignatureWithData({
+                hash: signedHash,
+                signature: signature,
+                data: signerData
+            });
     }
 
     function execute(address to, uint256 value, bytes calldata data) external returns (bool success, bytes memory result) {

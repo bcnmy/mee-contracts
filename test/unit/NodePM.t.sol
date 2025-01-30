@@ -53,13 +53,13 @@ contract PMPerNodeTest is BaseTest {
                 callData: callData, 
                 wallet: wallet, 
                 preVerificationGasLimit: 3e5, 
-                verificationGasLimit: 45e3, 
+                verificationGasLimit: 50e3, 
                 callGasLimit: 3e6
             }
         );
 
         uint128 pmValidationGasLimit = 20_000;
-        uint128 pmPostOpGasLimit = 40_000;
+        uint128 pmPostOpGasLimit = 50_000;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
         userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
@@ -93,11 +93,11 @@ contract PMPerNodeTest is BaseTest {
         uint128 pmPostOpGasLimit
     ) public {
         preVerificationGasLimit = bound(preVerificationGasLimit, 1e5, 5e6);
-        verificationGasLimit = uint128(bound(verificationGasLimit, 45e3, 5e6));
+        verificationGasLimit = uint128(bound(verificationGasLimit, 50e3, 5e6));
         callGasLimit = uint128(bound(callGasLimit, 100e3, 5e6));
         premiumPercentage = bound(premiumPercentage, 0, 200e5);
         pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 20e3, 5e6));
-        pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 40e3, 5e6));
+        pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 50e3, 5e6));
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         valueToSet = MEE_NODE_HEX;
