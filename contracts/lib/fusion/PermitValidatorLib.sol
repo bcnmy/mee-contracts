@@ -5,7 +5,6 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
-//import {IERC20Permit} from "../../interfaces/IERC20Permit.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import "account-abstraction/core/Helpers.sol";
 
@@ -49,19 +48,15 @@ library PermitValidatorLib {
      * This function parses the given userOpSignature into a DecodedErc20PermitSig data structure.
      *
      * Once parsed, the function will check for two conditions:
-     *      1. is the expected hash found in the signed Permit message's deadline field?
+     *      1. is the userOp part of the merkle tree
      *      2. is the recovered message signer equal to the expected signer?
-     *
-     * If both conditions are met - outside contract can be sure that the expected signer has indeed
-     * approved the given hash by signing a given Permit message.
      *
      * NOTES: This function will revert if either of following is met:
      *    1. the userOpSignature couldn't be abi.decoded into a valid DecodedErc20PermitSig struct as defined in this contract
-     *    2. extracted hash wasn't equal to the provided expected hash
+     *    2. userOp is not part of the merkle tree
      *    3. recovered Permit message signer wasn't equal to the expected signer
      *
-     * Returns true if the expected signer did indeed approve the given expectedHash by signing an on-chain transaction.
-     * In that case, the function will also perform the Permit approval on the given token in case the
+     * The function will also perform the Permit approval on the given token in case the
      * isPermitTx flag was set to true in the decoded signature struct.
      *
      * @param userOpHash UserOp hash being validated.
@@ -71,7 +66,8 @@ library PermitValidatorLib {
     function validateUserOp(bytes32 userOpHash, bytes calldata parsedSignature, address expectedSigner)
         internal
         returns (uint256)
-    {
+    {   
+        //TODO: try to squeeze some gas from both structs with calldata parsing if have time
         DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));
 
         bytes32 meeUserOpHash =
@@ -101,10 +97,6 @@ library PermitValidatorLib {
         return _packValidationData(false, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
     }
 
-
-    // TODO:
-    // use shorter struct with less fields
-    // try to squeeze some gas from both structs with calldata parsing
     function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes memory parsedSignature)
         internal
         view

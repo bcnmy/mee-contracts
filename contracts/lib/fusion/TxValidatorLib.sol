@@ -47,9 +47,9 @@ library TxValidatorLib {
     /**
      * This function parses the given userOpSignature into a valid fully signed EVM transaction.
      * Once parsed, the function will check for three conditions:
-     *      1. is the expected hash found in the tx.data as the last 32bytes?
+     *      1. is the userOp part of the superTX merkle tree
      *      2. is the recovered tx signer equal to the expected signer?
-     *      2. is the given UserOp a part of the merkle tree
+     *      3. is the given UserOp a part of the merkle tree
      *
      * If all the conditions are met - outside contract can be sure that the expected signer has indeed
      * approved the given hash by performing given on-chain transaction.
@@ -60,15 +60,13 @@ library TxValidatorLib {
      *    3. extracted hash wasn't equal to the provided expected hash
      *    4. recovered signer wasn't equal to the expected signer
      *
-     * Returns true if the expected signer did indeed approve the given expectedHash by signing an on-chain transaction.
-     *
      * @param userOpHash UserOp hash being validated.
      * @param parsedSignature Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
-     *                        Expecting to receive fully signed serialized EVM transcaction here of type 0x00 (LEGACY)
+     *                        Expecting to receive fully signed serialized EVM transaction here of type 0x00 (LEGACY)
      *                        or 0x02 (EIP1556).
      *                        For LEGACY tx type the "0x00" prefix has to be added manually while the EIP1559 tx type
      *                        already contains 0x02 prefix.
-     * @param expectedSigner Expected EOA signer of the given userOp and the EVM transaction.
+     * @param expectedSigner Expected EOA signer of the given EVM transaction => superTX.
      */
     function validateUserOp(bytes32 userOpHash, bytes memory parsedSignature, address expectedSigner)
         internal
@@ -92,21 +90,19 @@ library TxValidatorLib {
         return _packValidationData(false, decodedTx.upperBoundTimestamp, decodedTx.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 userOpHash, bytes memory parsedSignature)
+    function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes memory parsedSignature)
         internal
         view
         returns (bool)
     {
         TxData memory decodedTx = decodeTx(parsedSignature);
 
-        bytes32 meeUserOpHash = MEEUserOpLib.getMEEUserOpHash(userOpHash, decodedTx.lowerBoundTimestamp, decodedTx.upperBoundTimestamp);
-
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return false;
         }
 
-        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, meeUserOpHash)) {
+        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, dataHash)) {
             return false;
         }
 

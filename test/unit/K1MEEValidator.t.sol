@@ -13,6 +13,7 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {MEEUserOpLib} from "contracts/lib/util/MEEUserOpLib.sol";
 import {MockERC20PermitToken} from "../mock/MockERC20PermitToken.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
+import {Strings} from "openzeppelin/utils/Strings.sol";
 import "forge-std/console2.sol";
 
 interface IGetOwner {
@@ -23,7 +24,8 @@ contract K1MEEValidatorTest is BaseTest {
 
     using UserOperationLib for PackedUserOperation;
     using MEEUserOpLib for PackedUserOperation;
-
+    using Strings for address;
+    using Strings for uint256;
     Vm.Wallet wallet;
     MockAccount mockAccount;
     uint256 constant PREMIUM_CALCULATION_BASE = 100e5;
@@ -31,7 +33,7 @@ contract K1MEEValidatorTest is BaseTest {
 
     function setUp() public virtual override {
         super.setUp();
-        wallet = createAndFundWallet("wallet", 1 ether);
+        wallet = createAndFundWallet("wallet", 5 ether);
         mockAccount = deployMockAccount({
             validator: address(k1MeeValidator)
         });
@@ -175,6 +177,30 @@ contract K1MEEValidatorTest is BaseTest {
     }
 
     // test txn mode
+    function test_superTxFlow_txn_mode_ValidateUserOp_success() public {
+        MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
+        deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
+        address bob = address(0xb0bb0b);
+        assertEq(erc20.balanceOf(bob), 0);
+        assertEq(erc20.balanceOf(address(mockAccount)), 0);
+        uint256 amountToTransfer = 1 ether; // 1 token
+
+        bytes memory innerCallData = abi.encodeWithSelector(erc20.transfer.selector, bob, amountToTransfer); // mock Account transfers tokens to bob
+        PackedUserOperation memory userOp = buildSimpleMEEUserOpWithCalldata({
+            callData: abi.encodeWithSelector(mockAccount.execute.selector, address(erc20), uint256(0), innerCallData),
+            account: address(mockAccount),
+            userOpSigner: wallet
+        });
+
+        uint256 numOfClones = 5;
+        PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
+        
+        bytes memory asd = abi.encodeWithSelector(erc20.transfer.selector, address(mockAccount), amountToTransfer*(numOfClones+1));
+        console2.logBytes(asd);
+
+        //console2.logBytes32(bytes32(wallet.privateKey));
+
+    }
 
     // make mixed mode : one userOp from different trees (permit, simple, txn) - one handleOps call
 
@@ -200,6 +226,20 @@ contract K1MEEValidatorTest is BaseTest {
         });
 
         return userOp;
+    }
 
+    function iToHex(bytes memory buffer) public pure returns (string memory) {
+
+        // Fixed buffer size for hexadecimal convertion
+        bytes memory converted = new bytes(buffer.length * 2);
+
+        bytes memory _base = "0123456789abcdef";
+
+        for (uint256 i = 0; i < buffer.length; i++) {
+            converted[i * 2] = _base[uint8(buffer[i]) / _base.length];
+            converted[i * 2 + 1] = _base[uint8(buffer[i]) % _base.length];
+        }
+
+        return string(abi.encodePacked("0x", converted));
     }
 }
