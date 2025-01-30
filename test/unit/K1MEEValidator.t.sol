@@ -196,10 +196,24 @@ contract K1MEEValidatorTest is BaseTest {
         PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
         
         bytes memory asd = abi.encodeWithSelector(erc20.transfer.selector, address(mockAccount), amountToTransfer*(numOfClones+1));
-        console2.logBytes(asd);
+        //console2.logBytes(asd);
+        vm.startPrank(wallet.addr);
+        erc20.transfer(address(mockAccount), amountToTransfer*(numOfClones+1));
+        vm.stopPrank();
 
-        //console2.logBytes32(bytes32(wallet.privateKey));
+        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800001d69c064e2bd749cfe331b748be1dd5324cbf4e1839dda346cbb741a3e3169d1c001a00d20bce300797773daa18e485e5babb3cc42364c6d69d7d048b757d96d0ea4e6a04adf97b9e62d2f57a993bc6c69a81a0a41594aacfd3797d3e0144c494a64c0cb";
+        userOps = makeOnChainTxnSuperTx(
+            userOps,
+            wallet,
+            serializedTx
+        );
 
+        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.recordLogs();
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
+
+        assertEq(erc20.balanceOf(bob), amountToTransfer*(numOfClones+1));
     }
 
     // make mixed mode : one userOp from different trees (permit, simple, txn) - one handleOps call

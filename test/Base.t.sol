@@ -364,6 +364,41 @@ contract BaseTest is Test {
         return meeSigs;
     }
 
+    //                  ========== ON CHAIN TXN MODE ==========
+
+    function makeOnChainTxnSuperTx(
+        PackedUserOperation[] memory userOps, 
+        Vm.Wallet memory superTxSigner,
+        bytes memory serializedTx
+    ) internal returns (PackedUserOperation[] memory) {
+        PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
+        uint48 lowerBoundTimestamp = uint48(block.timestamp);
+        uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
+        bytes32[] memory leaves = buildLeavesOutOfUserOps(userOps, lowerBoundTimestamp, upperBoundTimestamp);
+
+        // make a tree
+        Merkle tree = new Merkle();
+        bytes32 root = tree.getRoot(leaves);
+
+        console2.log("super tx root");
+        console2.logBytes32(root);
+
+        for (uint256 i = 0; i < userOps.length; i++) {
+            superTxUserOps[i] = userOps[i].deepCopy();
+            bytes32[] memory proof = tree.getProof(leaves, i);
+            bytes memory signature = abi.encodePacked(
+                SIG_TYPE_ON_CHAIN,
+                serializedTx,
+                abi.encodePacked(proof),
+                uint8(proof.length),
+                lowerBoundTimestamp,
+                upperBoundTimestamp
+            );
+            superTxUserOps[i].signature = signature;
+        }
+        return superTxUserOps;
+    }
+
 
 
     // ============ WALLET UTILS ============
