@@ -103,19 +103,25 @@ contract K1MEEValidatorTest is BaseTest {
     }
 
     function test_superTxFlow_simple_mode_1271_and_WithData_success() public {
-        uint256 numOfObjs = 2;
+        uint256 numOfObjs = 10;
         bytes[] memory meeSigs = new bytes[](numOfObjs);
         bytes32 baseHash = keccak256(abi.encode("test"));
         meeSigs = makeSimpleSuperTxSignatures({
             baseHash: baseHash,
             total: numOfObjs,
-            superTxSigner: wallet
+            superTxSigner: wallet,
+            mockAccount: address(mockAccount)
         });
 
         for(uint256 i=0; i<numOfObjs; i++) {
-            bytes32 signedHash = keccak256(abi.encode(baseHash, i));
-            assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
-            assertTrue(mockAccount.isValidSignature(signedHash, meeSigs[i]) == EIP1271_SUCCESS);
+            // pass the 'unsafe hash' here. however, the root is made with the 'safe' one
+            // hash will rehashed in the K1MEEValidator.isValidSignatureWithSender by hashing the SA address into it
+            bytes32 includedLeafHash = keccak256(abi.encode(baseHash, i));
+            if (i/2 == 0) {
+                assertTrue(mockAccount.validateSignatureWithData(includedLeafHash, meeSigs[i], abi.encodePacked(wallet.addr)));
+            } else {
+                assertTrue(mockAccount.isValidSignature(includedLeafHash, meeSigs[i]) == EIP1271_SUCCESS);
+            }
         }
     }
 

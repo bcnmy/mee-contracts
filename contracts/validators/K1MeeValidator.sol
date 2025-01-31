@@ -143,10 +143,10 @@ contract K1MeeValidator is IValidator, ISessionValidator {
         override
         returns (bytes4 sigValidationResult)
     {   
-        // Then send the signature over hash itself to _erc1271IsValidSignatureWithSender 
+        // Then send the signature over hash itself to _erc1271IsValidSignatureWithSender
         return _validateSignatureForOwner(
             smartAccountOwners[msg.sender], 
-            hash,
+            keccak256(abi.encodePacked(hash, msg.sender)),  //hash the SA to protect against two SA's with same owner vector
             _erc1271UnwrapSignature(signature)
         ) ? EIP1271_SUCCESS : EIP1271_FAILED;
     }

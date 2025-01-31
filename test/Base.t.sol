@@ -218,15 +218,21 @@ contract BaseTest is Test {
     function makeSimpleSuperTxSignatures(
         bytes32 baseHash,
         uint256 total,
-        Vm.Wallet memory superTxSigner
+        Vm.Wallet memory superTxSigner,
+        address mockAccount
     ) internal returns (bytes[] memory) {
         bytes[] memory meeSigs = new bytes[](total);
         require(total > 0, "total must be greater than 0");
 
         bytes32[] memory leaves = new bytes32[](total);
 
+        bytes32 hash;
         for(uint256 i=0; i<total; i++) {
-            bytes32 hash = keccak256(abi.encode(baseHash, i));
+            if (i/2 == 0) {
+                hash = keccak256(abi.encode(baseHash, i));
+            } else {
+                hash = keccak256(abi.encodePacked(keccak256(abi.encode(baseHash, i)), address(mockAccount)));
+            }
             leaves[i] = hash;
         }
 
