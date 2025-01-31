@@ -38,8 +38,6 @@ library TxValidatorLib {
         uint48 upperBoundTimestamp;
     }
 
-    
-
     struct TxDataShort {
         uint8 txType;
         uint8 v;
