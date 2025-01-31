@@ -6,8 +6,6 @@ import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
-import "forge-std/console2.sol";
-
 library SimpleValidatorLib {
     /**
      * This function parses the given userOpSignature into a Supertransaction signature

@@ -13,8 +13,6 @@ import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
 import {SimpleValidatorLib} from "contracts/lib/fusion/SimpleValidatorLib.sol";
 import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
 
-import "forge-std/console2.sol";
-
 contract K1MeeValidator is IValidator, ISessionValidator {
     // using SignatureCheckerLib for address;
     using EnumerableSet for EnumerableSet.AddressSet;

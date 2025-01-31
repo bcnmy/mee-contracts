@@ -9,9 +9,6 @@ import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {BytesLib} from "byteslib/BytesLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
-import {console2} from "forge-std/console2.sol";
-
-
 library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;
     uint8 constant EIP1559_TX_TYPE = 0x02;
@@ -128,7 +125,7 @@ library TxValidatorLib {
     function decodeTx(bytes calldata self) internal pure returns (TxData memory) {
         uint8 txType = uint8(self[0]); //first byte is tx type
         uint48 lowerBoundTimestamp =
-            uint48(bytes6((self[self.length - 2 * TIMESTAMP_BYTE_SIZE: self.length - TIMESTAMP_BYTE_SIZE])));
+            uint48(bytes6((self[self.length - 2 * TIMESTAMP_BYTE_SIZE: self.length - TIMESTAMP_BYTE_SIZE])));        
         uint48 upperBoundTimestamp = uint48(bytes6(self[self.length - TIMESTAMP_BYTE_SIZE:]));
         uint8 proofItemsCount = uint8(self[self.length - 2 * TIMESTAMP_BYTE_SIZE - 1]);
         uint256 appendedDataLen = (uint256(proofItemsCount) * PROOF_ITEM_BYTE_SIZE + 1) + 2 * TIMESTAMP_BYTE_SIZE;
