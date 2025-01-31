@@ -6,12 +6,34 @@ import {IValidator, MODULE_TYPE_VALIDATOR} from "erc7579/interfaces/IERC7579Modu
 import {ISessionValidator} from "contracts/interfaces/ISessionValidator.sol";
 import {EnumerableSet} from "EnumerableSet4337/EnumerableSet4337.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
-import {SIG_TYPE_SIMPLE, SIG_TYPE_ON_CHAIN, SIG_TYPE_ERC20_PERMIT, EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
+import {SIG_TYPE_SIMPLE, SIG_TYPE_ON_CHAIN, SIG_TYPE_ERC20_PERMIT, EIP1271_SUCCESS, EIP1271_FAILED, MODULE_TYPE_STATELESS_VALIDATOR} from "contracts/types/Constants.sol";
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
 import {PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
 import {SimpleValidatorLib} from "contracts/lib/fusion/SimpleValidatorLib.sol";
 import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
+
+/**
+ * @title K1MeeValidator
+ * @dev   An ERC-7579 validator (module type 1) and stateless validator (module type 7) for the MEE stack.
+ *        Supports 3 MEE modes:
+ *        - Simple (Super Tx hash is signed)
+ *        - On-chain Tx (Super Tx hash is appended to a regular txn and signed)
+ *        - ERC-2612 Permit (Super Tx hash is pasted into deadline field of the ERC-2612 Permit and signed)
+ * 
+ *        Further improvements:
+ *        - Extensive gas optimizations
+ *        - Use as regular K1 validator (non-MEE flow) for non-validateUserOp stuff 
+ *          Requires dividing stateless validator and 1271 flow and 
+ *          using erc7739 for 1271 non-MEE flow only.
+ *        - Use EIP-712 to make superTx hash not blind
+ *        
+ *        Using erc7739 for MEE flows makes no sense currently because user signs blind hashes anyways
+ *        (except permit mode, but the superTx hash is still blind in it).
+ *        So we just hash smart account address into the og hash for non validateUserOp stuff currently.
+ *        In future this will be required for 1271 flow only (when stateless validator and 1271 flow are divided).
+ *        
+ */
 
 contract K1MeeValidator is IValidator, ISessionValidator {
     
@@ -40,6 +62,9 @@ contract K1MeeValidator is IValidator, ISessionValidator {
 
     /// @notice Error to indicate that the data length is invalid
     error InvalidDataLength();
+
+    /// @notice Error to indicate that the flow is not supported
+    error NotSupported();
 
     /*//////////////////////////////////////////////////////////////////////////
                                      CONFIG
@@ -188,7 +213,7 @@ contract K1MeeValidator is IValidator, ISessionValidator {
     /// @param typeId The type ID to check
     /// @return True if the module is of the specified type, false otherwise
     function isModuleType(uint256 typeId) external pure returns (bool) {
-        return typeId == MODULE_TYPE_VALIDATOR;
+        return typeId == MODULE_TYPE_VALIDATOR || typeId == MODULE_TYPE_STATELESS_VALIDATOR;
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -214,7 +239,8 @@ contract K1MeeValidator is IValidator, ISessionValidator {
             return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else {
             // fallback flow => non MEE flow => no prefix
-            return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
+            // return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
+            revert NotSupported();
         } 
     }
 

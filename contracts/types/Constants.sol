@@ -9,3 +9,5 @@ bytes4 constant SIG_TYPE_ERC20_PERMIT = 0x177eee02;
 
 bytes4 constant EIP1271_SUCCESS = 0x1626ba7e;
 bytes4 constant EIP1271_FAILED = 0xffffffff;
+
+uint256 constant MODULE_TYPE_STATELESS_VALIDATOR = 7;
