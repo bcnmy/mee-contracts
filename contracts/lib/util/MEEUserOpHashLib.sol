@@ -14,6 +14,7 @@ library MEEUserOpHashLib {
      * @param userOpHash userOp hash to calculate the hash for
      * @param lowerBoundTimestamp lower bound timestamp set when constructing userOp
      * @param upperBoundTimestamp upper bound timestamp set when constructing userOp
+     * Timestamps are used by the MEE node to schedule the execution of the userOps within the superTx
      */
     function getMEEUserOpHash(
         bytes32 userOpHash,

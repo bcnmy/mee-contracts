@@ -437,18 +437,13 @@ contract BaseTest is Test {
         //console2.log("super tx root");
         //console2.logBytes32(root);
 
-        uint48 lowerBoundTimestamp = uint48(block.timestamp);
-        uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
-
         for(uint256 i=0; i<total; i++) {
             bytes32[] memory proof = tree.getProof(leaves, i);
             bytes memory signature = abi.encodePacked(
                 SIG_TYPE_ON_CHAIN, 
                 serializedTx,
                 abi.encodePacked(proof), 
-                uint8(proof.length), 
-                lowerBoundTimestamp, 
-                upperBoundTimestamp
+                uint8(proof.length)
             );
             meeSigs[i] = signature;
         }

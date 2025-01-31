@@ -9,6 +9,16 @@ import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {BytesLib} from "byteslib/BytesLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
+/**
+ * @dev Library to validate the signature for MEE on-chain Txn mode
+ *      This is the mode where superTx hash is appended to a regular txn (legacy or 1559) calldata
+ *      So the whole txn is signed along with the superTx hash
+ *      Txn is executed prior to a superTx, so it can pass some funds from the EOA to the smart account
+ *      For more details see Fusion docs: 
+ *      - https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949    
+ *      - https://docs.biconomy.io/explained/eoa#fusion-module
+ */
+
 library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;
     uint8 constant EIP1559_TX_TYPE = 0x02;
@@ -38,6 +48,7 @@ library TxValidatorLib {
         uint48 upperBoundTimestamp;
     }
 
+    // To save a bit of gas, not pass timestamps where not needed
     struct TxDataShort {
         uint8 txType;
         uint8 v;
@@ -46,8 +57,6 @@ library TxValidatorLib {
         bytes32 utxHash;
         bytes32 superTxHash;
         bytes32[] proof;
-        uint48 lowerBoundTimestamp;
-        uint48 upperBoundTimestamp;
     }
 
     struct TxParams {
@@ -105,6 +114,7 @@ library TxValidatorLib {
 
     /**
      * @dev validate the signature for the owner of the superTx
+     *      used fot the 1271 flow and for the stateless validators (erc7579 module type 7)
      * @param expectedSigner the expected signer of the superTx
      * @param dataHash the hash of the data to be signed
      * @param parsedSignature the signature to be validated
@@ -115,7 +125,7 @@ library TxValidatorLib {
         view
         returns (bool)
     {
-        TxData memory decodedTx = decodeTx(parsedSignature);
+        TxDataShort memory decodedTx = decodeTxShort(parsedSignature);
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
         
@@ -151,6 +161,26 @@ library TxValidatorLib {
             extractProof(self, proofItemsCount),
             lowerBoundTimestamp,
             upperBoundTimestamp
+        );
+    }
+
+    function decodeTxShort(bytes calldata self) internal pure returns (TxDataShort memory) {
+        uint8 txType = uint8(self[0]); //first byte is tx type
+        uint8 proofItemsCount = uint8(self[self.length - 1]);
+        uint256 appendedDataLen = (uint256(proofItemsCount) * PROOF_ITEM_BYTE_SIZE + 1);
+        bytes calldata rlpEncodedTx = self[1:self.length - appendedDataLen];
+        RLPDecoder.RLPItem memory parsedRlpEncodedTx = rlpEncodedTx.toRlpItem();
+        RLPDecoder.RLPItem[] memory parsedRlpEncodedTxItems = parsedRlpEncodedTx.toList();
+        TxParams memory params = extractParams(txType, parsedRlpEncodedTxItems);
+
+        return TxDataShort(
+            txType,
+            _adjustV(params.v),
+            params.r,
+            params.s,
+            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v),
+            extractAppendedHash(params.callData),
+            extractProofShort(self, proofItemsCount)
         );
     }
 
@@ -191,6 +221,15 @@ library TxValidatorLib {
     function extractProof(bytes calldata signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
         proof = new bytes32[](proofItemsCount);
         uint256 pos = signedTx.length - 2 * TIMESTAMP_BYTE_SIZE - 1;
+        for (proofItemsCount; proofItemsCount > 0; proofItemsCount--) {
+            proof[proofItemsCount - 1] = bytes32(signedTx[pos - PROOF_ITEM_BYTE_SIZE:pos]);
+            pos = pos - PROOF_ITEM_BYTE_SIZE;
+        }
+    }
+
+    function extractProofShort(bytes calldata signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
+        proof = new bytes32[](proofItemsCount);
+        uint256 pos = signedTx.length - 1;
         for (proofItemsCount; proofItemsCount > 0; proofItemsCount--) {
             proof[proofItemsCount - 1] = bytes32(signedTx[pos - PROOF_ITEM_BYTE_SIZE:pos]);
             pos = pos - PROOF_ITEM_BYTE_SIZE;

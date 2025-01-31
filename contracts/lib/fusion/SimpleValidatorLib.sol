@@ -6,6 +6,11 @@ import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
+/**
+ * @dev Library to validate the signature for MEE Simple mode
+ *      In this mode, Fusion is not involved and just the superTx hash is signed
+ */
+
 library SimpleValidatorLib {
     /**
      * This function parses the given userOpSignature into a Supertransaction signature

@@ -8,6 +8,19 @@ import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import "account-abstraction/core/Helpers.sol";
 
+/**
+ * @dev Library to validate the signature for MEE ERC-2612 Permit mode
+ *      This is the mode where superTx hash is pasted into deadline field of the ERC-2612 Permit
+ *      So the whole permit is signed along with the superTx hash
+ *      For more details see Fusion docs: 
+ *      - https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949    
+ *      - https://docs.biconomy.io/explained/eoa#fusion-module
+ * 
+ *      Important: since ERC20 permit token knows nothing about the MEE, it will treat the superTx hash as a deadline:
+ *      -  if (very unlikely) the superTx hash being converted to uint256 is a timestamp in the past, the permit will fail
+ *      -  the deadline with most superTx hashes will be very far in the future
+ */
+
 bytes32 constant PERMIT_TYPEHASH =
         keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
