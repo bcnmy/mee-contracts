@@ -26,7 +26,7 @@ const encodedTransfer = "0xa9059cbb000000000000000000000000c7183455a4c133ae27077
 //const superTxHash = "0x1d69c064e2bd749cfe331b748be1dd5324cbf4e1839dda346cbb741a3e3169d1"
 
 // some hash for non validate flow
-const superTxHash = "0x08ce608b04d1260f58d9abf45effacae12833078a5ee976729e262414887e402"
+const superTxHash = "0x5cb98b1166f4168a57931b88844fc8195271defd4b8e0f0c6422f5d7fbf6f7cf"
 
 // concat transfer and superTxHash
 const data = concat([encodedTransfer, superTxHash])

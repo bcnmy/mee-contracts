@@ -326,8 +326,11 @@ contract BaseTest is Test {
         bytes32[] memory leaves = new bytes32[](total);
 
         for(uint256 i=0; i<total; i++) {
-            bytes32 hash = keccak256(abi.encode(baseHash, i));
-            leaves[i] = hash;
+            if (i/2 == 0) {
+                leaves[i] = keccak256(abi.encode(baseHash, i));
+            } else {
+                leaves[i] = keccak256(abi.encodePacked(keccak256(abi.encode(baseHash, i)), spender));
+            }
         }
 
         Merkle tree = new Merkle();
@@ -409,7 +412,8 @@ contract BaseTest is Test {
     function makeOnChainTxnSuperTxSignatures(
         bytes32 baseHash,
         uint256 total,
-        bytes memory serializedTx
+        bytes memory serializedTx,
+        address smartAccount
     ) internal returns (bytes[] memory) {
         bytes[] memory meeSigs = new bytes[](total);
         require(total > 0, "total must be greater than 0");
@@ -417,8 +421,11 @@ contract BaseTest is Test {
         bytes32[] memory leaves = new bytes32[](total);
 
         for(uint256 i=0; i<total; i++) {
-            bytes32 hash = keccak256(abi.encode(baseHash, i));
-            leaves[i] = hash;
+            if (i/2 == 0) {
+                leaves[i] = keccak256(abi.encode(baseHash, i));
+            } else {
+                leaves[i] = keccak256(abi.encodePacked(keccak256(abi.encode(baseHash, i)), smartAccount));
+            }
         }
 
         Merkle tree = new Merkle();

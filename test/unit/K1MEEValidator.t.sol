@@ -177,9 +177,12 @@ contract K1MEEValidatorTest is BaseTest {
         });
 
         for(uint256 i=0; i<numOfObjs; i++) {
-            bytes32 signedHash = keccak256(abi.encode(baseHash, i));
-            assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
-            assertTrue(mockAccount.isValidSignature(signedHash, meeSigs[i]) == EIP1271_SUCCESS);
+            bytes32 includedLeafHash = keccak256(abi.encode(baseHash, i));
+            if (i/2 == 0) {
+                assertTrue(mockAccount.validateSignatureWithData(includedLeafHash, meeSigs[i], abi.encodePacked(wallet.addr)));
+            } else {
+                assertTrue(mockAccount.isValidSignature(includedLeafHash, meeSigs[i]) == EIP1271_SUCCESS);
+            }
         }
     }
 
@@ -227,14 +230,17 @@ contract K1MEEValidatorTest is BaseTest {
         bytes[] memory meeSigs = new bytes[](numOfObjs);
         bytes32 baseHash = keccak256(abi.encode("test"));
 
-        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec58000008ce608b04d1260f58d9abf45effacae12833078a5ee976729e262414887e402c001a045383e3318ab1dacaf8979f9ec8d2ec213cae7605571655dee8f81131aa914dba069918c469a0980a6d1be39f624c91d7944c459da62c4212b37ac15bc4bd14663";
+        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800005cb98b1166f4168a57931b88844fc8195271defd4b8e0f0c6422f5d7fbf6f7cfc001a0fbdf94d4e9b3ca8c26a0522e3c6e36d635e9c4fa507760434587f1e97b6a0bc6a05b875171e888dfd9dab9905fbbe79f604a085b32e1d72c119d4f5eed9efe362f";
         
-        meeSigs = makeOnChainTxnSuperTxSignatures(baseHash, numOfObjs, serializedTx);
+        meeSigs = makeOnChainTxnSuperTxSignatures(baseHash, numOfObjs, serializedTx, address(mockAccount));
 
         for(uint256 i=0; i<numOfObjs; i++) {
-            bytes32 signedHash = keccak256(abi.encode(baseHash, i));
-            assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
-            assertTrue(mockAccount.isValidSignature(signedHash, meeSigs[i]) == EIP1271_SUCCESS);
+            bytes32 includedLeafHash = keccak256(abi.encode(baseHash, i));
+            if (i/2 == 0) {
+                assertTrue(mockAccount.validateSignatureWithData(includedLeafHash, meeSigs[i], abi.encodePacked(wallet.addr)));
+            } else {
+                assertTrue(mockAccount.isValidSignature(includedLeafHash, meeSigs[i]) == EIP1271_SUCCESS);
+            }
         }
     }
 
