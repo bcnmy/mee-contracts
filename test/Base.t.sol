@@ -21,6 +21,7 @@ import {LibZip} from "solady/utils/LibZip.sol";
 import {ERC20Permit} from "openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import {PERMIT_TYPEHASH, DecodedErc20PermitSig, DecodedErc20PermitSigShort, PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
+
 contract BaseTest is Test {
 
     using CopyUserOpLib for PackedUserOperation;

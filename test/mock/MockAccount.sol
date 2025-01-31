@@ -5,6 +5,7 @@ import {IAccount} from "account-abstraction/interfaces/IAccount.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
 import {IValidator} from "erc7579/interfaces/IERC7579Module.sol";
 import {IStatelessValidator} from "node_modules/@rhinestone/module-bases/src/interfaces/IStatelessValidator.sol";
+import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {console2} from "forge-std/console2.sol";
 
 contract MockAccount is IAccount {
@@ -13,9 +14,6 @@ contract MockAccount is IAccount {
     event MockAccountExecute(address to, uint256 value, bytes data);
     event MockAccountReceive(uint256 value);
     event MockAccountFallback(bytes callData, uint256 value);
-
-    bytes4 internal constant EIP1271_SUCCESS = 0x1626ba7e;
-    bytes4 internal constant EIP1271_FAILED = 0xFFFFFFFF;
 
     IValidator public validator;
 
@@ -29,13 +27,12 @@ contract MockAccount is IAccount {
         }
     }
 
-    function isValidSignature_test(bytes32 hash, bytes calldata signature) external view returns (bool) {
-        bytes4 res1271 = IValidator(address(validator)).isValidSignatureWithSender({
-            sender: address(this), 
+    function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4) {
+        return IValidator(address(validator)).isValidSignatureWithSender({
+            sender: msg.sender, 
             hash: hash,
             data: signature
         });
-        return res1271 == EIP1271_SUCCESS ? true : false;
     }
 
     function validateSignatureWithData(bytes32 signedHash, bytes calldata signature, bytes calldata signerData) external view returns (bool) {

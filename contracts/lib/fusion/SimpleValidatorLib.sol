@@ -62,7 +62,7 @@ library SimpleValidatorLib {
         returns (bool)
     {
         (
-            bytes32 superTxHash, //super tx hash
+            bytes32 superTxHash,
             bytes32[] memory proof,
             bytes memory secp256k1Signature
         ) = abi.decode(signatureData, (bytes32, bytes32[], bytes));

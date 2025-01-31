@@ -14,6 +14,8 @@ import {MEEUserOpLib} from "contracts/lib/util/MEEUserOpLib.sol";
 import {MockERC20PermitToken} from "../mock/MockERC20PermitToken.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import {Strings} from "openzeppelin/utils/Strings.sol";
+import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
+
 import "forge-std/console2.sol";
 
 interface IGetOwner {
@@ -93,7 +95,6 @@ contract K1MEEValidatorTest is BaseTest {
         userOps = makeSimpleSuperTx(userOps, wallet);
 
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
-        vm.recordLogs();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
         
@@ -113,11 +114,12 @@ contract K1MEEValidatorTest is BaseTest {
 
         for(uint256 i=0; i<numOfObjs; i++) {
             bytes32 signedHash = keccak256(abi.encode(baseHash, i));
-            assertTrue(mockAccount.isValidSignature_test(signedHash, meeSigs[i]));
             assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
+            assertTrue(mockAccount.isValidSignature(signedHash, meeSigs[i]) == EIP1271_SUCCESS);
         }
     }
 
+    // test permit mode
     function test_superTxFlow_permit_mode_ValidateUserOp_success() public {
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
@@ -147,7 +149,6 @@ contract K1MEEValidatorTest is BaseTest {
         });
 
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
-        vm.recordLogs();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
@@ -171,8 +172,8 @@ contract K1MEEValidatorTest is BaseTest {
 
         for(uint256 i=0; i<numOfObjs; i++) {
             bytes32 signedHash = keccak256(abi.encode(baseHash, i));
-            assertTrue(mockAccount.isValidSignature_test(signedHash, meeSigs[i]));
             assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
+            assertTrue(mockAccount.isValidSignature(signedHash, meeSigs[i]) == EIP1271_SUCCESS);
         }
     }
 
@@ -209,7 +210,6 @@ contract K1MEEValidatorTest is BaseTest {
         );
 
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
-        vm.recordLogs();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
@@ -228,7 +228,7 @@ contract K1MEEValidatorTest is BaseTest {
         for(uint256 i=0; i<numOfObjs; i++) {
             bytes32 signedHash = keccak256(abi.encode(baseHash, i));
             assertTrue(mockAccount.validateSignatureWithData(signedHash, meeSigs[i], abi.encodePacked(wallet.addr)));
-            assertTrue(mockAccount.isValidSignature_test(signedHash, meeSigs[i]));
+            assertTrue(mockAccount.isValidSignature(signedHash, meeSigs[i]) == EIP1271_SUCCESS);
         }
     }
 
