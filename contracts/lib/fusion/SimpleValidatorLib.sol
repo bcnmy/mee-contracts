@@ -3,7 +3,7 @@ pragma solidity ^0.8.27;
 
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {EcdsaLib} from "../util/EcdsaLib.sol";
-import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
+import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
 library SimpleValidatorLib {
@@ -35,7 +35,7 @@ library SimpleValidatorLib {
             bytes memory secp256k1Signature
         ) = abi.decode(signatureData, (bytes32, bytes32[], uint48, uint48, bytes));
 
-        bytes32 leaf  = MEEUserOpLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
+        bytes32 leaf  = MEEUserOpHashLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
         if (!EcdsaLib.isValidSignature(expectedSigner, superTxHash, secp256k1Signature)) {
             return SIG_VALIDATION_FAILED;
         }

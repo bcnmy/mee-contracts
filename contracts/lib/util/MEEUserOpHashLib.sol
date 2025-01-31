@@ -6,7 +6,7 @@
  */
 pragma solidity ^0.8.27;
 
-library MEEUserOpLib {
+library MEEUserOpHashLib {
 
     /**
      * Calculates userOp hash. Almost works like a regular 4337 userOp hash with few fields added.

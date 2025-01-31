@@ -4,7 +4,7 @@ pragma solidity ^0.8.27;
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {RLPReader as RLPDecoder} from "rlp-reader/RLPReader.sol";
 import {RLPEncoder} from "../rlp/RLPEncoder.sol";
-import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
+import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {BytesLib} from "byteslib/BytesLib.sol";
 import "account-abstraction/core/Helpers.sol";
@@ -89,7 +89,7 @@ library TxValidatorLib {
         TxData memory decodedTx = decodeTx(parsedSignature);
 
         bytes32 meeUserOpHash =
-            MEEUserOpLib.getMEEUserOpHash(userOpHash, decodedTx.lowerBoundTimestamp, decodedTx.upperBoundTimestamp);
+            MEEUserOpHashLib.getMEEUserOpHash(userOpHash, decodedTx.lowerBoundTimestamp, decodedTx.upperBoundTimestamp);
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {

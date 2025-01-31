@@ -10,7 +10,7 @@ import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPoint
 import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulations.sol";
 import {NodePaymaster} from "contracts/NodePaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
-import {MEEUserOpLib} from "contracts/lib/util/MEEUserOpLib.sol";
+import {MEEUserOpHashLib} from "contracts/lib/util/MEEUserOpHashLib.sol";
 import {MockERC20PermitToken} from "../mock/MockERC20PermitToken.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import {Strings} from "openzeppelin/utils/Strings.sol";
@@ -25,7 +25,7 @@ interface IGetOwner {
 contract K1MEEValidatorTest is BaseTest {
 
     using UserOperationLib for PackedUserOperation;
-    using MEEUserOpLib for PackedUserOperation;
+    using MEEUserOpHashLib for PackedUserOperation;
     using Strings for address;
     using Strings for uint256;
     Vm.Wallet wallet;

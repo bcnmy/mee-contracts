@@ -13,7 +13,7 @@ import {NodePaymaster} from "../contracts/NodePaymaster.sol";
 import {K1MeeValidator} from "../contracts/validators/K1MeeValidator.sol";
 import {MEEEntryPoint} from "../contracts/MEEEntryPoint.sol";
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
-import {MEEUserOpLib} from "../contracts/lib/util/MEEUserOpLib.sol";
+import {MEEUserOpHashLib} from "../contracts/lib/util/MEEUserOpHashLib.sol";
 import {Merkle} from "murky-trees/Merkle.sol";
 import {CopyUserOpLib} from "./util/CopyUserOpLib.sol";
 import "contracts/types/Constants.sol";
@@ -178,7 +178,7 @@ contract BaseTest is Test {
         bytes32[] memory leaves = new bytes32[](userOps.length);
         for (uint256 i = 0; i < userOps.length; i++) {
             bytes32 userOpHash = ENTRYPOINT.getUserOpHash(userOps[i]);
-            leaves[i] = MEEUserOpLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
+            leaves[i] = MEEUserOpHashLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
         }
         return leaves;
     }

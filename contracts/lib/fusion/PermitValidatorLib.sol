@@ -4,7 +4,7 @@ pragma solidity ^0.8.27;
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {EcdsaLib} from "../util/EcdsaLib.sol";
-import {MEEUserOpLib} from "../util/MEEUserOpLib.sol";
+import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import "account-abstraction/core/Helpers.sol";
 
@@ -71,7 +71,7 @@ library PermitValidatorLib {
         DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));
 
         bytes32 meeUserOpHash =
-            MEEUserOpLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
+            MEEUserOpHashLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
 
         uint8 vAdjusted = _adjustV(decodedSig.v);
 
