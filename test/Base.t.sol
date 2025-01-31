@@ -431,8 +431,8 @@ contract BaseTest is Test {
         Merkle tree = new Merkle();
         bytes32 root = tree.getRoot(leaves);
 
-        console2.log("super tx root");
-        console2.logBytes32(root);
+        //console2.log("super tx root");
+        //console2.logBytes32(root);
 
         uint48 lowerBoundTimestamp = uint48(block.timestamp);
         uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);

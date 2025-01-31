@@ -9,6 +9,7 @@ import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {BytesLib} from "byteslib/BytesLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
+
 library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;
     uint8 constant EIP1559_TX_TYPE = 0x02;
@@ -111,6 +112,7 @@ library TxValidatorLib {
         TxData memory decodedTx = decodeTx(parsedSignature);
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
+        
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return false;
         }

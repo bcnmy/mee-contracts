@@ -205,12 +205,14 @@ contract K1MEEValidatorTest is BaseTest {
         uint256 numOfClones = 5;
         PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
         
-        bytes memory asd = abi.encodeWithSelector(erc20.transfer.selector, address(mockAccount), amountToTransfer*(numOfClones+1));
-        //console2.logBytes(asd);
+        // simulate the txn execution
         vm.startPrank(wallet.addr);
         erc20.transfer(address(mockAccount), amountToTransfer*(numOfClones+1));
         vm.stopPrank();
 
+        // it is not possible to get the actual executed and serialized txn (above) from Foundry tests
+        // so this is just some serialized txn signed by mockAccount owner + the super tx hash appended to calldata
+        // enough for testing purposes
         bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800001d69c064e2bd749cfe331b748be1dd5324cbf4e1839dda346cbb741a3e3169d1c001a00d20bce300797773daa18e485e5babb3cc42364c6d69d7d048b757d96d0ea4e6a04adf97b9e62d2f57a993bc6c69a81a0a41594aacfd3797d3e0144c494a64c0cb";
         userOps = makeOnChainTxnSuperTx(
             userOps,
@@ -230,6 +232,7 @@ contract K1MEEValidatorTest is BaseTest {
         bytes[] memory meeSigs = new bytes[](numOfObjs);
         bytes32 baseHash = keccak256(abi.encode("test"));
 
+        // same
         bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800005cb98b1166f4168a57931b88844fc8195271defd4b8e0f0c6422f5d7fbf6f7cfc001a0fbdf94d4e9b3ca8c26a0522e3c6e36d635e9c4fa507760434587f1e97b6a0bc6a05b875171e888dfd9dab9905fbbe79f604a085b32e1d72c119d4f5eed9efe362f";
         
         meeSigs = makeOnChainTxnSuperTxSignatures(baseHash, numOfObjs, serializedTx, address(mockAccount));
