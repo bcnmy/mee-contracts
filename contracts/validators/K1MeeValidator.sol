@@ -22,16 +22,15 @@ import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
  *        - ERC-2612 Permit (Super Tx hash is pasted into deadline field of the ERC-2612 Permit and signed)
  * 
  *        Further improvements:
- *        - Extensive gas optimizations
- *        - Use as regular K1 validator (non-MEE flow) for non-validateUserOp stuff 
- *          Requires dividing stateless validator and 1271 flow and 
- *          using erc7739 for 1271 non-MEE flow only.
- *        - Use EIP-712 to make superTx hash not blind
+ *        - Further gas optimizations
+ *        - Divide stateless validator and 1271 flow
+ *        - ERC-7739 for non-MEE 1271 flow
+ *        - Use EIP-712 to make superTx hash not blind => use 7739 for the higher level hash in MEE 1271 flows
  *        
  *        Using erc7739 for MEE flows makes no sense currently because user signs blind hashes anyways
  *        (except permit mode, but the superTx hash is still blind in it).
- *        So we just hash smart account address into the og hash for non validateUserOp stuff currently.
- *        In future this will be required for 1271 flow only (when stateless validator and 1271 flow are divided).
+ *        So we just hash smart account address into the og hash for 1271 MEE flow currently.
+ *        In future full scale 7739 will replace it when superTx hash is 712 and transparent.
  *        
  */
 
@@ -62,9 +61,6 @@ contract K1MeeValidator is IValidator, ISessionValidator {
 
     /// @notice Error to indicate that the data length is invalid
     error InvalidDataLength();
-
-    /// @notice Error to indicate that the flow is not supported
-    error NotSupported();
 
     /*//////////////////////////////////////////////////////////////////////////
                                      CONFIG
@@ -239,8 +235,9 @@ contract K1MeeValidator is IValidator, ISessionValidator {
             return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else {
             // fallback flow => non MEE flow => no prefix
-            // return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
-            revert NotSupported();
+            // for non-MEE 1271 flow it is non-transparent hash : smart account address is hashed in
+            // to be replaced with erc7739
+            return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
         } 
     }
 

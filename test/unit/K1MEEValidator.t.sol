@@ -248,6 +248,14 @@ contract K1MEEValidatorTest is BaseTest {
         }
     }
 
+    // TODO:
+
+    // TEST non-MEE flow
+
+    // Fuzz for MEE (simple an permit)
+
+    // Fuzz for txn mode after solidity txn serialization is there
+
     // ================================
 
     function buildSimpleMEEUserOpWithCalldata(bytes memory callData, address account, Vm.Wallet memory userOpSigner) public returns (PackedUserOperation memory) {
