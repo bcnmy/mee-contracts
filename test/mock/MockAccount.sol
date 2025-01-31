@@ -25,6 +25,7 @@ contract MockAccount is IAccount {
         if (address(validator) != address(0)) {
             vd = validator.validateUserOp(userOp, userOpHash);    
         }
+        // if validator is not set, return 0 = success
     }
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4) {

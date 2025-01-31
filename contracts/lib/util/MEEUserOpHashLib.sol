@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Unlicense
 /*
- * @title UserOp Lib
+ * @title MEE UserOp Hash Lib
  *
  * @dev Calculates userOp hash for the new type of transaction - SuperTransaction (as a part of MEE stack)
  */
