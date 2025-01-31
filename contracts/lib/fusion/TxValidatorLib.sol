@@ -9,6 +9,8 @@ import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {BytesLib} from "byteslib/BytesLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
+import {console2} from "forge-std/console2.sol";
+
 
 library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;
@@ -82,7 +84,7 @@ library TxValidatorLib {
      *                        already contains 0x02 prefix.
      * @param expectedSigner Expected EOA signer of the given EVM transaction => superTX.
      */
-    function validateUserOp(bytes32 userOpHash, bytes memory parsedSignature, address expectedSigner)
+    function validateUserOp(bytes32 userOpHash, bytes calldata parsedSignature, address expectedSigner)
         internal
         view
         returns (uint256)
@@ -104,7 +106,7 @@ library TxValidatorLib {
         return _packValidationData(false, decodedTx.upperBoundTimestamp, decodedTx.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes memory parsedSignature)
+    function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes calldata parsedSignature)
         internal
         view
         returns (bool)
@@ -123,14 +125,14 @@ library TxValidatorLib {
         return true;
     }
 
-    function decodeTx(bytes memory self) internal pure returns (TxData memory) {
+    function decodeTx(bytes calldata self) internal pure returns (TxData memory) {
         uint8 txType = uint8(self[0]); //first byte is tx type
         uint48 lowerBoundTimestamp =
-            uint48(bytes6((self.slice(self.length - 2 * TIMESTAMP_BYTE_SIZE, TIMESTAMP_BYTE_SIZE))));
-        uint48 upperBoundTimestamp = uint48(bytes6(self.slice(self.length - TIMESTAMP_BYTE_SIZE, TIMESTAMP_BYTE_SIZE)));
+            uint48(bytes6((self[self.length - 2 * TIMESTAMP_BYTE_SIZE: self.length - TIMESTAMP_BYTE_SIZE])));
+        uint48 upperBoundTimestamp = uint48(bytes6(self[self.length - TIMESTAMP_BYTE_SIZE:]));
         uint8 proofItemsCount = uint8(self[self.length - 2 * TIMESTAMP_BYTE_SIZE - 1]);
         uint256 appendedDataLen = (uint256(proofItemsCount) * PROOF_ITEM_BYTE_SIZE + 1) + 2 * TIMESTAMP_BYTE_SIZE;
-        bytes memory rlpEncodedTx = self.slice(1, self.length - appendedDataLen - 1);
+        bytes calldata rlpEncodedTx = self[1:self.length - appendedDataLen];
         RLPDecoder.RLPItem memory parsedRlpEncodedTx = rlpEncodedTx.toRlpItem();
         RLPDecoder.RLPItem[] memory parsedRlpEncodedTxItems = parsedRlpEncodedTx.toList();
         TxParams memory params = extractParams(txType, parsedRlpEncodedTxItems);
@@ -182,11 +184,11 @@ library TxValidatorLib {
         iTxHash = bytes32(callData.slice(callData.length - ITX_HASH_BYTE_SIZE, ITX_HASH_BYTE_SIZE));
     }
 
-    function extractProof(bytes memory signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
+    function extractProof(bytes calldata signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
         proof = new bytes32[](proofItemsCount);
         uint256 pos = signedTx.length - 2 * TIMESTAMP_BYTE_SIZE - 1;
         for (proofItemsCount; proofItemsCount > 0; proofItemsCount--) {
-            proof[proofItemsCount - 1] = bytes32(signedTx.slice(pos - PROOF_ITEM_BYTE_SIZE, PROOF_ITEM_BYTE_SIZE));
+            proof[proofItemsCount - 1] = bytes32(signedTx[pos - PROOF_ITEM_BYTE_SIZE:pos]);
             pos = pos - PROOF_ITEM_BYTE_SIZE;
         }
     }
