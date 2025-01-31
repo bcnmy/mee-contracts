@@ -83,6 +83,8 @@ contract BaseTest is Test {
         }
     }
 
+    // ============ BUILD USER OP UTILS ============
+
     function buildUserOpWithCalldata(
         address account,
         bytes memory callData,
@@ -251,6 +253,7 @@ contract BaseTest is Test {
     }
 
                 // ==== PERMIT SUPER TX UTILS ====
+
     function makePermitSuperTx(
             PackedUserOperation[] memory userOps,
             IERC20Permit token, 

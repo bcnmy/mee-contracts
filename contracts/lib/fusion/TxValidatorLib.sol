@@ -38,6 +38,8 @@ library TxValidatorLib {
         uint48 upperBoundTimestamp;
     }
 
+    
+
     struct TxDataShort {
         uint8 txType;
         uint8 v;
@@ -103,6 +105,13 @@ library TxValidatorLib {
         return _packValidationData(false, decodedTx.upperBoundTimestamp, decodedTx.lowerBoundTimestamp);
     }
 
+    /**
+     * @dev validate the signature for the owner of the superTx
+     * @param expectedSigner the expected signer of the superTx
+     * @param dataHash the hash of the data to be signed
+     * @param parsedSignature the signature to be validated
+     * @return true if the signature is valid, false otherwise
+     */
     function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes calldata parsedSignature)
         internal
         view

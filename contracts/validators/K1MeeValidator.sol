@@ -14,7 +14,7 @@ import {SimpleValidatorLib} from "contracts/lib/fusion/SimpleValidatorLib.sol";
 import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
 
 contract K1MeeValidator is IValidator, ISessionValidator {
-    // using SignatureCheckerLib for address;
+    
     using EnumerableSet for EnumerableSet.AddressSet;
     /*//////////////////////////////////////////////////////////////////////////
                             CONSTANTS & STORAGE
@@ -22,8 +22,6 @@ contract K1MeeValidator is IValidator, ISessionValidator {
 
     /// @notice Mapping of smart account addresses to their respective owner addresses
     mapping(address => address) public smartAccountOwners;
-
-    EnumerableSet.AddressSet private _safeSenders;
 
     /// @notice Error to indicate that no owner was provided during installation
     error NoOwnerProvided();
@@ -66,7 +64,6 @@ contract K1MeeValidator is IValidator, ISessionValidator {
      */
     function onUninstall(bytes calldata) external override {
         delete smartAccountOwners[msg.sender];
-        _safeSenders.removeAll(msg.sender);
     }
 
     /// @notice Transfers ownership of the validator to a new owner

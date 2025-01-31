@@ -33,7 +33,7 @@ contract MEEEntryPoint {
      */
     function handleOps(PackedUserOperation[] calldata userOps, address payable beneficiary) public {
         uint256 opsLen = userOps.length;
-        for (uint256 i = 0; i < opsLen; i++) {
+        for (uint256 i; i < opsLen; i++) {
             address pm = address(uint160(bytes20(userOps[i].paymasterAndData[0:20])));
             bytes32 pmCodeHash;
             assembly {

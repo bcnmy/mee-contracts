@@ -19,7 +19,7 @@ contract NodePaymaster is BasePaymaster {
     using UserOperationLib for bytes32;
 
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
-    uint256 private constant POST_OP_GAS = 50_000;
+    uint256 private constant POST_OP_GAS = 50_000; // enough for proper postOps
     mapping(bytes32 => bool) private executedUserOps;
 
     error EmptyMessageValue();
@@ -108,9 +108,6 @@ contract NodePaymaster is BasePaymaster {
         // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
         actualGasUsed += (maxGasLimit - actualGasUsed)/10;
-
-        // cache premiumPercentage
-        //uint96 premiumPercentage = pmConfig.meeNodePremiumPercentage;
         
         // account for MEE Node premium
         uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)) / PREMIUM_CALCULATION_BASE;

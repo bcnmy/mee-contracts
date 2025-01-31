@@ -42,6 +42,14 @@ contract PMPerNodeTest is BaseTest {
     // 4. EP refunds the actual gas cost to the Node as it is used as a `beneficiary` in the handleOps call
     // Both of those amounts are deducted from the Node PM's deposit at ENTRYPOINT.
 
+    // There is a knowm issue that a malicious MEE Node can intentionally set verificationGasLimit and pmVerificationGasLimit
+    // not tight to overcharge the userOp.sender by makeing the refund smaller. 
+    // See the details in the NodePaymaster.sol = _calculateRefund() method inline comments.
+    // This will be fixed in the future by EP0.8 returning proper penalty for the unused gas.
+    // For now we: 
+    // a) expect only proved nodes to be in the network with no intent to overcharge users
+    // b) will slash malicious nodes as intentional increase of the limits can be easily detected
+
     function test_pm_per_node() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
         uint256 premiumPercentage = 17_00000;
