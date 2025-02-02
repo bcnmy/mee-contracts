@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "account-abstraction/core/BasePaymaster.sol";
+import {BasePaymaster} from "account-abstraction/core/BasePaymaster.sol";
+import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
+import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPointSimulations.sol";
 import "account-abstraction/core/Helpers.sol";
-import "account-abstraction/interfaces/IEntryPoint.sol";
-import "account-abstraction/interfaces/IEntryPointSimulations.sol";
+import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
+import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
 
 /**
  * @title Node Paymaster
  * @notice A paymaster every MEE Node should deploy.
  * It is used to sponsor userOps. Introduced for gas efficient MEE flow.
- * @dev Should be deployed via Factory only.
  */
 
 contract NodePaymaster is BasePaymaster {
@@ -18,7 +19,7 @@ contract NodePaymaster is BasePaymaster {
     using UserOperationLib for bytes32;
 
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
-    uint256 private constant POST_OP_GAS = 40_000;
+    uint256 private constant POST_OP_GAS = 50_000; // enough for proper postOps
     mapping(bytes32 => bool) private executedUserOps;
 
     error EmptyMessageValue();
@@ -107,9 +108,6 @@ contract NodePaymaster is BasePaymaster {
         // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
         actualGasUsed += (maxGasLimit - actualGasUsed)/10;
-
-        // cache premiumPercentage
-        //uint96 premiumPercentage = pmConfig.meeNodePremiumPercentage;
         
         // account for MEE Node premium
         uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)) / PREMIUM_CALCULATION_BASE;

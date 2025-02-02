@@ -24,7 +24,9 @@ contract PMPerNodeTest is BaseTest {
 
     function setUp() public virtual override {
         super.setUp();
-        mockAccount = deployMockAccount();
+        mockAccount = deployMockAccount({
+            validator: address(0)
+        });
         wallet = createAndFundWallet("wallet", 1 ether);
     }
 
@@ -40,6 +42,14 @@ contract PMPerNodeTest is BaseTest {
     // 4. EP refunds the actual gas cost to the Node as it is used as a `beneficiary` in the handleOps call
     // Both of those amounts are deducted from the Node PM's deposit at ENTRYPOINT.
 
+    // There is a knowm issue that a malicious MEE Node can intentionally set verificationGasLimit and pmVerificationGasLimit
+    // not tight to overcharge the userOp.sender by makeing the refund smaller. 
+    // See the details in the NodePaymaster.sol = _calculateRefund() method inline comments.
+    // This will be fixed in the future by EP0.8 returning proper penalty for the unused gas.
+    // For now we: 
+    // a) expect only proved nodes to be in the network with no intent to overcharge users
+    // b) will slash malicious nodes as intentional increase of the limits can be easily detected
+
     function test_pm_per_node() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
         uint256 premiumPercentage = 17_00000;
@@ -51,13 +61,13 @@ contract PMPerNodeTest is BaseTest {
                 callData: callData, 
                 wallet: wallet, 
                 preVerificationGasLimit: 3e5, 
-                verificationGasLimit: 45e3, 
+                verificationGasLimit: 50e3, 
                 callGasLimit: 3e6
             }
         );
 
         uint128 pmValidationGasLimit = 20_000;
-        uint128 pmPostOpGasLimit = 40_000;
+        uint128 pmPostOpGasLimit = 50_000;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
         userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
@@ -68,7 +78,7 @@ contract PMPerNodeTest is BaseTest {
 
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
         vm.recordLogs();
-        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
@@ -91,11 +101,11 @@ contract PMPerNodeTest is BaseTest {
         uint128 pmPostOpGasLimit
     ) public {
         preVerificationGasLimit = bound(preVerificationGasLimit, 1e5, 5e6);
-        verificationGasLimit = uint128(bound(verificationGasLimit, 45e3, 5e6));
+        verificationGasLimit = uint128(bound(verificationGasLimit, 50e3, 5e6));
         callGasLimit = uint128(bound(callGasLimit, 100e3, 5e6));
         premiumPercentage = bound(premiumPercentage, 0, 200e5);
         pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 20e3, 5e6));
-        pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 40e3, 5e6));
+        pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 50e3, 5e6));
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         valueToSet = MEE_NODE_HEX;
@@ -121,7 +131,7 @@ contract PMPerNodeTest is BaseTest {
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
         vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
         vm.recordLogs();
-        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
@@ -129,7 +139,7 @@ contract PMPerNodeTest is BaseTest {
         assertFinancialStuff(entries, premiumPercentage, nodePMDepositBefore, maxGasLimit*unpackMaxFeePerGasMemory(userOp));
     }
 
-    function test_bytecode_is_fixed() public {
+    function test_bytecode_is_fixed_for_different_nodes() public {
         address otherNodeAddress = address(0xdeafbeef);
         vm.prank(otherNodeAddress);
         NodePaymaster nodePM = new NodePaymaster(ENTRYPOINT, otherNodeAddress);
@@ -174,7 +184,7 @@ contract PMPerNodeTest is BaseTest {
         bytes memory revertReason = abi.encodeWithSignature("FailedOpWithRevert(uint256,string,bytes)", 0, "AA33 reverted", abi.encodeWithSignature("OnlySponsorOwnStuff()"));
         vm.startPrank(address(0xdeadbeef));
         vm.expectRevert(revertReason);
-        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
     }
 
@@ -234,21 +244,6 @@ contract PMPerNodeTest is BaseTest {
 
     function getPremium(uint256 amount, uint256 premiumPercentage) internal pure returns (uint256) {
         return applyPremium(amount, premiumPercentage) - amount;
-    }
-
-    function makePMAndDataForOwnPM(
-        address nodePM, 
-        uint128 pmValidationGasLimit, 
-        uint128 pmPostOpGasLimit, 
-        uint256 maxGasLimit, 
-        uint256 premiumPercentage
-    ) internal view returns (bytes memory) {
-        return abi.encodePacked(
-            nodePM, 
-            pmValidationGasLimit, // pm validation gas limit
-            pmPostOpGasLimit, // pm post-op gas limit
-            premiumPercentage
-        );
     }
 
     function getDeposit(address account) internal view returns (uint256) {
