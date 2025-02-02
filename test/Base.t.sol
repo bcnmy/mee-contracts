@@ -24,6 +24,25 @@ import {PERMIT_TYPEHASH, DecodedErc20PermitSig, DecodedErc20PermitSigShort, Perm
 
 contract BaseTest is Test {
 
+    struct TestTemps {
+        bytes32 userOpHash;
+        bytes32 contents;
+        address signer;
+        uint256 privateKey;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        uint256 missingAccountFunds;
+    }
+
+    struct AccountDomainStruct {
+        string name;
+        string version;
+        uint256 chainId;
+        address verifyingContract;
+        bytes32 salt;
+    }
+
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 

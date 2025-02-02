@@ -15,6 +15,7 @@ import {MockERC20PermitToken} from "../mock/MockERC20PermitToken.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import {Strings} from "openzeppelin/utils/Strings.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
+import {EIP712} from "solady/utils/EIP712.sol";
 
 import "forge-std/console2.sol";
 
@@ -23,14 +24,16 @@ interface IGetOwner {
 }
 
 contract K1MEEValidatorTest is BaseTest {
-
     using UserOperationLib for PackedUserOperation;
     using MEEUserOpHashLib for PackedUserOperation;
     using Strings for address;
     using Strings for uint256;
+
+    uint256 constant PREMIUM_CALCULATION_BASE = 100e5;
+    bytes32 internal constant APP_DOMAIN_SEPARATOR = 0xa1a044077d7677adbbfa892ded5390979b33993e0e2a457e3f974bbcda53821b;
+
     Vm.Wallet wallet;
     MockAccount mockAccount;
-    uint256 constant PREMIUM_CALCULATION_BASE = 100e5;
     uint256 valueToSet;
 
     function setUp() public virtual override {
@@ -277,11 +280,21 @@ contract K1MEEValidatorTest is BaseTest {
             account: address(mockAccount),
             userOpSigner: wallet
         });
-
         bytes32 userOpHash = ENTRYPOINT.getUserOpHash(userOp);
-
         assertTrue(mockAccount.validateSignatureWithData(userOpHash, userOp.signature, abi.encodePacked(wallet.addr)));
     }
+
+    function test_nonMEEFlow_isValidSignature_7739_success() public {
+        TestTemps memory t;
+        t.contents = keccak256("0x1234");
+        bytes32 dataToSign = toERC1271Hash(t.contents, address(mockAccount));
+        (t.v, t.r, t.s) = vm.sign(wallet.privateKey, dataToSign);
+        bytes memory contentsType = "Contents(bytes32 stuff)";
+        bytes memory signature = abi.encodePacked(t.r, t.s, t.v, APP_DOMAIN_SEPARATOR, t.contents, contentsType, uint16(contentsType.length));
+        bytes4 ret = mockAccount.isValidSignature(toContentsHash(t.contents), signature);
+        assertEq(ret, bytes4(EIP1271_SUCCESS));
+    }
+
     // TEST non-MEE flow
 
     // Fuzz for MEE (simple an permit)
@@ -312,18 +325,46 @@ contract K1MEEValidatorTest is BaseTest {
         return userOp;
     }
 
-    function iToHex(bytes memory buffer) public pure returns (string memory) {
+    /// @notice Generates an ERC-1271 hash for the given contents and account.
+    /// @param contents The contents hash.
+    /// @param account The account address.
+    /// @return The ERC-1271 hash.
+    function toERC1271Hash(bytes32 contents, address account) internal view returns (bytes32) {
+        bytes32 parentStructHash = keccak256(
+            abi.encodePacked(
+                abi.encode(
+                    keccak256(
+                        "TypedDataSign(Contents contents,string name,string version,uint256 chainId,address verifyingContract,bytes32 salt)Contents(bytes32 stuff)"
+                    ),
+                    contents
+                ),
+                accountDomainStructFields(account)
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", APP_DOMAIN_SEPARATOR, parentStructHash));
+    }
 
-        // Fixed buffer size for hexadecimal convertion
-        bytes memory converted = new bytes(buffer.length * 2);
+    /// @notice Generates a contents hash.
+    /// @param contents The contents hash.
+    /// @return The EIP-712 hash.
+    function toContentsHash(bytes32 contents) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(hex"1901", APP_DOMAIN_SEPARATOR, contents));
+    }
 
-        bytes memory _base = "0123456789abcdef";
+    /// @notice Retrieves the EIP-712 domain struct fields.
+    /// @param account The account address.
+    /// @return The encoded EIP-712 domain struct fields.
+    function accountDomainStructFields(address account) internal view returns (bytes memory) {
+        AccountDomainStruct memory t;
+        (/*fields*/, t.name, t.version, t.chainId, t.verifyingContract, t.salt, /*extensions*/) = EIP712(account).eip712Domain();
 
-        for (uint256 i = 0; i < buffer.length; i++) {
-            converted[i * 2] = _base[uint8(buffer[i]) / _base.length];
-            converted[i * 2 + 1] = _base[uint8(buffer[i]) % _base.length];
-        }
-
-        return string(abi.encodePacked("0x", converted));
+        return
+            abi.encode(
+                keccak256(bytes(t.name)),
+                keccak256(bytes(t.version)),
+                t.chainId,
+                t.verifyingContract, // Use the account address as the verifying contract.
+                t.salt
+            );
     }
 }
