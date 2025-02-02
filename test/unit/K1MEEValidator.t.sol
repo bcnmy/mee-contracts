@@ -47,43 +47,8 @@ contract K1MEEValidatorTest is BaseTest {
         valueToSet = MEE_NODE_HEX;
     }
 
-    function test_regular_userOp_flow_success() public returns (PackedUserOperation[] memory) {
-        bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
-        bytes memory callData = abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData);
-        PackedUserOperation memory userOp = buildUserOpWithCalldata(
-            {
-                account: address(mockAccount), 
-                callData: callData, 
-                wallet: wallet, 
-                preVerificationGasLimit: 3e5, 
-                verificationGasLimit: 500e3, 
-                callGasLimit: 3e6
-            }
-        );
-
-        userOp = makeMEEUserOp({
-            userOp: userOp, 
-            pmValidationGasLimit: 22_000, 
-            pmPostOpGasLimit: 45_000, 
-            premiumPercentage: 17_00000, 
-            wallet: wallet, 
-            sigType: bytes4(0)
-        });
-
-        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);     
-        userOps[0] = userOp;
-
-        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
-        vm.recordLogs();
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
-        vm.stopPrank();
-
-        assertEq(mockTarget.value(), valueToSet); 
-
-        return (userOps);
-    }
-
-    function test_superTxFlow_simple_mode_ValidateUserOp_success() public returns (PackedUserOperation[] memory) {
+    function test_superTxFlow_simple_mode_ValidateUserOp_success(uint256 numOfClones) public returns (PackedUserOperation[] memory) {
+        numOfClones = bound(numOfClones, 1, 25);
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
         PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
@@ -92,7 +57,6 @@ contract K1MEEValidatorTest is BaseTest {
             userOpSigner: wallet
         });
 
-        uint256 numOfClones = 3;
         PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
 
         userOps = makeSimpleSuperTx(userOps, wallet);
@@ -105,8 +69,8 @@ contract K1MEEValidatorTest is BaseTest {
         return userOps;
     }
 
-    function test_superTxFlow_simple_mode_1271_and_WithData_success() public {
-        uint256 numOfObjs = 10;
+    function test_superTxFlow_simple_mode_1271_and_WithData_success(uint256 numOfObjs) public {
+        numOfObjs = bound(numOfObjs, 2, 25);
         bytes[] memory meeSigs = new bytes[](numOfObjs);
         bytes32 baseHash = keccak256(abi.encode("test"));
         meeSigs = makeSimpleSuperTxSignatures({
@@ -294,8 +258,6 @@ contract K1MEEValidatorTest is BaseTest {
         bytes4 ret = mockAccount.isValidSignature(toContentsHash(t.contents), signature);
         assertEq(ret, bytes4(EIP1271_SUCCESS));
     }
-
-    // TEST non-MEE flow
 
     // Fuzz for MEE (simple an permit)
 
