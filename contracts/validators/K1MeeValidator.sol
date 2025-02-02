@@ -6,13 +6,14 @@ import {IValidator, MODULE_TYPE_VALIDATOR} from "erc7579/interfaces/IERC7579Modu
 import {ISessionValidator} from "contracts/interfaces/ISessionValidator.sol";
 import {EnumerableSet} from "EnumerableSet4337/EnumerableSet4337.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
-import {SIG_TYPE_SIMPLE, SIG_TYPE_ON_CHAIN, SIG_TYPE_ERC20_PERMIT, EIP1271_SUCCESS, EIP1271_FAILED, MODULE_TYPE_STATELESS_VALIDATOR} from "contracts/types/Constants.sol";
+import {ERC7739Validator} from "erc7739Validator/ERC7739Validator.sol";
+import {SIG_TYPE_SIMPLE, SIG_TYPE_ON_CHAIN, SIG_TYPE_ERC20_PERMIT, EIP1271_SUCCESS, EIP1271_FAILED, MODULE_TYPE_STATELESS_VALIDATOR, SIG_TYPE_MEE_FLOW} from "contracts/types/Constants.sol";
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
 import {PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
 import {SimpleValidatorLib} from "contracts/lib/fusion/SimpleValidatorLib.sol";
 import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
-
+import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
 /**
  * @title K1MeeValidator
  * @dev   An ERC-7579 validator (module type 1) and stateless validator (module type 7) for the MEE stack.
@@ -23,9 +24,7 @@ import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
  * 
  *        Further improvements:
  *        - Further gas optimizations
- *        - Divide stateless validator and 1271 flow
- *        - ERC-7739 for non-MEE 1271 flow
- *        - Use EIP-712 to make superTx hash not blind => use 7739 for the higher level hash in MEE 1271 flows
+ *        - Use EIP-712 to make superTx hash not blind => use 7739 for the MEE 1271 flows
  *        
  *        Using erc7739 for MEE flows makes no sense currently because user signs blind hashes anyways
  *        (except permit mode, but the superTx hash is still blind in it).
@@ -34,7 +33,7 @@ import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
  *        
  */
 
-contract K1MeeValidator is IValidator, ISessionValidator {
+contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     
     using EnumerableSet for EnumerableSet.AddressSet;
     /*//////////////////////////////////////////////////////////////////////////
@@ -43,6 +42,9 @@ contract K1MeeValidator is IValidator, ISessionValidator {
 
     /// @notice Mapping of smart account addresses to their respective owner addresses
     mapping(address => address) public smartAccountOwners;
+
+    /// @notice Set of safe senders for each smart account
+    EnumerableSet.AddressSet private _safeSenders;
 
     /// @notice Error to indicate that no owner was provided during installation
     error NoOwnerProvided();
@@ -78,6 +80,9 @@ contract K1MeeValidator is IValidator, ISessionValidator {
         require(newOwner != address(0), OwnerCannotBeZeroAddress());
         require(!_isContract(newOwner), NewOwnerIsContract());
         smartAccountOwners[msg.sender] = newOwner;
+        if (data.length > 20) {
+            _fillSafeSenders(data[20:]);
+        }
     }
 
     /**
@@ -103,6 +108,21 @@ contract K1MeeValidator is IValidator, ISessionValidator {
      */
     function isInitialized(address smartAccount) external view returns (bool) {
         return _isInitialized(smartAccount);
+    }
+
+    /// @notice Adds a safe sender to the _safeSenders list for the smart account
+    function addSafeSender(address sender) external {
+        _safeSenders.add(msg.sender, sender);
+    }
+
+    /// @notice Removes a safe sender from the _safeSenders list for the smart account
+    function removeSafeSender(address sender) external {
+        _safeSenders.remove(msg.sender, sender);
+    }
+
+    /// @notice Checks if a sender is in the _safeSenders list for the smart account
+    function isSafeSender(address sender, address smartAccount) external view returns (bool) {
+        return _safeSenders.contains(smartAccount, sender);
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -144,7 +164,7 @@ contract K1MeeValidator is IValidator, ISessionValidator {
     /**
      * Validates an ERC-1271 signature
      *
-     * param sender The sender of the ERC-1271 call to the account
+     * @param sender The sender of the ERC-1271 call to the account
      * @param hash The hash of the message
      * @param signature The signature of the message
      *
@@ -152,19 +172,27 @@ contract K1MeeValidator is IValidator, ISessionValidator {
      *  - EIP1271_SUCCESS if the signature is valid
      *  - EIP1271_FAILED if the signature is invalid
      */
-    function isValidSignatureWithSender(address, bytes32 hash, bytes calldata signature)
+    function isValidSignatureWithSender(address sender, bytes32 hash, bytes calldata signature)
         external
         view
         virtual
         override
         returns (bytes4 sigValidationResult)
     {   
-        // Then send the signature over hash itself to _erc1271IsValidSignatureWithSender
-        return _validateSignatureForOwner(
-            smartAccountOwners[msg.sender], 
-            keccak256(abi.encodePacked(hash, msg.sender)),  //hash the SA to protect against two SA's with same owner vector
-            _erc1271UnwrapSignature(signature)
-        ) ? EIP1271_SUCCESS : EIP1271_FAILED;
+        if (bytes3(signature[0:3]) != SIG_TYPE_MEE_FLOW) { 
+            // Non MEE 7739 flow
+            // goes to ERC7739Validator to apply 7739 magic and then returns back
+            // to this contract's _erc1271IsValidSignatureNowCalldata() method.
+            return _erc1271IsValidSignatureWithSender(sender, hash, _erc1271UnwrapSignature(signature));
+        } else {
+            // non-7739 flow
+            // hash the SA into the `hash` to protect against two SA's with same owner vector
+            return _validateSignatureForOwner(
+                smartAccountOwners[msg.sender], 
+                keccak256(abi.encodePacked(hash, msg.sender)),
+                _erc1271UnwrapSignature(signature)
+            ) ? EIP1271_SUCCESS : EIP1271_FAILED;
+        }
     }
 
     /// @notice ISessionValidator interface for smart session
@@ -235,8 +263,6 @@ contract K1MeeValidator is IValidator, ISessionValidator {
             return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else {
             // fallback flow => non MEE flow => no prefix
-            // for non-MEE 1271 flow it is non-transparent hash : smart account address is hashed in
-            // to be replaced with erc7739
             return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
         } 
     }
@@ -247,6 +273,13 @@ contract K1MeeValidator is IValidator, ISessionValidator {
     /// @return True if the smart account has an owner, false otherwise
     function _isInitialized(address smartAccount) private view returns (bool) {
         return smartAccountOwners[smartAccount] != address(0);
+    }
+
+    // @notice Fills the _safeSenders list from the given data
+    function _fillSafeSenders(bytes calldata data) private {
+        for (uint256 i; i < data.length / 20; i++) {
+            _safeSenders.add(msg.sender, address(bytes20(data[20 * i:20 * (i + 1)])));
+        }
     }
 
     /// @notice Checks if the address is a contract
@@ -260,26 +293,32 @@ contract K1MeeValidator is IValidator, ISessionValidator {
         return size > 0;
     }
 
-    /// @dev Unwraps and returns the signature.
-    function _erc1271UnwrapSignature(bytes calldata signature)
+    /// @dev Returns whether the `hash` and `signature` are valid.
+    ///      Obtains the authorized signer's credentials and calls some
+    ///      module's specific internal function to validate the signature
+    ///      against credentials.
+    function _erc1271IsValidSignatureNowCalldata(bytes32 hash, bytes calldata signature)
         internal
         view
-        virtual
-        returns (bytes calldata result)
+        override
+        returns (bool)
     {
-        result = signature;
-        /// @solidity memory-safe-assembly
-        assembly {
-            // Unwraps the ERC6492 wrapper if it exists.
-            // See: https://eips.ethereum.org/EIPS/eip-6492
-            if eq(
-                calldataload(add(result.offset, sub(result.length, 0x20))),
-                mul(0x6492, div(not(shr(address(), address())), 0xffff)) // `0x6492...6492`.
-            ) {
-                let o := add(result.offset, calldataload(add(result.offset, 0x40)))
-                result.length := calldataload(o)
-                result.offset := add(o, 0x20)
-            }
-        }
+        // call custom internal function to validate the signature against credentials
+        return EcdsaLib.isValidSignature(smartAccountOwners[msg.sender], hash, signature);
+    }
+
+    /// @dev Returns whether the `sender` is considered safe, such
+    /// that we don't need to use the nested EIP-712 workflow.
+    /// See: https://mirror.xyz/curiousapple.eth/pFqAdW2LiJ-6S4sg_u1z08k4vK6BCJ33LcyXpnNb8yU
+    // The canonical `MulticallerWithSigner` at 0x000000000000D9ECebf3C23529de49815Dac1c4c
+    // is known to include the account in the hash to be signed.
+    // msg.sender = Smart Account
+    // sender = 1271 og request sender
+    function _erc1271CallerIsSafe(address sender) internal view virtual override returns (bool) {
+        return (
+            sender == 0x000000000000D9ECebf3C23529de49815Dac1c4c // MulticallerWithSigner
+                || sender == msg.sender // Smart Account. Assume smart account never sends non safe eip-712 struct
+                || _safeSenders.contains(msg.sender, sender)
+        ); // check if sender is in _safeSenders for the Smart Account
     }
 }
