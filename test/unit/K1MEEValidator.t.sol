@@ -128,7 +128,7 @@ contract K1MEEValidatorTest is BaseTest {
         assertEq(erc20.balanceOf(bob), amountToTransfer*numOfClones+1e18);
     }       
 
-    function test_superTxFlow_permit_mode_1271_and_WithData_success(uint256 numOfObjsg) public {
+    function test_superTxFlow_permit_mode_1271_and_WithData_success(uint256 numOfObjs) public {
         numOfObjs = bound(numOfObjs, 2, 25);
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         bytes[] memory meeSigs = new bytes[](numOfObjs);
