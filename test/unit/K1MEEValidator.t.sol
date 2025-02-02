@@ -154,6 +154,8 @@ contract K1MEEValidatorTest is BaseTest {
     }
 
     // test txn mode
+    // Fuzz for txn mode after solidity txn serialization is done
+
     function test_superTxFlow_txn_mode_ValidateUserOp_success() public {
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
@@ -215,9 +217,7 @@ contract K1MEEValidatorTest is BaseTest {
         }
     }
 
-    // TODO:
-    // - test non-MEE flow
-
+    // test non-MEE flow
     function test_nonMEEFlow_ValidateUserOp_success() public {
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
@@ -258,10 +258,6 @@ contract K1MEEValidatorTest is BaseTest {
         bytes4 ret = mockAccount.isValidSignature(toContentsHash(t.contents), signature);
         assertEq(ret, bytes4(EIP1271_SUCCESS));
     }
-
-    // Fuzz for MEE (simple an permit)
-
-    // Fuzz for txn mode after solidity txn serialization is there
 
     // ================================
 

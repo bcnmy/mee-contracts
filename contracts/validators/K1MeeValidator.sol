@@ -24,9 +24,7 @@ import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
  * 
  *        Further improvements:
  *        - Further gas optimizations
- *        - Divide stateless validator and 1271 flow
- *        - ERC-7739 for non-MEE 1271 flow
- *        - Use EIP-712 to make superTx hash not blind => use 7739 for the higher level hash in MEE 1271 flows
+ *        - Use EIP-712 to make superTx hash not blind => use 7739 for the MEE 1271 flows
  *        
  *        Using erc7739 for MEE flows makes no sense currently because user signs blind hashes anyways
  *        (except permit mode, but the superTx hash is still blind in it).
