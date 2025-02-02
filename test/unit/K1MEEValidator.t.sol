@@ -83,7 +83,7 @@ contract K1MEEValidatorTest is BaseTest {
     function test_superTxFlow_simple_mode_ValidateUserOp_success() public returns (PackedUserOperation[] memory) {
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
-        PackedUserOperation memory userOp = buildSimpleMEEUserOpWithCalldata({
+        PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
             callData: abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData),
             account: address(mockAccount),
             userOpSigner: wallet
@@ -137,7 +137,7 @@ contract K1MEEValidatorTest is BaseTest {
         // because of permit applies in the first userop validation
         bytes memory innerCallData = abi.encodeWithSelector(erc20.transferFrom.selector, wallet.addr, bob, amountToTransfer);
 
-        PackedUserOperation memory userOp = buildSimpleMEEUserOpWithCalldata({
+        PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
             callData: abi.encodeWithSelector(mockAccount.execute.selector, address(erc20), uint256(0), innerCallData),
             account: address(mockAccount),
             userOpSigner: wallet
@@ -196,7 +196,7 @@ contract K1MEEValidatorTest is BaseTest {
         uint256 amountToTransfer = 1 ether; // 1 token
 
         bytes memory innerCallData = abi.encodeWithSelector(erc20.transfer.selector, bob, amountToTransfer); // mock Account transfers tokens to bob
-        PackedUserOperation memory userOp = buildSimpleMEEUserOpWithCalldata({
+        PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
             callData: abi.encodeWithSelector(mockAccount.execute.selector, address(erc20), uint256(0), innerCallData),
             account: address(mockAccount),
             userOpSigner: wallet
@@ -249,7 +249,39 @@ contract K1MEEValidatorTest is BaseTest {
     }
 
     // TODO:
+    // - test non-MEE flow
 
+    function test_nonMEEFlow_ValidateUserOp_success() public {
+        uint256 counterBefore = mockTarget.counter();
+        bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
+        PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
+            callData: abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData),
+            account: address(mockAccount),
+            userOpSigner: wallet
+        });
+
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
+        userOps[0] = userOp;
+
+        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
+        
+        assertEq(mockTarget.counter(), counterBefore + 1);
+    }
+
+    function test_nonMEEFlow_validateSignatureWithData_success() public {
+        bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
+        PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
+            callData: abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData),
+            account: address(mockAccount),
+            userOpSigner: wallet
+        });
+
+        bytes32 userOpHash = ENTRYPOINT.getUserOpHash(userOp);
+
+        assertTrue(mockAccount.validateSignatureWithData(userOpHash, userOp.signature, abi.encodePacked(wallet.addr)));
+    }
     // TEST non-MEE flow
 
     // Fuzz for MEE (simple an permit)
@@ -258,7 +290,7 @@ contract K1MEEValidatorTest is BaseTest {
 
     // ================================
 
-    function buildSimpleMEEUserOpWithCalldata(bytes memory callData, address account, Vm.Wallet memory userOpSigner) public returns (PackedUserOperation memory) {
+    function buildBasicMEEUserOpWithCalldata(bytes memory callData, address account, Vm.Wallet memory userOpSigner) public returns (PackedUserOperation memory) {
         PackedUserOperation memory userOp = buildUserOpWithCalldata({
             account: account, 
             callData: callData, 
