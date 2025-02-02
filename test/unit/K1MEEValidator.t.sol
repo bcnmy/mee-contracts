@@ -93,7 +93,8 @@ contract K1MEEValidatorTest is BaseTest {
     }
 
     // test permit mode
-    function test_superTxFlow_permit_mode_ValidateUserOp_success() public {
+    function test_superTxFlow_permit_mode_ValidateUserOp_success(uint256 numOfClones) public {
+        numOfClones = bound(numOfClones, 1, 25);
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
         address bob = address(0xb0bb0b);
@@ -110,7 +111,6 @@ contract K1MEEValidatorTest is BaseTest {
             userOpSigner: wallet
         });
 
-        uint256 numOfClones = 5;
         PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
 
         userOps = makePermitSuperTx({
@@ -128,9 +128,9 @@ contract K1MEEValidatorTest is BaseTest {
         assertEq(erc20.balanceOf(bob), amountToTransfer*numOfClones+1e18);
     }       
 
-    function test_superTxFlow_permit_mode_1271_and_WithData_success() public {
+    function test_superTxFlow_permit_mode_1271_and_WithData_success(uint256 numOfObjsg) public {
+        numOfObjs = bound(numOfObjs, 2, 25);
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
-        uint256 numOfObjs = 5;
         bytes[] memory meeSigs = new bytes[](numOfObjs);
         bytes32 baseHash = keccak256(abi.encode("test"));
 
