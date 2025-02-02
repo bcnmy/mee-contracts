@@ -200,7 +200,7 @@ contract K1MEEValidatorTest is BaseTest {
         bytes[] memory meeSigs = new bytes[](numOfObjs);
         bytes32 baseHash = keccak256(abi.encode("test"));
 
-        // same
+        // pre-serialized txn
         bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800005cb98b1166f4168a57931b88844fc8195271defd4b8e0f0c6422f5d7fbf6f7cfc001a0fbdf94d4e9b3ca8c26a0522e3c6e36d635e9c4fa507760434587f1e97b6a0bc6a05b875171e888dfd9dab9905fbbe79f604a085b32e1d72c119d4f5eed9efe362f";
         
         meeSigs = makeOnChainTxnSuperTxSignatures(baseHash, numOfObjs, serializedTx, address(mockAccount));
