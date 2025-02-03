@@ -147,7 +147,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         returns (uint256)
     {   
         bytes4 sigType = bytes4(userOp.signature[0:4]);
-        address owner = smartAccountOwners[userOp.sender];
+        address owner = getOwner(userOp.sender);
 
         if (sigType == SIG_TYPE_SIMPLE) {
             return SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[4:], owner);
@@ -188,7 +188,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
             // non-7739 flow
             // hash the SA into the `hash` to protect against two SA's with same owner vector
             return _validateSignatureForOwner(
-                smartAccountOwners[msg.sender], 
+                getOwner(msg.sender), 
                 keccak256(abi.encodePacked(hash, msg.sender)),
                 _erc1271UnwrapSignature(signature)
             ) ? EIP1271_SUCCESS : EIP1271_FAILED;
@@ -213,8 +213,9 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
      * @param smartAccount The address of the smart account
      * @return The owner of the smart account
      */
-    function getOwner(address smartAccount) external view returns (address) {
-        return smartAccountOwners[smartAccount];
+    function getOwner(address smartAccount) public view returns (address) {
+        address owner = smartAccountOwners[smartAccount];
+        return owner == address(0) ? smartAccount : owner;
     }
 
     /*//////////////////////////////////////////////////////////////////////////
@@ -304,7 +305,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         returns (bool)
     {
         // call custom internal function to validate the signature against credentials
-        return EcdsaLib.isValidSignature(smartAccountOwners[msg.sender], hash, signature);
+        return EcdsaLib.isValidSignature(getOwner(msg.sender), hash, signature);
     }
 
     /// @dev Returns whether the `sender` is considered safe, such
