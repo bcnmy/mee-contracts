@@ -17,5 +17,5 @@ interface ILayerZeroEndpoint {
         bytes calldata _payload,
         bool _payInZRO,
         bytes calldata _adapterParam
-    ) external view returns (uint nativeFee, uint zroFee);
+    ) external view returns (uint256 nativeFee, uint256 zroFee);
 }

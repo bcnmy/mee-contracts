@@ -37,7 +37,7 @@ contract ComposableFallbackHandlerTest is Test {
 
     function testComposableFlow() public {
         vm.startPrank(eoa);
-        
+
         // Step 1: Call function A and store its result
         // Prepare return value config for function A
         ComposableFallbackHandler.InputParam[] memory inputParamsA = new ComposableFallbackHandler.InputParam[](0);

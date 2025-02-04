@@ -25,6 +25,7 @@ contract ComposableFallbackHandler is IFallback {
         RAW_BYTES, // Already encoded bytes
         STORAGE_READ, // Read from storage
         STATIC_CALL // Perform a static call
+
     }
 
     enum OutputParamFetcherType {
@@ -100,16 +101,10 @@ contract ComposableFallbackHandler is IFallback {
         } else {
             bytes memory rawValue;
             if (param.fetcherType == InputParamFetcherType.STORAGE_READ) {
-            (
-                address storageContract,
-                bytes32 storageSlot
-            ) = abi.decode(param.paramData, (address, bytes32));
-            rawValue = abi.encodePacked(getValueAt(storageContract, storageSlot));
+                (address storageContract, bytes32 storageSlot) = abi.decode(param.paramData, (address, bytes32));
+                rawValue = abi.encodePacked(getValueAt(storageContract, storageSlot));
             } else if (param.fetcherType == InputParamFetcherType.STATIC_CALL) {
-                (
-                    address contractAddr,
-                    bytes memory callData
-                ) = abi.decode(param.paramData, (address, bytes));
+                (address contractAddr, bytes memory callData) = abi.decode(param.paramData, (address, bytes));
                 (bool success, bytes memory returnData) = contractAddr.staticcall(callData);
                 if (!success) {
                     revert ExecutionFailed();
@@ -135,10 +130,7 @@ contract ComposableFallbackHandler is IFallback {
 
     function processOutput(OutputParam calldata param, bytes memory returnData) internal {
         if (param.fetcherType == OutputParamFetcherType.EXEC_RESULT) {
-            (
-                address targetStorageContract,
-                bytes32 targetSlot
-            ) = abi.decode(param.paramData, (address, bytes32));
+            (address targetStorageContract, bytes32 targetSlot) = abi.decode(param.paramData, (address, bytes32));
             Storage(targetStorageContract).writeStorage(targetSlot, abi.decode(returnData, (bytes32)));
         } else if (param.fetcherType == OutputParamFetcherType.STORAGE_READ) {
             (
@@ -147,7 +139,9 @@ contract ComposableFallbackHandler is IFallback {
                 address targetStorageContract,
                 bytes32 targetStorageSlot
             ) = abi.decode(param.paramData, (address, bytes32, address, bytes32));
-            Storage(targetStorageContract).writeStorage(targetStorageSlot, getValueAt(sourceStorageContract, sourceStorageSlot));
+            Storage(targetStorageContract).writeStorage(
+                targetStorageSlot, getValueAt(sourceStorageContract, sourceStorageSlot)
+            );
         } else if (param.fetcherType == OutputParamFetcherType.STATIC_CALL) {
             (
                 address targetStorageContract,
@@ -176,14 +170,12 @@ contract ComposableFallbackHandler is IFallback {
         return moduleTypeId == 3;
     }
 
-     function getValueAt(address contractAddr, bytes32 slot) internal view returns (bytes32) {
+    function getValueAt(address contractAddr, bytes32 slot) internal view returns (bytes32) {
         bytes32 value;
         assembly {
             // Switch context to read storage from contractAddr
             let success := staticcall(gas(), contractAddr, 0x00, 0x00, 0x00, 0x00)
-            if iszero(success) {
-                revert(0, 0)
-            }
+            if iszero(success) { revert(0, 0) }
             // Read storage slot from the target contract
             value := sload(slot)
         }

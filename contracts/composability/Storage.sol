@@ -17,13 +17,13 @@ contract Storage {
 
     // LayerZero endpoint interface
     ILayerZeroEndpoint public immutable endpoint;
-    
+
     // Mapping of trusted remote Storage contracts on other chains
     mapping(uint16 => bytes) public trustedRemoteLookup;
 
     // Mapping to track initialized slots
     mapping(bytes32 => bool) private initializedSlots;
-    
+
     // Mapping to track length of dynamic data
     mapping(bytes32 => uint256) private dynamicDataLength;
 
@@ -95,12 +95,7 @@ contract Storage {
             bytes memory payload = abi.encode(msg.sender, slot, value);
 
             endpoint.send{value: msgValuePerChain}(
-                dstChainIds[i],
-                trustedRemote,
-                payload,
-                payable(msg.sender),
-                address(0),
-                adapterParams
+                dstChainIds[i], trustedRemote, payload, payable(msg.sender), address(0), adapterParams
             );
 
             emit RemoteStorageSet(dstChainIds[i], slot, value);
@@ -110,23 +105,15 @@ contract Storage {
     /**
      * @dev LayerZero receive function
      */
-    function lzReceive(
-        uint16 _srcChainId,
-        bytes memory _srcAddress,
-        uint64 _nonce,
-        bytes memory _payload
-    ) external {
+    function lzReceive(uint16 _srcChainId, bytes memory _srcAddress, uint64 _nonce, bytes memory _payload) external {
         require(msg.sender == address(endpoint), "Invalid endpoint caller");
-        
+
         // Verify source is trusted remote
         require(_srcAddress.length == trustedRemoteLookup[_srcChainId].length, "Invalid source length");
         require(keccak256(_srcAddress) == keccak256(trustedRemoteLookup[_srcChainId]), "Invalid source address");
 
         // Decode and store the value
-        (address originalSender, bytes32 slot, bytes32 value) = abi.decode(
-            _payload,
-            (address, bytes32, bytes32)
-        );
+        (address originalSender, bytes32 slot, bytes32 value) = abi.decode(_payload, (address, bytes32, bytes32));
 
         _writeStorage(originalSender, slot, value);
         emit CrossChainStorageSet(_srcChainId, slot, value);
