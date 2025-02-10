@@ -6,6 +6,8 @@ import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
+import "forge-std/console2.sol";
+
 /**
  * @dev Library to validate the signature for MEE Simple mode
  *      In this mode, Fusion is not involved and just the superTx hash is signed
@@ -27,18 +29,37 @@ library SimpleValidatorLib {
      * @param signatureData Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
      * @param expectedSigner Signer expected to be recovered when decoding the ERC20OPermit signature.
      */
-    function validateUserOp(bytes32 userOpHash, bytes memory signatureData, address expectedSigner)
+    function validateUserOp(bytes32 userOpHash, bytes calldata signatureData, address expectedSigner)
         internal
         view
         returns (uint256)
     {
-        (
-            bytes32 superTxHash,
-            bytes32[] memory proof,
-            uint48 lowerBoundTimestamp,
-            uint48 upperBoundTimestamp,
-            bytes memory secp256k1Signature
-        ) = abi.decode(signatureData, (bytes32, bytes32[], uint48, uint48, bytes));
+        bytes32 superTxHash;
+        uint48 lowerBoundTimestamp;
+        uint48 upperBoundTimestamp;
+        bytes32[] calldata proof;
+        bytes calldata secp256k1Signature;
+
+        assembly {
+            superTxHash := calldataload(signatureData.offset)
+            lowerBoundTimestamp := calldataload(add(signatureData.offset, 0x20))
+            upperBoundTimestamp := calldataload(add(signatureData.offset, 0x40))
+            let u:= calldataload(add(signatureData.offset, 0x60))
+            let s:= add(signatureData.offset, u)
+            proof.offset := add(s, 0x20)
+            proof.length := calldataload(s)
+            u := mul(proof.length, 0x20)
+            s := add(proof.offset, u)
+            secp256k1Signature.offset := add(s, 0x20)
+            secp256k1Signature.length := calldataload(s)
+
+            let l := add(add(0xe0, u), secp256k1Signature.length)
+            let la := mul(add(div(l, 0x20), 1), 0x20)
+            if gt(signatureData.length, la) {
+                mstore(0x00, 0xba597e7e) // `DecodingError()`.
+                revert(0x1c, 0x04)
+            }
+        }
 
         bytes32 leaf  = MEEUserOpHashLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
         if (!EcdsaLib.isValidSignature(expectedSigner, superTxHash, secp256k1Signature)) {
@@ -59,16 +80,33 @@ library SimpleValidatorLib {
      * @param dataHash data hash being validated.
      * @param signatureData Signature
      */
-    function validateSignatureForOwner(address owner, bytes32 dataHash, bytes memory signatureData)
+    function validateSignatureForOwner(address owner, bytes32 dataHash, bytes calldata signatureData)
         internal
         view 
         returns (bool)
     {
-        (
-            bytes32 superTxHash,
-            bytes32[] memory proof,
-            bytes memory secp256k1Signature
-        ) = abi.decode(signatureData, (bytes32, bytes32[], bytes));
+        bytes32 superTxHash;
+        bytes32[] calldata proof;
+        bytes calldata secp256k1Signature;
+
+        assembly {
+            superTxHash := calldataload(signatureData.offset)
+            let u := calldataload(add(signatureData.offset, 0x20))
+            let s := add(signatureData.offset, u)
+            proof.offset := add(s, 0x20)
+            proof.length := calldataload(s)
+            u := mul(proof.length, 0x20)
+            s := add(proof.offset, u)
+            secp256k1Signature.offset := add(s, 0x20)
+            secp256k1Signature.length := calldataload(s)
+
+            let l := add(add(0xa0, u), secp256k1Signature.length)
+            let la := mul(add(div(l, 0x20), 1), 0x20)
+            if gt(signatureData.length, la) {
+                mstore(0x00, 0xba597e7e) // `DecodingError()`.
+                revert(0x1c, 0x04)
+            }
+        }
         
         if (!EcdsaLib.isValidSignature(owner, superTxHash, secp256k1Signature)) {
             return false;

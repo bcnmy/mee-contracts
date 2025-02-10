@@ -225,9 +225,9 @@ contract BaseTest is Test {
                     SIG_TYPE_SIMPLE,
                     abi.encode(
                         root,
-                        proof,
                         lowerBoundTimestamp,
                         upperBoundTimestamp,
+                        proof,
                         superTxHashSignature
                     )
             );

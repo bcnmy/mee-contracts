@@ -47,8 +47,10 @@ contract K1MEEValidatorTest is BaseTest {
         valueToSet = MEE_NODE_HEX;
     }
 
+    // test simple mode
     function test_superTxFlow_simple_mode_ValidateUserOp_success(uint256 numOfClones) public returns (PackedUserOperation[] memory) {
         numOfClones = bound(numOfClones, 1, 25);
+
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
         PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
