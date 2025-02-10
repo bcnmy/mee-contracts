@@ -8,6 +8,8 @@ import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import "account-abstraction/core/Helpers.sol";
 
+import "forge-std/console2.sol";
+
 /**
  * @dev Library to validate the signature for MEE ERC-2612 Permit mode
  *      This is the mode where superTx hash is pasted into deadline field of the ERC-2612 Permit
@@ -86,12 +88,12 @@ library PermitValidatorLib {
         bytes32 meeUserOpHash =
             MEEUserOpHashLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
 
-        uint8 vAdjusted = _adjustV(decodedSig.v);
+        //uint8 vAdjusted = _adjustV(decodedSig.v);
 
         if (!EcdsaLib.isValidSignature(
                 expectedSigner,
                 _getSignedDataHash(expectedSigner, decodedSig),
-                abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted)
+                abi.encodePacked(decodedSig.r, decodedSig.s, uint8(decodedSig.v))
             )
         ) {
             return SIG_VALIDATION_FAILED;
@@ -103,7 +105,7 @@ library PermitValidatorLib {
 
         if (decodedSig.isPermitTx) {
             decodedSig.token.permit(
-                expectedSigner, decodedSig.spender, decodedSig.amount, uint256(decodedSig.superTxHash), vAdjusted, decodedSig.r, decodedSig.s
+                expectedSigner, decodedSig.spender, decodedSig.amount, uint256(decodedSig.superTxHash), uint8(decodedSig.v), decodedSig.r, decodedSig.s
             );
         }
 
@@ -116,12 +118,12 @@ library PermitValidatorLib {
         returns (bool)
     {
         DecodedErc20PermitSigShort memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSigShort));
-        uint8 vAdjusted = _adjustV(decodedSig.v);
+        //uint8 vAdjusted = _adjustV(decodedSig.v);
 
         if (!EcdsaLib.isValidSignature(
                 expectedSigner, 
                 _getSignedDataHash(expectedSigner, decodedSig), 
-                abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted)
+                abi.encodePacked(decodedSig.r, decodedSig.s, uint8(decodedSig.v))
             )
         ) {
             return false;

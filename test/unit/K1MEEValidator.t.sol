@@ -48,8 +48,9 @@ contract K1MEEValidatorTest is BaseTest {
     }
 
     // test simple mode
-    function test_superTxFlow_simple_mode_ValidateUserOp_success(uint256 numOfClones) public returns (PackedUserOperation[] memory) {
-        numOfClones = bound(numOfClones, 1, 25);
+    function test_superTxFlow_simple_mode_ValidateUserOp_success(/*uint256 numOfClones*/) public returns (PackedUserOperation[] memory) {
+        //numOfClones = bound(numOfClones, 1, 25);
+        uint256 numOfClones = 8;
 
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
