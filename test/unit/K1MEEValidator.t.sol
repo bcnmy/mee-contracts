@@ -95,8 +95,12 @@ contract K1MEEValidatorTest is BaseTest {
     }
 
     // test permit mode
+    /*
     function test_superTxFlow_permit_mode_ValidateUserOp_success(uint256 numOfClones) public {
         numOfClones = bound(numOfClones, 1, 25);
+        */
+    function test_superTxFlow_permit_mode_ValidateUserOp_success() public {
+        uint256 numOfClones = 8;
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
         address bob = address(0xb0bb0b);

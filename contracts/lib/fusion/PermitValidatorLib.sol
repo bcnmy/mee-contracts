@@ -37,7 +37,7 @@ struct DecodedErc20PermitSig {
     bytes32[] proof;
     uint48 lowerBoundTimestamp;
     uint48 upperBoundTimestamp;
-    uint256 v;
+    uint8 v;
     bytes32 r;
     bytes32 s;
 }
@@ -49,7 +49,7 @@ struct DecodedErc20PermitSigShort {
     uint256 nonce;
     bytes32 superTxHash;
     bytes32[] proof;
-    uint256 v;
+    uint8 v;
     bytes32 r;
     bytes32 s;
 }
@@ -85,10 +85,35 @@ library PermitValidatorLib {
         //TODO: try to squeeze some gas from both structs with calldata parsing if have time
         DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));
 
+        console2.logBytes(parsedSignature);
+
+        /*
+
+        0x
+        0000000000000000000000000000000000000000000000000000000000000020 // struct offset
+        000000000000000000000000a0cb889707d426a7a386870a03bc70d1b0697598 // erc20 permit token
+        000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb1 // spender
+        89848d8aec21b6fe4e1bd063781397bf555ab8f53c286b1e5358436281b1ec86 // domain separator
+        0000000000000000000000000000000000000000000000007ce66c50e2840000 // value
+        0000000000000000000000000000000000000000000000000000000000000000 // nonce
+        0000000000000000000000000000000000000000000000000000000000000000 // is permit tx
+        a458e2fb01140fe4a64294565036824bae8205bd363c1b83bf5f0e0a5b03734b // deadline / superTx hash
+        00000000000000000000000000000000000000000000000000000000000001a0 // proof offset
+        0000000000000000000000000000000000000000000000000000000000000001 // lower bound timestamp
+        00000000000000000000000000000000000000000000000000000000000003e9 // upper bound timestamp
+        000000000000000000000000000000000000000000000000000000000000001c // signature offset
+        e1a812730bab84581947ad426486bcc5637b8ea8dd50862dee9dd0b8665d1f0a
+        160fb0000c24d7c820ab28f83c32c11977bb7a3ed61c4cde9c0825be9420e472
+        0000000000000000000000000000000000000000000000000000000000000004
+        601163fb105e5fe9a76c7484ada9e984db32f423f306e7d1ec272d0895300190
+        86388f3adbb81b84158d93964b47acce2ab3b78be636da35ee5084cfd81ed953
+        da05c3ede43f7912e161ef9bdad56a506f79f69224982e4591ca685bf802778d
+        eeef48e397cf771fd02e56efcc87c6ffef88d3fe21c0b416ac140598d68bef1c
+
+        */
+
         bytes32 meeUserOpHash =
             MEEUserOpHashLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
-
-        //uint8 vAdjusted = _adjustV(decodedSig.v);
 
         if (!EcdsaLib.isValidSignature(
                 expectedSigner,
@@ -118,7 +143,6 @@ library PermitValidatorLib {
         returns (bool)
     {
         DecodedErc20PermitSigShort memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSigShort));
-        //uint8 vAdjusted = _adjustV(decodedSig.v);
 
         if (!EcdsaLib.isValidSignature(
                 expectedSigner, 
@@ -170,19 +194,5 @@ library PermitValidatorLib {
 
     function _hashTypedData(bytes32 structHash, bytes32 domainSeparator) private pure returns (bytes32) {
         return MessageHashUtils.toTypedDataHash(domainSeparator, structHash);
-    }
-
-    function _adjustV(uint256 v) private pure returns (uint8) {
-        if (v >= EIP_155_MIN_V_VALUE) {
-            return uint8((v - 2 * _extractChainIdFromV(v) - 35) + 27);
-        } else if (v <= 1) {
-            return uint8(v + 27);
-        } else {
-            return uint8(v);
-        }
-    }
-
-    function _extractChainIdFromV(uint256 v) private pure returns (uint256 chainId) {
-        chainId = (v - 35) / 2;
     }
 }
