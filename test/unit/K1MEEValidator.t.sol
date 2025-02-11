@@ -48,12 +48,8 @@ contract K1MEEValidatorTest is BaseTest {
     }
 
     // test simple mode
-//    function test_superTxFlow_simple_mode_ValidateUserOp_success(uint256 numOfClones) public returns (PackedUserOperation[] memory) {
-//        numOfClones = bound(numOfClones, 1, 25);
-
-    function test_superTxFlow_simple_mode_ValidateUserOp_success() public returns (PackedUserOperation[] memory) {
-        uint256 numOfClones = 4;
-
+    function test_superTxFlow_simple_mode_ValidateUserOp_success(uint256 numOfClones) public returns (PackedUserOperation[] memory) {
+        numOfClones = bound(numOfClones, 1, 25);
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
         PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
@@ -98,12 +94,8 @@ contract K1MEEValidatorTest is BaseTest {
     }
 
     // test permit mode
-    /*
     function test_superTxFlow_permit_mode_ValidateUserOp_success(uint256 numOfClones) public {
         numOfClones = bound(numOfClones, 1, 25);
-        */
-    function test_superTxFlow_permit_mode_ValidateUserOp_success() public {
-        uint256 numOfClones = 8;
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
         address bob = address(0xb0bb0b);

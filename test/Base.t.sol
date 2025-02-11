@@ -220,7 +220,7 @@ contract BaseTest is Test {
         for (uint256 i = 0; i < userOps.length; i++) {
             superTxUserOps[i] = userOps[i].deepCopy();
             bytes32[] memory proof = tree.getProof(leaves, i);
-/*             bytes memory signature = 
+            bytes memory signature = 
                 abi.encodePacked(
                     SIG_TYPE_SIMPLE,
                     abi.encode(
@@ -230,23 +230,7 @@ contract BaseTest is Test {
                         proof,
                         superTxHashSignature
                     )
-            ); */
-
-            
-            bytes memory signature = 
-                abi.encodePacked(
-                    SIG_TYPE_SIMPLE,
-                    abi.encodePacked(
-                        root,
-                        lowerBoundTimestamp,
-                        upperBoundTimestamp,
-                        uint16(proof.length),
-                        proof,
-                        uint8(superTxHashSignature.length),
-                        superTxHashSignature
-                    )
-            );
-            
+            );            
             superTxUserOps[i].signature = signature;
         }
         return superTxUserOps;
@@ -335,12 +319,12 @@ contract BaseTest is Test {
                         nonce: token.nonces(signer.addr),
                         isPermitTx: i == 0 ? true : false,
                         superTxHash: root,
-                        proof: proof,
                         lowerBoundTimestamp: lowerBoundTimestamp,
                         upperBoundTimestamp: upperBoundTimestamp,
                         v: v,
                         r: r,
-                        s: s
+                        s: s,
+                        proof: proof
                     })
                 )
             );
@@ -400,10 +384,10 @@ contract BaseTest is Test {
                         amount: amount,
                         nonce: token.nonces(signer.addr),
                         superTxHash: root,
-                        proof: proof,
                         v: v,
                         r: r,
-                        s: s
+                        s: s,
+                        proof: proof
                     })
                 )
             );
