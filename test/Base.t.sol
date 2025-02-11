@@ -220,7 +220,7 @@ contract BaseTest is Test {
         for (uint256 i = 0; i < userOps.length; i++) {
             superTxUserOps[i] = userOps[i].deepCopy();
             bytes32[] memory proof = tree.getProof(leaves, i);
-            bytes memory signature = 
+/*             bytes memory signature = 
                 abi.encodePacked(
                     SIG_TYPE_SIMPLE,
                     abi.encode(
@@ -230,7 +230,23 @@ contract BaseTest is Test {
                         proof,
                         superTxHashSignature
                     )
+            ); */
+
+            
+            bytes memory signature = 
+                abi.encodePacked(
+                    SIG_TYPE_SIMPLE,
+                    abi.encodePacked(
+                        root,
+                        lowerBoundTimestamp,
+                        upperBoundTimestamp,
+                        uint16(proof.length),
+                        proof,
+                        uint8(superTxHashSignature.length),
+                        superTxHashSignature
+                    )
             );
+            
             superTxUserOps[i].signature = signature;
         }
         return superTxUserOps;

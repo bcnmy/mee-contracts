@@ -6,6 +6,8 @@ import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
+import "forge-std/console2.sol";
+
 /**
  * @dev Library to validate the signature for MEE Simple mode
  *      In this mode, Fusion is not involved and just the superTx hash is signed
@@ -39,6 +41,23 @@ library SimpleValidatorLib {
         bytes calldata secp256k1Signature;
 
         assembly {
+
+            lowerBoundTimestamp := shr(208, calldataload(add(signatureData.offset, 0x20)))
+            upperBoundTimestamp := shr(208, calldataload(add(signatureData.offset, 0x26)))
+            superTxHash := calldataload(signatureData.offset)
+
+            let u := add(signatureData.offset, 0x2c)
+            proof.length := shr(240, calldataload(u))
+            proof.offset := add(u, 0x02)
+
+            let l:= mul(proof.length, 0x20)
+            let s:= add(proof.offset, l)
+            
+            secp256k1Signature.length := shr(248, calldataload(s))
+            secp256k1Signature.offset := add(s, 0x01)
+        } 
+
+/*         assembly {
             superTxHash := calldataload(signatureData.offset)
             lowerBoundTimestamp := calldataload(add(signatureData.offset, 0x20))
             upperBoundTimestamp := calldataload(add(signatureData.offset, 0x40))
@@ -57,7 +76,7 @@ library SimpleValidatorLib {
                 mstore(0x00, 0xba597e7e) // `DecodingError()`.
                 revert(0x1c, 0x04)
             }
-        }
+        } */
 
         bytes32 leaf  = MEEUserOpHashLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
         if (!EcdsaLib.isValidSignature(expectedSigner, superTxHash, secp256k1Signature)) {
