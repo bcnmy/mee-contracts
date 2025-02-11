@@ -50,7 +50,7 @@ contract NodePaymaster is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {   
-        require(tx.origin == owner(), OnlySponsorOwnStuff());
+        require(tx.origin == owner(), OnlySponsorOwnStuff()); 
         uint256 premiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
         context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), _getMaxGasLimit(userOp), userOpHash, premiumPercentage);
     }
@@ -103,11 +103,16 @@ contract NodePaymaster is BasePaymaster {
         //account for postOpGas
         actualGasUsed = actualGasUsed + POST_OP_GAS;  
 
-        // Add penalty
+        // If there's unused gas, add penalty
         // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
         // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
-        actualGasUsed += (maxGasLimit - actualGasUsed)/10;
+        if (maxGasLimit > actualGasUsed) {
+            actualGasUsed += (maxGasLimit - actualGasUsed)/10;
+        } else {
+            // avoid charging more than maxGasLimit
+            actualGasUsed = maxGasLimit;
+        }
         
         // account for MEE Node premium
         uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)) / PREMIUM_CALCULATION_BASE;
