@@ -6,8 +6,6 @@ import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import "account-abstraction/core/Helpers.sol";
 
-import "forge-std/console2.sol";
-
 /**
  * @dev Library to validate the signature for MEE Simple mode
  *      In this mode, Fusion is not involved and just the superTx hash is signed

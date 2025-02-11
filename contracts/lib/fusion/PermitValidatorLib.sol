@@ -8,8 +8,6 @@ import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import "account-abstraction/core/Helpers.sol";
 
-import "forge-std/console2.sol";
-
 /**
  * @dev Library to validate the signature for MEE ERC-2612 Permit mode
  *      This is the mode where superTx hash is pasted into deadline field of the ERC-2612 Permit
