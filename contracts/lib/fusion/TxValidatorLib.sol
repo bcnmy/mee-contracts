@@ -151,6 +151,15 @@ library TxValidatorLib {
         RLPDecoder.RLPItem[] memory parsedRlpEncodedTxItems = parsedRlpEncodedTx.toList();
         TxParams memory params = extractParams(txType, parsedRlpEncodedTxItems);
 
+        assembly {
+            let u := mul(proofItemsCount, PROOF_ITEM_BYTE_SIZE)
+            let l := add(add(rlpEncodedTx.length, u), 0x0e) // 0x0e = 0x01 (tx type) + 0x01 (proofItemsCount) + 2*0x06 (lowerBoundTimestamp, upperBoundTimestamp)
+            if gt(self.length, l) {
+                mstore(0x00, 0xba597e7e) // `DecodingError()`.
+                revert(0x1c, 0x04)
+            }
+        }
+
         return TxData(
             txType,
             _adjustV(params.v),
@@ -172,6 +181,15 @@ library TxValidatorLib {
         RLPDecoder.RLPItem memory parsedRlpEncodedTx = rlpEncodedTx.toRlpItem();
         RLPDecoder.RLPItem[] memory parsedRlpEncodedTxItems = parsedRlpEncodedTx.toList();
         TxParams memory params = extractParams(txType, parsedRlpEncodedTxItems);
+
+        assembly {
+            let u := mul(proofItemsCount, PROOF_ITEM_BYTE_SIZE)
+            let l := add(add(rlpEncodedTx.length, u), 0x02)
+            if gt(self.length, l) {
+                mstore(0x00, 0xba597e7e) // `DecodingError()`.
+                revert(0x1c, 0x04)
+            }
+        }
 
         return TxDataShort(
             txType,
