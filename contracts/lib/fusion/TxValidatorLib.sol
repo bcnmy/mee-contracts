@@ -18,6 +18,12 @@ import "account-abstraction/core/Helpers.sol";
  *      For more details see Fusion docs: 
  *      - https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949    
  *      - https://docs.biconomy.io/explained/eoa#fusion-module
+ *      @dev Some smart contracts may not be able to consume the txn with bytes32 appended to the calldata.
+ *           However this is very small subset. One of the cases when it can happen is when the smart contract
+ *           is has separate receive() and fallback() functions. Then if a txn is a value transfer, it will
+ *           be expected to be consumed by the receive() function. However, if there's bytes32 appended to the calldata,
+ *           it will be consumed by the fallback() function which may not be expected. In this case, the provided
+ *           contracts/forwarder/Forwarder.sol can be used to 'clear' the bytes32 from the calldata.
  */
 
 library TxValidatorLib {
