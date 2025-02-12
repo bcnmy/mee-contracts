@@ -24,6 +24,13 @@ import "account-abstraction/core/Helpers.sol";
  *           be expected to be consumed by the receive() function. However, if there's bytes32 appended to the calldata,
  *           it will be consumed by the fallback() function which may not be expected. In this case, the provided
  *           contracts/forwarder/Forwarder.sol can be used to 'clear' the bytes32 from the calldata.
+ *      @dev In theory, the last 32 bytes of calldata from any transaction by the EOA can be interpreted as 
+ *           a superTx hash. Even if it was not assumed. This introduces the potential risk of phishing attacks
+ *           where the user may unknowingly sign a transaction where the last 32 bytes of the calldata end up
+ *           being a superTx hash. However, it is not easy to craft a txn that makes sense for a user and allows
+ *           arbitrary bytes32 as last 32 bytes. Thus, wallets and users should be aware of this potential risk
+ *           and should not sign txns where the last 32 bytes of the calldata do not belong to the function arguments
+ *           and are just appended at the end.
  */
 
 library TxValidatorLib {

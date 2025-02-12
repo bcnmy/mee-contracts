@@ -16,9 +16,14 @@ import "account-abstraction/core/Helpers.sol";
  *      - https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949    
  *      - https://docs.biconomy.io/explained/eoa#fusion-module
  * 
- *      Important: since ERC20 permit token knows nothing about the MEE, it will treat the superTx hash as a deadline:
+ *      @dev Important: since ERC20 permit token knows nothing about the MEE, it will treat the superTx hash as a deadline:
  *      -  if (very unlikely) the superTx hash being converted to uint256 is a timestamp in the past, the permit will fail
  *      -  the deadline with most superTx hashes will be very far in the future
+ * 
+ *      @dev Since at this point bytes32 superTx hash is a blind hash, users and wallets should pay attention if
+ *           the permit2 deadline field does not make sense as the timestamp. In this case, it can be a sign of a
+ *           phishing attempt (injecting super txn hash as the deadline) and the user should not sign the permit.
+ *           This is going to be mitigated in the future by making superTx hash a EIP-712 hash.
  */
 
 bytes32 constant PERMIT_TYPEHASH =
