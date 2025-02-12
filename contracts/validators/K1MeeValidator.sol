@@ -90,6 +90,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
      */
     function onUninstall(bytes calldata) external override {
         delete smartAccountOwners[msg.sender];
+        _safeSenders.removeAll(msg.sender);
     }
 
     /// @notice Transfers ownership of the validator to a new owner
