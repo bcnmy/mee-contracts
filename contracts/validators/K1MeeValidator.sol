@@ -64,6 +64,9 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @notice Error to indicate that the data length is invalid
     error InvalidDataLength();
 
+    /// @notice Error to indicate that the safe senders length is invalid
+    error SafeSendersLengthInvalid();
+
     /*//////////////////////////////////////////////////////////////////////////
                                      CONFIG
     //////////////////////////////////////////////////////////////////////////*/
@@ -283,6 +286,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
 
     // @notice Fills the _safeSenders list from the given data
     function _fillSafeSenders(bytes calldata data) private {
+        require(data.length % 20 == 0, SafeSendersLengthInvalid());
         for (uint256 i; i < data.length / 20; i++) {
             _safeSenders.add(msg.sender, address(bytes20(data[20 * i:20 * (i + 1)])));
         }
