@@ -12,7 +12,8 @@ import "account-abstraction/core/Helpers.sol";
 /**
  * @dev Library to validate the signature for MEE on-chain Txn mode
  *      This is the mode where superTx hash is appended to a regular txn (legacy or 1559) calldata
- *      So the whole txn is signed along with the superTx hash
+ *      Type 1 (EIP-2930) transactions are not supported.
+ *      The whole txn is signed along with the superTx hash
  *      Txn is executed prior to a superTx, so it can pass some funds from the EOA to the smart account
  *      For more details see Fusion docs: 
  *      - https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949    
