@@ -134,6 +134,10 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
      *
      * @param userOp UserOperation to be validated
      * @param userOpHash Hash of the UserOperation to be validated
+     * @dev fallback flow => non MEE flow => no dedicated prefix introduced for the sake of compatibility.
+     *      It may lead to a case where some signature turns out to have first bytes matching the prefix.
+     *      However, this is very unlikely to happen and even if it does, the consequences are just
+     *      that the signature is not validated which is easily solved by altering userOp => hash => sig.
      *
      * @return uint256 the result of the signature validation, which can be:
      *  - 0 if the signature is valid
