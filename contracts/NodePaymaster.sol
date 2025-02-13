@@ -60,7 +60,7 @@ contract NodePaymaster is BasePaymaster {
         context = abi.encode(
             userOp.sender, 
             userOp.unpackMaxFeePerGas(), 
-            _getMaxGasLimit(userOp), 
+            userOp.preVerificationGas + userOp.unpackVerificationGasLimit() + userOp.unpackCallGasLimit() + userOp.unpackPaymasterVerificationGasLimit() + postOpGasLimit,
             userOpHash, 
             premiumPercentage,
             postOpGasLimit
@@ -159,24 +159,6 @@ contract NodePaymaster is BasePaymaster {
         if (costWithPremium < maxCostWithPremium) {
             refund = maxCostWithPremium - costWithPremium;
         }
-    }
-
-    /**
-     * @dev calculate the max gas cost of the userOp
-     * @param op the userOp
-     * @return maxGasCost the max gas cost
-     */
-    function _getMaxGasCost(PackedUserOperation calldata op) internal view returns (uint256) {
-        return _getMaxGasLimit(op) * op.unpackMaxFeePerGas();
-    }
-
-    /**
-     * @dev calculate the max gas limit of the userOp
-     * @param op the userOp
-     * @return maxGasLimit the max gas limit
-     */
-    function _getMaxGasLimit(PackedUserOperation calldata op) internal view returns (uint256) {
-        return op.preVerificationGas + op.unpackVerificationGasLimit() + op.unpackCallGasLimit() + op.unpackPaymasterVerificationGasLimit() + op.unpackPostOpGasLimit();
     }
 
     /**
