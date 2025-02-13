@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Script, console2} from "lib/forge-std/src/Script.sol";
 import {K1MeeValidator} from "contracts/validators/K1MeeValidator.sol";
 import {DeterministicDeployerLib} from "./utils/DeterministicDeployerLib.sol";
+import {NodePaymaster} from "contracts/NodePaymaster.sol";
 
 type ResolverUID is bytes32;
 
@@ -29,10 +30,13 @@ contract DeployMEE is Script {
     address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address constant MODULE_REGISTRY_ADDRESS = 0x000000000069E2a187AEFFb852bF3cCdC95151B2;
 
+    address constant MEE_NODE_ADDRESS = 0x4b19129EA58431A06D01054f69AcAe5de50633b6;
+
     bytes32 constant MEE_EP_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
     bytes32 constant MEE_K1_VALIDATOR_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
     bytes32 constant ETH_FORWARDER_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
-    
+    bytes32 constant NODE_PM_BICO_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
+
     function setUp() public {
      
     }
@@ -48,14 +52,35 @@ contract DeployMEE is Script {
     }
 
     function _checkMEEAddresses() internal {
+        // Node Paymaster contract
+        bytes memory bytecode = vm.getCode("scripts/bash-deploy/artifacts/NodePaymaster/NodePaymaster.json");
+        bytes memory args = abi.encode(ENTRY_POINT_V07, MEE_NODE_ADDRESS);
+        address expectedNodePaymaster = DeterministicDeployerLib.computeAddress(bytecode, args, NODE_PM_BICO_SALT);
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(expectedNodePaymaster)
+        }
+        console2.log("Node Paymaster Addr: ", expectedNodePaymaster, " || >> Code Size: ", codeSize);
+        address noBroadcastDeployedNodePMAddress;
+        //No broadcast
+        if (codeSize == 0) {
+            noBroadcastDeployedNodePMAddress = DeterministicDeployerLib.deploy(bytecode, args, NODE_PM_BICO_SALT);
+        } else {
+            noBroadcastDeployedNodePMAddress = expectedNodePaymaster;
+        }
+        //console2.log("Simulated deployement Node Paymaster Addr: ", noBroadcastDeployedNodePMAddress);
+        bytes32 expectedNodePMCodeHash;
+        assembly {
+            expectedNodePMCodeHash := extcodehash(noBroadcastDeployedNodePMAddress)
+        }
+        //console2.logBytes32(expectedNodePMCodeHash);
 
         // MEE Entry Point
-        bytes memory bytecode = vm.getCode("scripts/bash-deploy/artifacts/MEEEntryPoint/MEEEntryPoint.json");
-        bytes memory args = abi.encode(ENTRY_POINT_V07);
+        bytecode = vm.getCode("scripts/bash-deploy/artifacts/MEEEntryPoint/MEEEntryPoint.json");
+        args = abi.encode(ENTRY_POINT_V07, expectedNodePMCodeHash);
 
         address meeEntryPoint = DeterministicDeployerLib.computeAddress(bytecode, args, MEE_EP_SALT);
 
-        uint256 codeSize;
         assembly {
             codeSize := extcodesize(meeEntryPoint)
         }
@@ -83,16 +108,37 @@ contract DeployMEE is Script {
             codeSize := extcodesize(expectedEtherForwarder)
         }
         console2.log("ETH Forwarder Addr: ", expectedEtherForwarder, " || >> Code Size: ", codeSize);
+
     }
 
     function _deployMEE() internal {
+        // Node Paymaster contract
+        bytes memory bytecode = vm.getCode("scripts/bash-deploy/artifacts/NodePaymaster/NodePaymaster.json");
+        bytes memory args = abi.encode(ENTRY_POINT_V07, MEE_NODE_ADDRESS);
+        address expectedNodePaymaster = DeterministicDeployerLib.computeAddress(bytecode, args, NODE_PM_BICO_SALT);
+        uint256 codeSize;
+        assembly {
+            codeSize := extcodesize(expectedNodePaymaster)
+        }
+        address nodePaymaster = expectedNodePaymaster;
+        if (codeSize > 0) {
+            console2.log("Node Paymaster already deployed at: ", expectedNodePaymaster, " skipping deployment");
+        } else {
+            nodePaymaster = DeterministicDeployerLib.broadcastDeploy(bytecode, args, NODE_PM_BICO_SALT);
+            require(nodePaymaster == expectedNodePaymaster, "Node Paymaster address mismatch");
+            console2.log("Node Paymaster deployed at: ", nodePaymaster);
+        }
+
+        bytes32 nodePMCodeHash;
+        assembly {
+            nodePMCodeHash := extcodehash(nodePaymaster)
+        }
 
         // MEE Entry Point
-        bytes memory bytecode = vm.getCode("scripts/bash-deploy/artifacts/MEEEntryPoint/MEEEntryPoint.json");
-        bytes memory args = abi.encode(ENTRY_POINT_V07);
+        bytecode = vm.getCode("scripts/bash-deploy/artifacts/MEEEntryPoint/MEEEntryPoint.json");
+        args = abi.encode(ENTRY_POINT_V07, nodePMCodeHash);
 
         address expectedMEEEntryPoint = DeterministicDeployerLib.computeAddress(bytecode, args, MEE_EP_SALT);
-        uint256 codeSize;
         assembly {
             codeSize := extcodesize(expectedMEEEntryPoint)
         }
@@ -130,6 +176,7 @@ contract DeployMEE is Script {
             address etherForwarder = DeterministicDeployerLib.broadcastDeploy(bytecode, ETH_FORWARDER_SALT);
             console2.log("ETH Forwarder deployed at: ", etherForwarder);
         }
+
     }
 
     function registerModule(address moduleAddress) internal {

@@ -70,9 +70,12 @@ if [ $proceed = "y" ]; then
     mkdir -p ./artifacts/MEEEntryPoint
     mkdir -p ./artifacts/K1MeeValidator
     mkdir -p ./artifacts/EtherForwarder
+    mkdir -p ./artifacts/NodePaymaster
     cp ../../out/MEEEntryPoint.sol/MEEEntryPoint.json ./artifacts/MEEEntryPoint/.
     cp ../../out/K1MeeValidator.sol/K1MeeValidator.json ./artifacts/K1MeeValidator/.
     cp ../../out/Forwarder.sol/EtherForwarder.json ./artifacts/EtherForwarder/.
+    cp ../../out/NodePaymaster.sol/NodePaymaster.json ./artifacts/NodePaymaster/.
+
     printf "Artifacts copied\n"
 
     ### CREATE VERIFICATION ARTIFACTS ###
@@ -80,6 +83,7 @@ if [ $proceed = "y" ]; then
     forge verify-contract --show-standard-json-input $(cast address-zero) MEEEntryPoint > ./artifacts/MEEEntryPoint/verify.json
     forge verify-contract --show-standard-json-input $(cast address-zero) K1MeeValidator > ./artifacts/K1MeeValidator/verify.json    
     forge verify-contract --show-standard-json-input $(cast address-zero) EtherForwarder > ./artifacts/EtherForwarder/verify.json
+    forge verify-contract --show-standard-json-input $(cast address-zero) NodePaymaster > ./artifacts/NodePaymaster/verify.json
 else 
     printf "Using precompiled artifacts\n"
 fi
@@ -116,6 +120,25 @@ if [ $proceed = "y" ]; then
     printf "Deployment successful\n"
     cat ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee.log | grep -e "deployed at" -e "registered on registry"
     printf "====================================\n"
+
+    #deposit to EP via Node PM
+    read -r -p "Do you want to deposit to EP via Node PM? (y/n): " proceed
+    if [ $proceed = "y" ]; then
+        # parse NODE_PAYMASTER from the log
+        NODE_PAYMASTER=$(cat ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee.log | grep -e "Node Paymaster deployed at:" | awk '{print $5}')
+        # if it is empty, parse using "Node Paymaster already deployed at:"
+        if [ -z "$NODE_PAYMASTER" ]; then
+            NODE_PAYMASTER=$(cat ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee.log | grep -e "Node Paymaster already deployed at:" | awk '{print $6}')
+        fi
+        printf "Enter amount to deposit (*10^16, so 100 = 1 eth): "
+        read -r amount
+        # multiply amount by 10^16
+        amount=$(($amount*10000000000000000))
+        
+        printf "Depositing $amount to $NODE_PAYMASTER\n"
+        cast send --rpc-url $CHAIN_NAME --private-key $PRIVATE_KEY $GAS_SUFFIX $NODE_PAYMASTER "deposit()" --value $amount 1> ./logs/$CHAIN_NAME/$CHAIN_NAME-deposit-to-ep-via-node-pm.log 2> ./logs/$CHAIN_NAME/$CHAIN_NAME-deposit-to-ep-via-node-pm-errors.log
+        printf "Deposit successful\n"
+    fi
 else 
     printf "Exiting\n"
     exit 1

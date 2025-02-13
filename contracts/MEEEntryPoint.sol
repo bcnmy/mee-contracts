@@ -1,112 +1,49 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "account-abstraction/core/Helpers.sol";
-import "account-abstraction/core/BasePaymaster.sol";
-import "account-abstraction/interfaces/IEntryPoint.sol";
-import "account-abstraction/interfaces/IEntryPointSimulations.sol";
+import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
+import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
 
-contract MEEEntryPoint is BasePaymaster, ReentrancyGuard {
-    using UserOperationLib for PackedUserOperation;
+/**
+ * @title Simple wrapper around EntryPoint
+ * @dev Used to ensure only proper Node PMs are used
+ */
 
-    error EmptyMessageValue();
-    error InsufficientBalance();
+contract MEEEntryPoint {
 
-    constructor(IEntryPoint _entryPoint) payable BasePaymaster(_entryPoint) {}
+    error InvalidPMCodeHash(bytes32 pmCodeHashOnChain);
 
-    function handleOps(PackedUserOperation[] calldata ops) public payable {
-        if (msg.value == 0) {
-            revert EmptyMessageValue();
-        }
-        entryPoint.depositTo{value: msg.value}(address(this));
-        entryPoint.handleOps(ops, payable(msg.sender));
-        entryPoint.withdrawTo(payable(msg.sender), entryPoint.getDepositInfo(address(this)).deposit);
-    }
+    IEntryPoint public immutable entryPoint;
+    bytes32 public immutable nodePmCodeHash;
 
-    function simulateHandleOp(PackedUserOperation calldata op, address target, bytes calldata callData)
-        external
-        payable
-        returns (IEntryPointSimulations.ExecutionResult memory)
-    {
-        if (msg.value == 0) {
-            revert EmptyMessageValue();
-        }
-        IEntryPointSimulations entryPointWithSimulations = IEntryPointSimulations(address(entryPoint));
-        entryPointWithSimulations.depositTo{value: msg.value}(address(this));
-        return entryPointWithSimulations.simulateHandleOp(op, target, callData);
-    }
-
-    function simulateValidation(PackedUserOperation calldata op)
-        external
-        payable
-        returns (IEntryPointSimulations.ValidationResult memory)
-    {
-        if (msg.value == 0) {
-            revert EmptyMessageValue();
-        }
-        IEntryPointSimulations entryPointWithSimulations = IEntryPointSimulations(address(entryPoint));
-        entryPointWithSimulations.depositTo{value: msg.value}(address(this));
-        return entryPointWithSimulations.simulateValidation(op);
-    }
-
-    // accept all userOps
-    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
-        internal
-        virtual
-        override
-        returns (bytes memory context, uint256 validationData)
-    {
-        if (entryPoint.getDepositInfo(address(this)).deposit < maxCost) {
-            revert InsufficientBalance();
-        }
-        (uint256 maxGasLimit, uint256 nodeOperatorPremium) =
-            abi.decode(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:], (uint256, uint256));
-
-        return (abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), maxGasLimit, nodeOperatorPremium), 0);
+    constructor(IEntryPoint _entryPoint, bytes32 _nodePmCodeHash) {
+        entryPoint = _entryPoint;
+        nodePmCodeHash = _nodePmCodeHash;
     }
 
     /**
-     * Post-operation handler.
-     * (verified to be called only through the entryPoint)
-     * executes userOp and gives back refund to the userOp.sender if userOp.sender has overpaid for execution.
-     * @dev if subclass returns a non-empty context from validatePaymasterUserOp, it must also implement this method.
-     * @param mode enum with the following options:
-     *      opSucceeded - user operation succeeded.
-     *      opReverted  - user op reverted. still has to pay for gas.
-     *      postOpReverted - user op succeeded, but caused postOp (in mode=opSucceeded) to revert.
-     *                       Now this is the 2nd call, after user's op was deliberately reverted.
-     * @param context - the context value returned by validatePaymasterUserOp
-     * @param actualGasCost - actual gas used so far (without this postOp call).
+     * @dev Handles userOps. Verifies that the PM code hash is correct.
+     *      This verification is crucial to ensure that only proper Node PMs are used.
+     *      Malicious NodePM can:
+     *      - refund 0 to the userOp.sender
+     *      - avoid slashing by returning true (executed) for all userOp hashes
+     * @notice This check can be made by the MEE Network in the future. For now, it lives on-chain.
+     * @param userOps the userOps to handle
+     * @param beneficiary the beneficiary of the userOps
      */
-    function _postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
-        internal
-        virtual
-        override
-    {
-        if (mode == PostOpMode.postOpReverted) {
-            return;
+    function handleOps(PackedUserOperation[] calldata userOps, address payable beneficiary) public {
+        uint256 opsLen = userOps.length;
+        for (uint256 i; i < opsLen; i++) {
+            address pm = address(uint160(bytes20(userOps[i].paymasterAndData[0:20])));
+            bytes32 pmCodeHash;
+            assembly {
+                pmCodeHash := extcodehash(pm)
+            }
+            if (pmCodeHash != nodePmCodeHash) {
+                revert InvalidPMCodeHash(pmCodeHash);
+            }
         }
-        (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, uint256 nodeOperatorPremium) =
-            abi.decode(context, (address, uint256, uint256, uint256));
-
-        uint256 refund = calculateRefund(maxGasLimit, maxFeePerGas, actualGasCost, nodeOperatorPremium);
-        if (refund > 0) {
-            entryPoint.withdrawTo(payable(sender), refund);
-        }
+        entryPoint.handleOps(userOps, beneficiary);
     }
 
-    function calculateRefund(
-        uint256 maxGasLimit,
-        uint256 maxFeePerGas,
-        uint256 actualGasCost,
-        uint256 nodeOperatorPremium
-    ) public pure returns (uint256 refund) {
-        uint256 costWithPremium = (actualGasCost * (100 + nodeOperatorPremium)) / 100;
-
-        uint256 maxCost = maxGasLimit * maxFeePerGas;
-        if (costWithPremium < maxCost) {
-            refund = maxCost - costWithPremium;
-        }
-    }
 }
