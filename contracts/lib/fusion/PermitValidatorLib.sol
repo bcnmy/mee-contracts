@@ -8,6 +8,8 @@ import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import "account-abstraction/core/Helpers.sol";
 
+import "forge-std/console2.sol";
+
 /**
  * @dev Library to validate the signature for MEE ERC-2612 Permit mode
  *      This is the mode where superTx hash is pasted into deadline field of the ERC-2612 Permit
@@ -130,22 +132,29 @@ library PermitValidatorLib {
         return true;
     }
 
-    function _decodeFullPermitSig(bytes calldata parsedSignature) private pure returns (DecodedErc20PermitSig calldata) {
-        DecodedErc20PermitSig calldata decodedSig;
+    function _decodeFullPermitSig(bytes calldata parsedSignature) private pure returns (DecodedErc20PermitSig calldata decodedSig) {
         assembly {
             decodedSig := add(parsedSignature.offset, 0x20)
-            let u := mul(calldataload(add(parsedSignature.offset, 0x1c0)), 0x20)
-            let l := add(0x1e0, u) 
-            if gt(parsedSignature.length, l) {
+
+            let o := calldataload(parsedSignature.offset) //offset of the struct
+            let t := add(parsedSignature.offset, o) // full offset of the struct
+            let s := calldataload(add(t, 0x180)) // load the array offset within the struct. 0x180 is fixed because of the struct layout
+            let u := mul(calldataload(add(t, s)), 0x20) // load the length of the array
+            let l := add(add(add(o, s), u), 0x20)  // full expected length of the struct. 0x20 is to account for the length of the array itself
+            if or(
+                or(
+                    gt(parsedSignature.length, l), 
+                    iszero(eq(o, 0x20)) // something is put b/w struct offset and struct
+                ),
+                iszero(eq(s, 0x1a0)) // something is put b/w array offset and array length
+             ) {
                 mstore(0x00, 0xba597e7e) // `DecodingError()`.
                 revert(0x1c, 0x04)
             }
-        } 
-        return decodedSig;
+        }
     }
 
     function _decodeShortPermitSig(bytes calldata parsedSignature) private pure returns (DecodedErc20PermitSigShort calldata) {
-        console2.logBytes(parsedSignature);
         DecodedErc20PermitSigShort calldata decodedSig;
         assembly {
             decodedSig := add(parsedSignature.offset, 0x20)
