@@ -50,13 +50,6 @@ library SimpleValidatorLib {
             s := add(proof.offset, u)
             secp256k1Signature.offset := add(s, 0x20)
             secp256k1Signature.length := calldataload(s)
-
-            let l := add(add(0xe0, u), secp256k1Signature.length)
-            let la := mul(add(div(l, 0x20), 1), 0x20)
-            if gt(signatureData.length, la) {
-                mstore(0x00, 0xba597e7e) // `DecodingError()`.
-                revert(0x1c, 0x04)
-            }
         }
 
         bytes32 leaf  = MEEUserOpHashLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
@@ -97,13 +90,6 @@ library SimpleValidatorLib {
             s := add(proof.offset, u)
             secp256k1Signature.offset := add(s, 0x20)
             secp256k1Signature.length := calldataload(s)
-
-            let l := add(add(0xa0, u), secp256k1Signature.length)
-            let la := mul(add(div(l, 0x20), 1), 0x20)
-            if gt(signatureData.length, la) {
-                mstore(0x00, 0xba597e7e) // `DecodingError()`.
-                revert(0x1c, 0x04)
-            }
         }
         
         if (!EcdsaLib.isValidSignature(owner, superTxHash, secp256k1Signature)) {

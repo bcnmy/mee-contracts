@@ -135,22 +135,6 @@ library PermitValidatorLib {
     function _decodeFullPermitSig(bytes calldata parsedSignature) private pure returns (DecodedErc20PermitSig calldata decodedSig) {
         assembly {
             decodedSig := add(parsedSignature.offset, 0x20)
-
-            let o := calldataload(parsedSignature.offset) //offset of the struct
-            let t := add(parsedSignature.offset, o) // full offset of the struct
-            let s := calldataload(add(t, 0x180)) // load the array offset within the struct. 0x180 is fixed because of the struct layout
-            let u := mul(calldataload(add(t, s)), 0x20) // load the length of the array
-            let l := add(add(add(o, s), u), 0x20)  // full expected length of the struct. 0x20 is to account for the length of the array itself
-            if or(
-                or(
-                    gt(parsedSignature.length, l), 
-                    iszero(eq(o, 0x20)) // something is put b/w struct offset and struct
-                ),
-                iszero(eq(s, 0x1a0)) // something is put b/w array offset and array length
-             ) {
-                mstore(0x00, 0xba597e7e) // `DecodingError()`.
-                revert(0x1c, 0x04)
-            }
         }
     }
 
@@ -158,12 +142,6 @@ library PermitValidatorLib {
         DecodedErc20PermitSigShort calldata decodedSig;
         assembly {
             decodedSig := add(parsedSignature.offset, 0x20)
-            let u := mul(calldataload(add(parsedSignature.offset, 0x140)), 0x20)
-            let l := add(0x160, u) 
-            if gt(parsedSignature.length, l) {
-                mstore(0x00, 0xba597e7e) // `DecodingError()`.
-                revert(0x1c, 0x04)
-            }
         }
         return decodedSig;
     }
