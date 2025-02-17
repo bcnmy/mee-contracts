@@ -12,11 +12,25 @@ import "account-abstraction/core/Helpers.sol";
 /**
  * @dev Library to validate the signature for MEE on-chain Txn mode
  *      This is the mode where superTx hash is appended to a regular txn (legacy or 1559) calldata
- *      So the whole txn is signed along with the superTx hash
+ *      Type 1 (EIP-2930) transactions are not supported.
+ *      The whole txn is signed along with the superTx hash
  *      Txn is executed prior to a superTx, so it can pass some funds from the EOA to the smart account
  *      For more details see Fusion docs: 
  *      - https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949    
  *      - https://docs.biconomy.io/explained/eoa#fusion-module
+ *      @dev Some smart contracts may not be able to consume the txn with bytes32 appended to the calldata.
+ *           However this is very small subset. One of the cases when it can happen is when the smart contract
+ *           is has separate receive() and fallback() functions. Then if a txn is a value transfer, it will
+ *           be expected to be consumed by the receive() function. However, if there's bytes32 appended to the calldata,
+ *           it will be consumed by the fallback() function which may not be expected. In this case, the provided
+ *           contracts/forwarder/Forwarder.sol can be used to 'clear' the bytes32 from the calldata.
+ *      @dev In theory, the last 32 bytes of calldata from any transaction by the EOA can be interpreted as 
+ *           a superTx hash. Even if it was not assumed. This introduces the potential risk of phishing attacks
+ *           where the user may unknowingly sign a transaction where the last 32 bytes of the calldata end up
+ *           being a superTx hash. However, it is not easy to craft a txn that makes sense for a user and allows
+ *           arbitrary bytes32 as last 32 bytes. Thus, wallets and users should be aware of this potential risk
+ *           and should not sign txns where the last 32 bytes of the calldata do not belong to the function arguments
+ *           and are just appended at the end.
  */
 
 library TxValidatorLib {

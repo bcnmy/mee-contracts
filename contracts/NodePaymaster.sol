@@ -38,6 +38,8 @@ contract NodePaymaster is BasePaymaster {
     /**
      * @dev Accepts all userOps
      * Verifies that the handleOps is called by the MEE Node, so it sponsors only for superTxns by owner MEE Node
+     * @dev The use of tx.origin makes the NodePaymaster incompatible with the general ERC4337 mempool.
+     * This is intentional, and the NodePaymaster is restricted to the MEE node owner anyway.
      * @param userOp the userOp to validate
      * @param userOpHash the hash of the userOp
      * @param maxCost the max cost of the userOp
