@@ -6,6 +6,7 @@ import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {EcdsaLib} from "../util/EcdsaLib.sol";
 import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
+import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
 import "account-abstraction/core/Helpers.sol";
 
 /**
@@ -53,6 +54,8 @@ struct DecodedErc20PermitSigShort {
 }
 
 library PermitValidatorLib {
+    error PermitFailed();
+
     uint8 constant EIP_155_MIN_V_VALUE = 37;
 
     using MessageHashUtils for bytes32;
@@ -99,9 +102,17 @@ library PermitValidatorLib {
         }
 
         if (decodedSig.isPermitTx) {
-            decodedSig.token.permit(
+            try decodedSig.token.permit(
                 expectedSigner, decodedSig.spender, decodedSig.amount, uint256(decodedSig.superTxHash), uint8(decodedSig.v), decodedSig.r, decodedSig.s
-            );
+            ) {
+                // all good
+            } catch {
+                // check if by some reason this permit was already successfully used (and not spent yet)
+                if (IERC20(address(decodedSig.token)).allowance(expectedSigner, decodedSig.spender) < decodedSig.amount) {
+                    // if the above expectationis not true, revert
+                    revert PermitFailed();
+                }
+            }
         }
 
         return _packValidationData(false, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
