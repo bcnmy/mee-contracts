@@ -17,8 +17,6 @@ import {Strings} from "openzeppelin/utils/Strings.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {EIP712} from "solady/utils/EIP712.sol";
 
-import "forge-std/console2.sol";
-
 interface IGetOwner {
     function getOwner(address account) external view returns (address);
 }
@@ -47,6 +45,7 @@ contract K1MEEValidatorTest is BaseTest {
         valueToSet = MEE_NODE_HEX;
     }
 
+    // test simple mode
     function test_superTxFlow_simple_mode_ValidateUserOp_success(uint256 numOfClones) public returns (PackedUserOperation[] memory) {
         numOfClones = bound(numOfClones, 1, 25);
         uint256 counterBefore = mockTarget.counter();
