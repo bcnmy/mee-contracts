@@ -66,8 +66,8 @@ contract PMPerNodeTest is BaseTest {
             }
         );
 
-        uint128 pmValidationGasLimit = 20_000;
-        uint128 pmPostOpGasLimit = 50_000;
+        uint128 pmValidationGasLimit = 24_000;
+        uint128 pmPostOpGasLimit = 50_000; //min to pass is 44k. we set 50k for non-standard stuff
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
         userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
@@ -104,7 +104,7 @@ contract PMPerNodeTest is BaseTest {
         verificationGasLimit = uint128(bound(verificationGasLimit, 50e3, 5e6));
         callGasLimit = uint128(bound(callGasLimit, 100e3, 5e6));
         premiumPercentage = bound(premiumPercentage, 0, 200e5);
-        pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 20e3, 5e6));
+        pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 24e3, 5e6));
         pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 50e3, 5e6));
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);

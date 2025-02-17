@@ -18,8 +18,11 @@ contract NodePaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
 
-    uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000; // 100% with 5 decimals precision
-    uint256 private constant POST_OP_GAS = 50_000; // enough for proper postOps
+    // 100% with 5 decimals precision
+    uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000;
+    // PM.postOp() consumes around 44k. We add a buffer for EP penalty calc
+    // and chains with non-standard gas pricing
+    uint256 private constant POST_OP_GAS = 49_999; 
     mapping(bytes32 => bool) private executedUserOps;
 
     error EmptyMessageValue();
@@ -27,7 +30,7 @@ contract NodePaymaster is BasePaymaster {
     error PaymasterVerificationGasLimitTooHigh();
     error Disabled();
     error OnlySponsorOwnStuff();
-
+    error PostOpGasLimitTooLow();
     constructor(
         IEntryPoint _entryPoint,
         address _meeNodeAddress
@@ -52,9 +55,18 @@ contract NodePaymaster is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {   
-        require(tx.origin == owner(), OnlySponsorOwnStuff());
+        require(tx.origin == owner(), OnlySponsorOwnStuff()); 
         uint256 premiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
-        context = abi.encode(userOp.sender, userOp.unpackMaxFeePerGas(), _getMaxGasLimit(userOp), userOpHash, premiumPercentage);
+        uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
+        require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());
+        context = abi.encode(
+            userOp.sender, 
+            userOp.unpackMaxFeePerGas(), 
+            userOp.preVerificationGas + userOp.unpackVerificationGasLimit() + userOp.unpackCallGasLimit() + userOp.unpackPaymasterVerificationGasLimit() + postOpGasLimit,
+            userOpHash, 
+            premiumPercentage,
+            postOpGasLimit
+        );
     }
 
     /**
@@ -74,12 +86,32 @@ contract NodePaymaster is BasePaymaster {
         virtual
         override
     {  
-        (address sender, uint256 maxFeePerGas, uint256 maxGasLimit, bytes32 userOpHash, uint256 premiumPercentage) =
-            abi.decode(context, (address, uint256, uint256, bytes32, uint256));
+        address sender;
+        uint256 maxFeePerGas;
+        uint256 maxGasLimit;
+        bytes32 userOpHash;
+        uint256 premiumPercentage;
+        uint256 postOpGasLimit;
+        
+        assembly {
+            sender := calldataload(context.offset)
+            maxFeePerGas := calldataload(add(context.offset, 0x20))
+            maxGasLimit := calldataload(add(context.offset, 0x40))
+            userOpHash := calldataload(add(context.offset, 0x60))
+            premiumPercentage := calldataload(add(context.offset, 0x80))
+            postOpGasLimit := calldataload(add(context.offset, 0xa0))
+        }
 
         executedUserOps[userOpHash] = true;
 
-        uint256 refund = _calculateRefund(maxFeePerGas, actualGasCost/actualUserOpFeePerGas, actualUserOpFeePerGas, maxGasLimit, premiumPercentage);
+        uint256 refund = _calculateRefund({
+            maxFeePerGas: maxFeePerGas, 
+            actualGasUsed: actualGasCost/actualUserOpFeePerGas, 
+            actualUserOpFeePerGas: actualUserOpFeePerGas, 
+            maxGasLimit: maxGasLimit,
+            postOpGasLimit: postOpGasLimit,
+            premiumPercentage: premiumPercentage
+        });
         if (refund > 0) {
             entryPoint.withdrawTo(payable(sender), refund);
         }
@@ -99,13 +131,14 @@ contract NodePaymaster is BasePaymaster {
         uint256 actualGasUsed,
         uint256 actualUserOpFeePerGas,
         uint256 maxGasLimit,
+        uint256 postOpGasLimit,
         uint256 premiumPercentage
     ) internal view returns (uint256 refund) {
 
         //account for postOpGas
-        actualGasUsed = actualGasUsed + POST_OP_GAS;  
+        actualGasUsed = actualGasUsed + postOpGasLimit;  
 
-        // Add penalty
+        // If there's unused gas, add penalty
         // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
         // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
@@ -123,24 +156,6 @@ contract NodePaymaster is BasePaymaster {
         if (costWithPremium < maxCostWithPremium) {
             refund = maxCostWithPremium - costWithPremium;
         }
-    }
-
-    /**
-     * @dev calculate the max gas cost of the userOp
-     * @param op the userOp
-     * @return maxGasCost the max gas cost
-     */
-    function _getMaxGasCost(PackedUserOperation calldata op) internal view returns (uint256) {
-        return _getMaxGasLimit(op) * op.unpackMaxFeePerGas();
-    }
-
-    /**
-     * @dev calculate the max gas limit of the userOp
-     * @param op the userOp
-     * @return maxGasLimit the max gas limit
-     */
-    function _getMaxGasLimit(PackedUserOperation calldata op) internal view returns (uint256) {
-        return op.preVerificationGas + op.unpackVerificationGasLimit() + op.unpackCallGasLimit() + op.unpackPaymasterVerificationGasLimit() + op.unpackPostOpGasLimit();
     }
 
     /**
