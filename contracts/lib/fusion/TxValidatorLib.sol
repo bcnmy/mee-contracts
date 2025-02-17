@@ -23,7 +23,6 @@ library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;
     uint8 constant EIP1559_TX_TYPE = 0x02;
 
-    uint8 constant RLP_ENCODED_R_S_BYTE_SIZE = 66; // 2 * 33bytes (for r, s components)
     uint8 constant EIP_155_MIN_V_VALUE = 37;
     uint8 constant HASH_BYTE_SIZE = 32;
 
@@ -156,7 +155,7 @@ library TxValidatorLib {
             _adjustV(params.v),
             params.r,
             params.s,
-            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v),
+            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
             extractAppendedHash(params.callData),
             extractProof(self, proofItemsCount),
             lowerBoundTimestamp,
@@ -178,7 +177,7 @@ library TxValidatorLib {
             _adjustV(params.v),
             params.r,
             params.s,
-            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v),
+            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
             extractAppendedHash(params.callData),
             extractProofShort(self, proofItemsCount)
         );
@@ -236,12 +235,18 @@ library TxValidatorLib {
         }
     }
 
-    function calculateUnsignedTxHash(uint8 txType, bytes memory rlpEncodedTx, uint256 rlpEncodedTxPayloadLen, uint256 v)
+    function calculateUnsignedTxHash(
+        uint8 txType, 
+        bytes memory 
+        rlpEncodedTx, 
+        uint256 rlpEncodedTxPayloadLen, 
+        uint256 v, bytes32 r, bytes32 s
+    )
         private
         pure
         returns (bytes32 hash)
     {
-        uint256 totalSignatureSize = RLP_ENCODED_R_S_BYTE_SIZE + v.encodeUint().length;
+        uint256 totalSignatureSize = uint256(r).encodeUint().length + uint256(s).encodeUint().length + v.encodeUint().length;
         uint256 totalPrefixSize = rlpEncodedTx.length - rlpEncodedTxPayloadLen;
         bytes memory rlpEncodedTxNoSigAndPrefix =
             rlpEncodedTx.slice(totalPrefixSize, rlpEncodedTx.length - totalSignatureSize - totalPrefixSize);

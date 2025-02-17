@@ -33,12 +33,12 @@ struct DecodedErc20PermitSig {
     uint256 nonce;
     bool isPermitTx;
     bytes32 superTxHash;
-    bytes32[] proof;
     uint48 lowerBoundTimestamp;
     uint48 upperBoundTimestamp;
-    uint256 v;
+    uint8 v;
     bytes32 r;
     bytes32 s;
+    bytes32[] proof;
 }
 
 struct DecodedErc20PermitSigShort {
@@ -47,10 +47,10 @@ struct DecodedErc20PermitSigShort {
     uint256 amount;
     uint256 nonce;
     bytes32 superTxHash;
-    bytes32[] proof;
-    uint256 v;
+    uint8 v;
     bytes32 r;
     bytes32 s;
+    bytes32[] proof;
 }
 
 library PermitValidatorLib {
@@ -83,18 +83,15 @@ library PermitValidatorLib {
         internal
         returns (uint256)
     {   
-        //TODO: try to squeeze some gas from both structs with calldata parsing if have time
-        DecodedErc20PermitSig memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSig));
+        DecodedErc20PermitSig memory decodedSig = _decodeFullPermitSig(parsedSignature);
 
         bytes32 meeUserOpHash =
             MEEUserOpHashLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
 
-        uint8 vAdjusted = _adjustV(decodedSig.v);
-
         if (!EcdsaLib.isValidSignature(
                 expectedSigner,
                 _getSignedDataHash(expectedSigner, decodedSig),
-                abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted)
+                abi.encodePacked(decodedSig.r, decodedSig.s, uint8(decodedSig.v))
             )
         ) {
             return SIG_VALIDATION_FAILED;
@@ -106,7 +103,7 @@ library PermitValidatorLib {
 
         if (decodedSig.isPermitTx) {
             try decodedSig.token.permit(
-                expectedSigner, decodedSig.spender, decodedSig.amount, uint256(decodedSig.superTxHash), vAdjusted, decodedSig.r, decodedSig.s
+                expectedSigner, decodedSig.spender, decodedSig.amount, uint256(decodedSig.superTxHash), uint8(decodedSig.v), decodedSig.r, decodedSig.s
             ) {
                 // all good
             } catch {
@@ -121,18 +118,17 @@ library PermitValidatorLib {
         return _packValidationData(false, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes memory parsedSignature)
+    function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes calldata parsedSignature)
         internal
         view
         returns (bool)
     {
-        DecodedErc20PermitSigShort memory decodedSig = abi.decode(parsedSignature, (DecodedErc20PermitSigShort));
-        uint8 vAdjusted = _adjustV(decodedSig.v);
+        DecodedErc20PermitSigShort calldata decodedSig = _decodeShortPermitSig(parsedSignature);
 
         if (!EcdsaLib.isValidSignature(
                 expectedSigner, 
                 _getSignedDataHash(expectedSigner, decodedSig), 
-                abi.encodePacked(decodedSig.r, decodedSig.s, vAdjusted)
+                abi.encodePacked(decodedSig.r, decodedSig.s, uint8(decodedSig.v))
             )
         ) {
             return false;
@@ -143,6 +139,20 @@ library PermitValidatorLib {
         }
 
         return true;
+    }
+
+    function _decodeFullPermitSig(bytes calldata parsedSignature) private pure returns (DecodedErc20PermitSig calldata decodedSig) {
+        assembly {
+            decodedSig := add(parsedSignature.offset, 0x20)
+        }
+    }
+
+    function _decodeShortPermitSig(bytes calldata parsedSignature) private pure returns (DecodedErc20PermitSigShort calldata) {
+        DecodedErc20PermitSigShort calldata decodedSig;
+        assembly {
+            decodedSig := add(parsedSignature.offset, 0x20)
+        }
+        return decodedSig;
     }
 
     function _getSignedDataHash(address expectedSigner, DecodedErc20PermitSig memory decodedSig) private pure returns (bytes32) {
@@ -179,19 +189,5 @@ library PermitValidatorLib {
 
     function _hashTypedData(bytes32 structHash, bytes32 domainSeparator) private pure returns (bytes32) {
         return MessageHashUtils.toTypedDataHash(domainSeparator, structHash);
-    }
-
-    function _adjustV(uint256 v) private pure returns (uint8) {
-        if (v >= EIP_155_MIN_V_VALUE) {
-            return uint8((v - 2 * _extractChainIdFromV(v) - 35) + 27);
-        } else if (v <= 1) {
-            return uint8(v + 27);
-        } else {
-            return uint8(v);
-        }
-    }
-
-    function _extractChainIdFromV(uint256 v) private pure returns (uint256 chainId) {
-        chainId = (v - 35) / 2;
     }
 }

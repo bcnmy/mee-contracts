@@ -225,12 +225,12 @@ contract BaseTest is Test {
                     SIG_TYPE_SIMPLE,
                     abi.encode(
                         root,
-                        proof,
                         lowerBoundTimestamp,
                         upperBoundTimestamp,
+                        proof,
                         superTxHashSignature
                     )
-            );
+            );            
             superTxUserOps[i].signature = signature;
         }
         return superTxUserOps;
@@ -319,12 +319,12 @@ contract BaseTest is Test {
                         nonce: token.nonces(signer.addr),
                         isPermitTx: i == 0 ? true : false,
                         superTxHash: root,
-                        proof: proof,
                         lowerBoundTimestamp: lowerBoundTimestamp,
                         upperBoundTimestamp: upperBoundTimestamp,
                         v: v,
                         r: r,
-                        s: s
+                        s: s,
+                        proof: proof
                     })
                 )
             );
@@ -384,10 +384,10 @@ contract BaseTest is Test {
                         amount: amount,
                         nonce: token.nonces(signer.addr),
                         superTxHash: root,
-                        proof: proof,
                         v: v,
                         r: r,
-                        s: s
+                        s: s,
+                        proof: proof
                     })
                 )
             );
