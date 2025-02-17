@@ -140,12 +140,7 @@ contract NodePaymaster is BasePaymaster {
         // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
         // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
-        if (maxGasLimit > actualGasUsed) {
-            actualGasUsed += (maxGasLimit - actualGasUsed)/10;
-        } else {
-            // avoid charging more than maxGasLimit
-            actualGasUsed = maxGasLimit;
-        }
+        actualGasUsed += (maxGasLimit - actualGasUsed)/10;
         
         // account for MEE Node premium
         uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)) / PREMIUM_CALCULATION_BASE;
