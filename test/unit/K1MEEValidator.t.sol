@@ -183,7 +183,7 @@ contract K1MEEValidatorTest is BaseTest {
         // so this is just some serialized txn signed by mockAccount owner + the super tx hash appended to calldata
         // enough for testing purposes
         // TODO: For fuzz test over # of leaves, we need to generate the serialized txn right here with the proper root hash
-        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800001d69c064e2bd749cfe331b748be1dd5324cbf4e1839dda346cbb741a3e3169d1c001a00d20bce300797773daa18e485e5babb3cc42364c6d69d7d048b757d96d0ea4e6a04adf97b9e62d2f57a993bc6c69a81a0a41594aacfd3797d3e0144c494a64c0cb";
+        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec58000009baefff4ddcd60b2bab8827d1811b6422ca3de2d953ccd24f1d8f40b23e0924c001a0f1000828dfb98314b9597c62070c5c4ddef8a391c54963f8a57fd6b5e87c1acea068599f3d36fc1a0ac425aba3996088d820e6f6366daf3af410b04b5d28b3e830";
         userOps = makeOnChainTxnSuperTx(
             userOps,
             wallet,
@@ -274,7 +274,7 @@ contract K1MEEValidatorTest is BaseTest {
         userOp = makeMEEUserOp({
             userOp: userOp, 
             pmValidationGasLimit: 22_000, 
-            pmPostOpGasLimit: 45_000, 
+            pmPostOpGasLimit: 50_000, 
             premiumPercentage: 17_00000, 
             wallet: userOpSigner, 
             sigType: bytes4(0)
