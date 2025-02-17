@@ -46,7 +46,7 @@ contract BaseTest is Test {
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0xd01cf3f5dc09d65cd0251a115b2d98bb86a9784460f9563603eb948a7761f24b;
+    bytes32 constant NODE_PM_CODE_HASH = 0x87ea2b96515cbe638853a4661ed6ff87c5d0cd1efed1436bb45d30a2972747f1;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address constant MEE_NODE_ADDRESS = 0x177EE170D31177Ee170D31177ee170d31177eE17;
@@ -76,6 +76,7 @@ contract BaseTest is Test {
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
         vm.prank(nodePmDeployer);
         NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        //console2.logBytes32(address(NODE_PAYMASTER).codehash);
 
         assertEq(NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS, "Owner should be properly set");
 
