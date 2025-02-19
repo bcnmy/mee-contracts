@@ -2,21 +2,14 @@
 pragma solidity ^0.8.27;
 
 // import lib
-import {InputParam, OutputParam, ComposableExecutionLib} from "contracts/composability/ComposableExecutionLib.sol";
+import {InputParam, OutputParam, ComposableExecution, ComposableExecutionLib} from "contracts/composability/ComposableExecutionLib.sol";
 // import interface 
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
 
 contract ComposableExecutionBase is IComposableExecution {
 
-    function executeComposable(
-        address to,
-        uint256 value,
-        bytes4 functionSig,
-        InputParam[] calldata inputParams,
-        OutputParam[] calldata outputParams
-    ) external payable {
+    function executeComposable(ComposableExecution[] calldata executions) external payable {
         // check msg.value
-
     }
 
 

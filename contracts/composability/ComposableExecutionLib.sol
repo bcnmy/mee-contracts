@@ -38,6 +38,14 @@ struct OutputParam {
     bytes paramData;
 }
 
+struct ComposableExecution {
+    address to;
+    uint256 value;
+    bytes4 functionSig;
+    InputParam[] inputParams;
+    OutputParam[] outputParams;
+}
+
 library ComposableExecutionLib {
 
     error InvalidComposerInstructions();

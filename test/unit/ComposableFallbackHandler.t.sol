@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
-import "contracts/composability/ComposableFallbackHandler.sol";
+import "contracts/composability/ComposableExecutionModule.sol";
 import "contracts/composability/Storage.sol";
 import "contracts/interfaces/IComposableExecution.sol";
 import "contracts/composability/ComposableExecutionLib.sol";
@@ -19,7 +19,7 @@ contract DummyContract {
 }
 
 contract ComposableFallbackHandlerTest is Test {
-    ComposableFallbackHandler public handler;
+    ComposableExecutionModule public handler;
     Storage public storageContract;
     DummyContract public dummyContract;
 
@@ -30,7 +30,7 @@ contract ComposableFallbackHandlerTest is Test {
     function setUp() public {
         // Deploy contracts
         storageContract = new Storage(address(0));
-        handler = new ComposableFallbackHandler();
+        handler = new ComposableExecutionModule();
         dummyContract = new DummyContract();
 
         // Fund EOA
@@ -51,14 +51,17 @@ contract ComposableFallbackHandlerTest is Test {
             paramData: abi.encode(storageContract, SLOT_A)
         });
 
+        ComposableExecution[] memory executions = new ComposableExecution[](1);
+        executions[0] = ComposableExecution({
+            to: address(dummyContract),
+            value: 0, // no value sent
+            functionSig: DummyContract.A.selector,
+            inputParams: inputParamsA, // no input parameters needed
+            outputParams: outputParamsA // store output of the function A() to the storage
+        });
         // Call function A through handler
-        handler.executeComposable(
-            address(dummyContract),
-            0, // no value sent
-            DummyContract.A.selector,
-            inputParamsA, // no input parameters needed
-            outputParamsA // store output of the function A() to the storage
-        );
+        handler.executeComposable(executions);
+        
 
         // Verify the result (42) was stored correctly
         bytes32 storedValueA = storageContract.readStorage(address(handler), SLOT_A);
@@ -80,14 +83,16 @@ contract ComposableFallbackHandlerTest is Test {
             paramData: abi.encode(storageContract, SLOT_B)
         });
 
+        ComposableExecution[] memory executionsB = new ComposableExecution[](1);
+        executionsB[0] = ComposableExecution({
+            to: address(dummyContract),
+            value: 0, // no value sent
+            functionSig: DummyContract.B.selector,
+            inputParams: inputParamsB,
+            outputParams: outputParamsB
+        });
         // Call function B through handler
-        handler.executeComposable(
-            address(dummyContract),
-            0, // no value sent
-            DummyContract.B.selector,
-            inputParamsB,
-            outputParamsB
-        );
+        handler.executeComposable(executionsB);
 
         // Verify the result (84 = 42 * 2) was stored correctly
         bytes32 storedValueB = storageContract.readStorage(address(handler), SLOT_B);
