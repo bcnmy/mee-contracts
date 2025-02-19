@@ -2,8 +2,10 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
-import "../contracts/composability/ComposableFallbackHandler.sol";
-import "../contracts/composability/Storage.sol";
+import "contracts/composability/ComposableFallbackHandler.sol";
+import "contracts/composability/Storage.sol";
+import "contracts/interfaces/IComposableExecution.sol";
+import "contracts/composability/ComposableExecutionLib.sol";
 
 contract DummyContract {
     function A() external pure returns (uint256) {
@@ -40,12 +42,12 @@ contract ComposableFallbackHandlerTest is Test {
 
         // Step 1: Call function A and store its result
         // Prepare return value config for function A
-        ComposableFallbackHandler.InputParam[] memory inputParamsA = new ComposableFallbackHandler.InputParam[](0);
+        InputParam[] memory inputParamsA = new InputParam[](0);
 
-        ComposableFallbackHandler.OutputParam[] memory outputParamsA = new ComposableFallbackHandler.OutputParam[](1);
-        outputParamsA[0] = ComposableFallbackHandler.OutputParam({
-            fetcherType: ComposableFallbackHandler.OutputParamFetcherType.EXEC_RESULT,
-            valueType: ComposableFallbackHandler.ParamValueType.UINT256,
+        OutputParam[] memory outputParamsA = new OutputParam[](1);
+        outputParamsA[0] = OutputParam({
+            fetcherType: OutputParamFetcherType.EXEC_RESULT,
+            valueType: ParamValueType.UINT256,
             paramData: abi.encode(storageContract, SLOT_A)
         });
 
@@ -63,18 +65,18 @@ contract ComposableFallbackHandlerTest is Test {
         assertEq(uint256(storedValueA), 42, "Function A result not stored correctly");
 
         // Step 2: Call function B using the stored value from A
-        ComposableFallbackHandler.InputParam[] memory inputParamsB = new ComposableFallbackHandler.InputParam[](1);
-        inputParamsB[0] = ComposableFallbackHandler.InputParam({
-            fetcherType: ComposableFallbackHandler.InputParamFetcherType.STATIC_CALL,
-            valueType: ComposableFallbackHandler.ParamValueType.UINT256,
+        InputParam[] memory inputParamsB = new InputParam[](1);
+        inputParamsB[0] = InputParam({
+            fetcherType: InputParamFetcherType.STATIC_CALL,
+            valueType: ParamValueType.UINT256,
             paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (address(handler), SLOT_A)))
         });
 
         // Prepare return value config for function B
-        ComposableFallbackHandler.OutputParam[] memory outputParamsB = new ComposableFallbackHandler.OutputParam[](1);
-        outputParamsB[0] = ComposableFallbackHandler.OutputParam({
-            fetcherType: ComposableFallbackHandler.OutputParamFetcherType.EXEC_RESULT,
-            valueType: ComposableFallbackHandler.ParamValueType.UINT256,
+        OutputParam[] memory outputParamsB = new OutputParam[](1);
+        outputParamsB[0] = OutputParam({
+            fetcherType: OutputParamFetcherType.EXEC_RESULT,
+            valueType: ParamValueType.UINT256,
             paramData: abi.encode(storageContract, SLOT_B)
         });
 
