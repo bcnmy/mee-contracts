@@ -38,7 +38,8 @@ contract K1MEEValidatorTest is BaseTest {
         super.setUp();
         wallet = createAndFundWallet("wallet", 5 ether);
         mockAccount = deployMockAccount({
-            validator: address(k1MeeValidator)
+            validator: address(k1MeeValidator),
+            handler: address(composabilityHandler)
         });
         vm.prank(address(mockAccount));
         k1MeeValidator.transferOwnership(wallet.addr);

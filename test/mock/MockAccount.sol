@@ -3,10 +3,11 @@ pragma solidity ^0.8.23;
 
 import {IAccount} from "account-abstraction/interfaces/IAccount.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
-import {IValidator} from "erc7579/interfaces/IERC7579Module.sol";
+import {IValidator, IFallback} from "erc7579/interfaces/IERC7579Module.sol";
 import {IStatelessValidator} from "node_modules/@rhinestone/module-bases/src/interfaces/IStatelessValidator.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {ComposableExecutionBase} from "contracts/composability/ComposableExecutionBase.sol";
+import {ERC2771Lib} from "./lib/ERC2771Lib.sol";
 
 import {console2} from "forge-std/console2.sol";
 
@@ -20,9 +21,11 @@ contract MockAccount is ComposableExecutionBase, IAccount {
     error ExecutionFailed();
 
     IValidator public validator;
+    IFallback public handler;
 
-    constructor(address _validator) {
+    constructor(address _validator, address _handler) {
         validator = IValidator(_validator);
+        handler = IFallback(_handler);
     }
 
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds) external returns (uint256 vd) {
@@ -66,6 +69,7 @@ contract MockAccount is ComposableExecutionBase, IAccount {
     }
 
     fallback(bytes calldata callData) external payable returns (bytes memory) {
+        (bool success, bytes memory result) = address(handler).call{ value: msg.value }(ERC2771Lib.get2771CallData(callData));
         emit MockAccountFallback(callData, msg.value);
     }
 

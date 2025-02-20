@@ -10,31 +10,34 @@ import {ERC7579FallbackBase} from "@rhinestone/module-bases/src/ERC7579FallbackB
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
 import {ComposableExecutionLib, InputParam, OutputParam, ComposableExecution} from "contracts/composability/ComposableExecutionLib.sol";
 import {IGetEntryPoint} from "contracts/interfaces/IGetEntryPoint.sol";
+
+address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
+
 /**
  * @title Composable Execution Module: Executor and Fallback
  * @dev A module for ERC-7579 accounts that enables composable transactions execution
  */
 
 contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579FallbackBase {
-
-    address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     
     using ComposableExecutionLib for InputParam[];
     using ComposableExecutionLib for OutputParam[];
 
     error ModuleAlreadyInitialized();    
     error ExecutionFailed();
-    error OnlyEntryPoint();
+    error OnlyEntryPointOrAccount();
     error InsufficientMsgValue();
     /// @notice Mapping of smart account addresses to their respective module installation
     mapping(address => bool) public override isInitialized;
 
     /**
      * @notice Executes a composable transaction with dynamic parameter composition and return value handling
+     * @dev As per ERC-7579 account MUST append original msg.sender address to the calldata as per ERC-2771
      */
     function executeComposable(ComposableExecution[] calldata executions) external payable {
         // access control
-        require(_msgSender() == _getEntryPoint(), OnlyEntryPoint());
+        address sender = _msgSender();
+        require(sender == _getEntryPoint() || sender == msg.sender, OnlyEntryPointOrAccount());
 
         // we can not use erc-7579 batch mode here because we may need to compose 
         // the next call in the batch based on the execution result of the previous call
@@ -49,10 +52,11 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
                 ModeLib.encodeSimpleSingle(), 
                 ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
             );
-            execution.outputParams.processOutputs(returnData[0]);
+            execution.outputParams.processOutputs(returnData[0], msg.sender);
         }
     }
 
+    /// @dev reverts if msg.sender is an EOA which is expected
     function _getEntryPoint() internal view returns (address) {
         try IGetEntryPoint(msg.sender).entryPoint() returns (address ep) {
             return ep;

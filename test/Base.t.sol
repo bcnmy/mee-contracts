@@ -21,6 +21,7 @@ import {LibZip} from "solady/utils/LibZip.sol";
 import {ERC20Permit} from "openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import {PERMIT_TYPEHASH, DecodedErc20PermitSig, DecodedErc20PermitSigShort, PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
+import {ComposableExecutionModule} from "contracts/composability/ComposableExecutionModule.sol";
 
 contract BaseTest is Test {
 
@@ -56,7 +57,8 @@ contract BaseTest is Test {
     MEEEntryPoint internal MEE_ENTRYPOINT;
     NodePaymaster internal NODE_PAYMASTER;
     K1MeeValidator internal k1MeeValidator;
-    
+    ComposableExecutionModule internal composabilityHandler;
+
     MockTarget internal mockTarget;
     address nodePmDeployer = address(0x011a23423423423);
 
@@ -67,6 +69,7 @@ contract BaseTest is Test {
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
+        composabilityHandler = new ComposableExecutionModule();
     }
 
     function deployMEEEntryPoint() internal {
@@ -86,8 +89,8 @@ contract BaseTest is Test {
         ENTRYPOINT.depositTo{value: 10 ether}(address(NODE_PAYMASTER));
     }
 
-    function deployMockAccount(address validator) internal returns (MockAccount) {
-        return new MockAccount(validator);
+    function deployMockAccount(address validator, address handler) internal returns (MockAccount) {
+        return new MockAccount(validator, handler);
     }
 
     function setupEntrypoint() internal {

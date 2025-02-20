@@ -10,10 +10,15 @@ contract ComposableExecutionBase is IComposableExecution {
     using ComposableExecutionLib for OutputParam[];
 
     error InsufficientMsgValue();
-
-    function executeComposable(ComposableExecution[] calldata executions) external payable {
-        // we can not use erc-7579 batch mode here because we may need to compose 
-        // the next call in the batch based on the execution result of the previous call
+    error OnlyEntryPointOrSelf();
+    
+    // Feel free to override it to introduce additional access control or other checks
+    function executeComposable(ComposableExecution[] calldata executions) external virtual payable {
+        _executeComposable(executions);
+    }
+    
+    // TODO: any space for optimization here?
+    function _executeComposable(ComposableExecution[] calldata executions) internal {
         uint256 length = executions.length;
         uint256 aggregateValue = 0;
         for (uint256 i; i < length; i++) {
@@ -22,7 +27,7 @@ contract ComposableExecutionBase is IComposableExecution {
             require(msg.value >= aggregateValue, InsufficientMsgValue());
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
             bytes memory returnData = _executeAction(execution.to, execution.value, composedCalldata);
-            execution.outputParams.processOutputs(returnData);
+            execution.outputParams.processOutputs(returnData, address(this));
         }
     }
 

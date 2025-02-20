@@ -57,8 +57,8 @@ contract Storage {
      * @param slot The storage slot to write to
      * @param value The value to write
      */
-    function writeStorage(bytes32 slot, bytes32 value) external {
-        _writeStorage(msg.sender, slot, value);
+    function writeStorage(bytes32 slot, bytes32 value, address account) external {
+        _writeStorage(account, slot, value);
     }
 
     /**

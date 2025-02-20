@@ -25,7 +25,8 @@ contract PMPerNodeTest is BaseTest {
     function setUp() public virtual override {
         super.setUp();
         mockAccount = deployMockAccount({
-            validator: address(0)
+            validator: address(0),
+            handler: address(composabilityHandler)
         });
         wallet = createAndFundWallet("wallet", 1 ether);
     }

@@ -97,17 +97,17 @@ library ComposableExecutionLib {
         }
     }
 
-    function processOutputs(OutputParam[] calldata outputParams, bytes memory returnData) internal {
+    function processOutputs(OutputParam[] calldata outputParams, bytes memory returnData, address account) internal {
         uint256 length = outputParams.length;
         for (uint256 i; i < length; i++) {
-            processOutput(outputParams[i], returnData);
+            processOutput(outputParams[i], returnData, account);
         }
     }
 
-    function processOutput(OutputParam calldata param, bytes memory returnData) internal {
+    function processOutput(OutputParam calldata param, bytes memory returnData, address account) internal {
         if (param.fetcherType == OutputParamFetcherType.EXEC_RESULT) {
             (address targetStorageContract, bytes32 targetSlot) = abi.decode(param.paramData, (address, bytes32));
-            Storage(targetStorageContract).writeStorage(targetSlot, abi.decode(returnData, (bytes32)));
+            Storage(targetStorageContract).writeStorage(targetSlot, abi.decode(returnData, (bytes32)), account);
         } else if (param.fetcherType == OutputParamFetcherType.STORAGE_READ) {
             (
                 address sourceStorageContract,
@@ -116,7 +116,7 @@ library ComposableExecutionLib {
                 bytes32 targetStorageSlot
             ) = abi.decode(param.paramData, (address, bytes32, address, bytes32));
             Storage(targetStorageContract).writeStorage(
-                targetStorageSlot, _getValueAt(sourceStorageContract, sourceStorageSlot)
+                targetStorageSlot, _getValueAt(sourceStorageContract, sourceStorageSlot), account
             );
         } else if (param.fetcherType == OutputParamFetcherType.STATIC_CALL) {
             (
@@ -130,7 +130,7 @@ library ComposableExecutionLib {
                 // TODO : USE OTHER ERROR
                 revert ExecutionFailed();
             }
-            Storage(targetStorageContract).writeStorage(targetStorageSlot, abi.decode(outputReturnData, (bytes32)));
+            Storage(targetStorageContract).writeStorage(targetStorageSlot, abi.decode(outputReturnData, (bytes32)), account);
         } else {
             revert InvalidOutputParamFetcherType();
         }
