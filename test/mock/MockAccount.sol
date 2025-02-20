@@ -6,14 +6,18 @@ import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol
 import {IValidator} from "erc7579/interfaces/IERC7579Module.sol";
 import {IStatelessValidator} from "node_modules/@rhinestone/module-bases/src/interfaces/IStatelessValidator.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
+import {ComposableExecutionBase} from "contracts/composability/ComposableExecutionBase.sol";
+
 import {console2} from "forge-std/console2.sol";
 
-contract MockAccount is IAccount {
+contract MockAccount is ComposableExecutionBase, IAccount {
 
     event MockAccountValidateUserOp(PackedUserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds);
     event MockAccountExecute(address to, uint256 value, bytes data);
     event MockAccountReceive(uint256 value);
     event MockAccountFallback(bytes callData, uint256 value);
+
+    error ExecutionFailed();
 
     IValidator public validator;
 
@@ -47,6 +51,14 @@ contract MockAccount is IAccount {
     function execute(address to, uint256 value, bytes calldata data) external returns (bool success, bytes memory result) {
         emit MockAccountExecute(to, value, data);
         (success, result) = to.call{value: value}(data);
+    }
+
+    function _executeAction(address to, uint256 value, bytes memory data) internal override returns (bytes memory returnData) {
+        bool success;
+        (success, returnData) = to.call{value: value}(data);
+        if (!success) {
+            revert ExecutionFailed();
+        }
     }
 
     receive() external payable {
