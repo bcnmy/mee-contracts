@@ -69,7 +69,6 @@ contract BaseTest is Test {
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
-        composabilityHandler = new ComposableExecutionModule();
     }
 
     function deployMEEEntryPoint() internal {

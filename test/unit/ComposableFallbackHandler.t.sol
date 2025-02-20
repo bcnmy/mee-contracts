@@ -2,11 +2,11 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
-import "contracts/composability/ComposableExecutionModule.sol";
-import "contracts/composability/Storage.sol";
-import "contracts/interfaces/IComposableExecution.sol";
-import "contracts/composability/ComposableExecutionLib.sol";
-import "test/mock/MockAccount.sol";
+import {ComposableExecutionModule} from "contracts/composability/ComposableExecutionModule.sol";
+import {Storage} from "contracts/composability/Storage.sol";
+import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
+import {ComposableExecution, InputParam, OutputParam, ParamValueType, OutputParamFetcherType, InputParamFetcherType} from "contracts/composability/ComposableExecutionLib.sol";
+import {ENTRY_POINT_V07, MockAccount} from "test/mock/MockAccount.sol";
 
 contract DummyContract {
     function A() external pure returns (uint256) {
@@ -67,7 +67,7 @@ contract ComposableFallbackHandlerTest is Test {
             outputParams: outputParamsA // store output of the function A() to the storage
         });
         // Call function A through mockAccount=>handler
-        mockAccount.executeComposable(executions);
+        IComposableExecution(address(mockAccount)).executeComposable(executions);
         
 
         // Verify the result (42) was stored correctly
@@ -99,7 +99,7 @@ contract ComposableFallbackHandlerTest is Test {
             outputParams: outputParamsB
         });
         // Call function B through mockAccount=>handler
-        mockAccount.executeComposable(executionsB);
+        IComposableExecution(address(mockAccount)).executeComposable(executionsB);
 
         // Verify the result (84 = 42 * 2) was stored correctly
         bytes32 storedValueB = storageContract.readStorage(address(mockAccount), SLOT_B);

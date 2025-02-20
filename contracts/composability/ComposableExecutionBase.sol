@@ -4,18 +4,15 @@ pragma solidity ^0.8.27;
 import {InputParam, OutputParam, ComposableExecution, ComposableExecutionLib} from "contracts/composability/ComposableExecutionLib.sol";
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
 
-contract ComposableExecutionBase is IComposableExecution {
+abstract contract ComposableExecutionBase is IComposableExecution {
 
     using ComposableExecutionLib for InputParam[];
     using ComposableExecutionLib for OutputParam[];
 
     error InsufficientMsgValue();
-    error OnlyEntryPointOrSelf();
     
     // Feel free to override it to introduce additional access control or other checks
-    function executeComposable(ComposableExecution[] calldata executions) external virtual payable {
-        _executeComposable(executions);
-    }
+    function executeComposable(ComposableExecution[] calldata executions) external virtual payable;
     
     // TODO: any space for optimization here?
     function _executeComposable(ComposableExecution[] calldata executions) internal {
@@ -37,7 +34,7 @@ contract ComposableExecutionBase is IComposableExecution {
         address to, 
         uint256 value, 
         bytes memory data
-    ) internal virtual returns (bytes memory returnData) {}
+    ) internal virtual returns (bytes memory returnData);
 
 }
 

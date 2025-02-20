@@ -26,7 +26,7 @@ contract PMPerNodeTest is BaseTest {
         super.setUp();
         mockAccount = deployMockAccount({
             validator: address(0),
-            handler: address(composabilityHandler)
+            handler: address(0)
         });
         wallet = createAndFundWallet("wallet", 1 ether);
     }
