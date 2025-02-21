@@ -38,9 +38,7 @@ contract ComposableFallbackHandlerTest is ComposabilityTestBase {
     }
 
     function testComposableFlow() public {
-        // msg.sender is this contract (emulate SA)
-        // tx.origin is ENTRY_POINT_V07 as if it has called the contract
-        vm.startPrank(ENTRY_POINT_V07);
+        vm.startPrank(ENTRYPOINT_V07_ADDRESS);
 
         // Step 1: Call function A and store its result
         // Prepare return value config for function A
@@ -66,7 +64,8 @@ contract ComposableFallbackHandlerTest is ComposabilityTestBase {
         
 
         // Verify the result (42) was stored correctly
-        bytes32 storedValueA = storageContract.readStorage(address(mockAccountNonComposable), SLOT_A);
+        bytes32 namespace = storageContract.getNamespace(address(mockAccountNonComposable), address(composabilityHandler));
+        bytes32 storedValueA = storageContract.readStorage(namespace, SLOT_A);
         assertEq(uint256(storedValueA), 42, "Function A result not stored correctly");
 
         // Step 2: Call function B using the stored value from A
@@ -74,7 +73,7 @@ contract ComposableFallbackHandlerTest is ComposabilityTestBase {
         inputParamsB[0] = InputParam({
             fetcherType: InputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (address(mockAccountNonComposable), SLOT_A)))
+            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A)))
         });
 
         // Prepare return value config for function B
@@ -97,9 +96,9 @@ contract ComposableFallbackHandlerTest is ComposabilityTestBase {
         IComposableExecution(address(mockAccountNonComposable)).executeComposable(executionsB);
 
         // Verify the result (84 = 42 * 2) was stored correctly
-        bytes32 storedValueB = storageContract.readStorage(address(mockAccountNonComposable), SLOT_B);
+        bytes32 storedValueB = storageContract.readStorage(namespace, SLOT_B);
         assertEq(uint256(storedValueB), 84, "Function B result not stored correctly");
 
-        //vm.stopPrank();
+        vm.stopPrank();
     }
 }

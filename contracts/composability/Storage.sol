@@ -44,7 +44,7 @@ contract Storage {
     /**
      * @dev Internal function to write a value to a specific storage slot
      */
-    function _writeStorage(address namespace, bytes32 slot, bytes32 value) private {
+    function _writeStorage(bytes32 slot, bytes32 value, bytes32 namespace) private {
         bytes32 namespacedSlot = getNamespacedSlot(namespace, slot);
         initializedSlots[namespacedSlot] = true;
         assembly {
@@ -58,7 +58,8 @@ contract Storage {
      * @param value The value to write
      */
     function writeStorage(bytes32 slot, bytes32 value, address account) external {
-        _writeStorage(account, slot, value);
+        bytes32 namespace = getNamespace(account, msg.sender);
+        _writeStorage(slot, value, namespace);
     }
 
     /**
@@ -106,7 +107,8 @@ contract Storage {
      * @dev LayerZero receive function
      */
     function lzReceive(uint16 _srcChainId, bytes memory _srcAddress, uint64 _nonce, bytes memory _payload) external {
-        require(msg.sender == address(endpoint), "Invalid endpoint caller");
+        // TODO: remove this. not needed because of msg.sender mixin
+        // require(msg.sender == address(endpoint), "Invalid endpoint caller");
 
         // Verify source is trusted remote
         require(_srcAddress.length == trustedRemoteLookup[_srcChainId].length, "Invalid source length");
@@ -115,7 +117,8 @@ contract Storage {
         // Decode and store the value
         (address originalSender, bytes32 slot, bytes32 value) = abi.decode(_payload, (address, bytes32, bytes32));
 
-        _writeStorage(originalSender, slot, value);
+        bytes32 namespace = getNamespace(originalSender, msg.sender);
+        _writeStorage(slot, value, namespace);
         emit CrossChainStorageSet(_srcChainId, slot, value);
     }
 
@@ -125,7 +128,7 @@ contract Storage {
      * @param slot The storage slot to read from
      * @return The value stored at the specified namespaced slot
      */
-    function readStorage(address namespace, bytes32 slot) external view returns (bytes32) {
+    function readStorage(bytes32 namespace, bytes32 slot) external view returns (bytes32) {
         bytes32 namespacedSlot = getNamespacedSlot(namespace, slot);
         if (!initializedSlots[namespacedSlot]) {
             revert SlotNotInitialized();
@@ -143,7 +146,7 @@ contract Storage {
      * @param slot The base storage slot
      * @return The complete bytes array
      */
-    function readDynamicStorage(address namespace, bytes32 slot) external view returns (bytes memory) {
+    function readDynamicStorage(bytes32 namespace, bytes32 slot) external view returns (bytes memory) {
         bytes32 namespacedSlot = getNamespacedSlot(namespace, slot);
         if (!initializedSlots[namespacedSlot]) {
             revert SlotNotInitialized();
@@ -176,10 +179,11 @@ contract Storage {
      * @param slot The base storage slot
      * @param data The data to write
      */
-    function writeDynamicStorage(bytes32 slot, bytes calldata data) external {
+    function writeDynamicStorage(bytes32 slot, bytes calldata data, address account) external {
         if (data.length == 0) revert InvalidDataLength();
 
-        bytes32 namespacedSlot = getNamespacedSlot(msg.sender, slot);
+        bytes32 namespace = getNamespace(account, msg.sender);
+        bytes32 namespacedSlot = getNamespacedSlot(namespace, slot);
         initializedSlots[namespacedSlot] = true;
         dynamicDataLength[namespacedSlot] = data.length;
 
@@ -205,14 +209,18 @@ contract Storage {
     /**
      * @dev Generates a namespaced slot
      */
-    function getNamespacedSlot(address caller, bytes32 slot) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(caller, slot));
+    function getNamespacedSlot(bytes32 namespace, bytes32 slot) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(namespace, slot));
+    }
+
+    function getNamespace(address account, address caller) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(account, caller));
     }
 
     /**
      * @dev Check if a slot has been initialized
      */
-    function isSlotInitialized(address namespace, bytes32 slot) external view returns (bool) {
+    function isSlotInitialized(bytes32 namespace, bytes32 slot) external view returns (bool) {
         bytes32 namespacedSlot = getNamespacedSlot(namespace, slot);
         return initializedSlots[namespacedSlot];
     }
@@ -220,7 +228,7 @@ contract Storage {
     /**
      * @dev Get the length of dynamic data
      */
-    function getDynamicDataLength(address namespace, bytes32 slot) external view returns (uint256) {
+    function getDynamicDataLength(bytes32 namespace, bytes32 slot) external view returns (uint256) {
         bytes32 namespacedSlot = getNamespacedSlot(namespace, slot);
         return dynamicDataLength[namespacedSlot];
     }
