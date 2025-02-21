@@ -7,7 +7,7 @@ import {EntryPoint} from "account-abstraction/core/EntryPoint.sol";
 import {PackedUserOperation, UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {MockAccount} from "./mock/MockAccount.sol";
+import {MockAccount, ENTRY_POINT_V07} from "./mock/MockAccount.sol";
 import {MockTarget} from "./mock/MockTarget.sol";
 import {NodePaymaster} from "../contracts/NodePaymaster.sol";
 import {K1MeeValidator} from "../contracts/validators/K1MeeValidator.sol";
@@ -57,7 +57,6 @@ contract BaseTest is Test {
     MEEEntryPoint internal MEE_ENTRYPOINT;
     NodePaymaster internal NODE_PAYMASTER;
     K1MeeValidator internal k1MeeValidator;
-    ComposableExecutionModule internal composabilityHandler;
 
     MockTarget internal mockTarget;
     address nodePmDeployer = address(0x011a23423423423);

@@ -2,11 +2,11 @@
 pragma solidity ^0.8.17;
 
 import "forge-std/Test.sol";
+import "test/ComposabilityBase.t.sol";
 import {ComposableExecutionModule} from "contracts/composability/ComposableExecutionModule.sol";
 import {Storage} from "contracts/composability/Storage.sol";
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
 import {ComposableExecution, InputParam, OutputParam, ParamValueType, OutputParamFetcherType, InputParamFetcherType} from "contracts/composability/ComposableExecutionLib.sol";
-import {ENTRY_POINT_V07, MockAccount} from "test/mock/MockAccount.sol";
 
 contract DummyContract {
     function A() external pure returns (uint256) {
@@ -19,25 +19,20 @@ contract DummyContract {
     }
 }
 
-contract ComposableFallbackHandlerTest is Test {
-    ComposableExecutionModule public handler;
+contract ComposableFallbackHandlerTest is ComposabilityTestBase {
+    
     Storage public storageContract;
     DummyContract public dummyContract;
-    MockAccount public mockAccount;
 
     address public eoa = address(0x11ce);
     bytes32 public constant SLOT_A = keccak256("SLOT_A");
     bytes32 public constant SLOT_B = keccak256("SLOT_B");
 
-    function setUp() public {
+    function setUp() public override {
+        super.setUp();
         // Deploy contracts
         storageContract = new Storage(address(0));
-        handler = new ComposableExecutionModule();
         dummyContract = new DummyContract();
-        mockAccount = new MockAccount({
-            _validator: address(0),
-            _handler: address(handler)
-        });
         // Fund EOA
         vm.deal(eoa, 100 ether);
     }
@@ -66,12 +61,12 @@ contract ComposableFallbackHandlerTest is Test {
             inputParams: inputParamsA, // no input parameters needed
             outputParams: outputParamsA // store output of the function A() to the storage
         });
-        // Call function A through mockAccount=>handler
-        IComposableExecution(address(mockAccount)).executeComposable(executions);
+        // Call function A through mockAccountNonComposable=>handler
+        IComposableExecution(address(mockAccountNonComposable)).executeComposable(executions);
         
 
         // Verify the result (42) was stored correctly
-        bytes32 storedValueA = storageContract.readStorage(address(mockAccount), SLOT_A);
+        bytes32 storedValueA = storageContract.readStorage(address(mockAccountNonComposable), SLOT_A);
         assertEq(uint256(storedValueA), 42, "Function A result not stored correctly");
 
         // Step 2: Call function B using the stored value from A
@@ -79,7 +74,7 @@ contract ComposableFallbackHandlerTest is Test {
         inputParamsB[0] = InputParam({
             fetcherType: InputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (address(mockAccount), SLOT_A)))
+            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (address(mockAccountNonComposable), SLOT_A)))
         });
 
         // Prepare return value config for function B
@@ -98,11 +93,11 @@ contract ComposableFallbackHandlerTest is Test {
             inputParams: inputParamsB,
             outputParams: outputParamsB
         });
-        // Call function B through mockAccount=>handler
-        IComposableExecution(address(mockAccount)).executeComposable(executionsB);
+        // Call function B through mockAccountNonComposable=>handler
+        IComposableExecution(address(mockAccountNonComposable)).executeComposable(executionsB);
 
         // Verify the result (84 = 42 * 2) was stored correctly
-        bytes32 storedValueB = storageContract.readStorage(address(mockAccount), SLOT_B);
+        bytes32 storedValueB = storageContract.readStorage(address(mockAccountNonComposable), SLOT_B);
         assertEq(uint256(storedValueB), 84, "Function B result not stored correctly");
 
         //vm.stopPrank();

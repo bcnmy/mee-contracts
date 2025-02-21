@@ -11,8 +11,6 @@ import {IComposableExecution} from "contracts/interfaces/IComposableExecution.so
 import {ComposableExecutionLib, InputParam, OutputParam, ComposableExecution} from "contracts/composability/ComposableExecutionLib.sol";
 import {IGetEntryPoint} from "contracts/interfaces/IGetEntryPoint.sol";
 
-address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
-
 /**
  * @title Composable Execution Module: Executor and Fallback
  * @dev A module for ERC-7579 accounts that enables composable transactions execution
@@ -27,8 +25,15 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     error ExecutionFailed();
     error OnlyEntryPointOrAccount();
     error InsufficientMsgValue();
+
+    address internal immutable ENTRY_POINT;
+
     /// @notice Mapping of smart account addresses to their respective module installation
     mapping(address => bool) public override isInitialized;
+
+    constructor(address _entryPoint) {
+        ENTRY_POINT = _entryPoint;
+    }
 
     /**
      * @notice Executes a composable transaction with dynamic parameter composition and return value handling
@@ -37,7 +42,7 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     function executeComposable(ComposableExecution[] calldata executions) external payable {
         // access control
         address sender = _msgSender();
-        require(sender == _getEntryPoint() || sender == msg.sender, OnlyEntryPointOrAccount());
+        require(sender == ENTRY_POINT || sender == msg.sender, OnlyEntryPointOrAccount());
 
         // we can not use erc-7579 batch mode here because we may need to compose 
         // the next call in the batch based on the execution result of the previous call
@@ -56,13 +61,8 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
         }
     }
 
-    /// @dev reverts if msg.sender is an EOA which is expected
-    function _getEntryPoint() internal view returns (address) {
-        try IGetEntryPoint(msg.sender).entryPoint() returns (address ep) {
-            return ep;
-        } catch {
-            return ENTRY_POINT_V07;
-        }
+    function entryPoint() external view returns (address) {
+        return ENTRY_POINT;
     }
 
     function onInstall(bytes calldata data) external override {
