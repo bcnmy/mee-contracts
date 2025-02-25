@@ -1,20 +1,42 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "openzeppelin/utils/cryptography/MerkleProof.sol";
-import "account-abstraction/interfaces/PackedUserOperation.sol";
+import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
+import {RLPReader as RLPDecoder} from "rlp-reader/RLPReader.sol";
+import {RLPEncoder} from "../rlp/RLPEncoder.sol";
+import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
+import {EcdsaLib} from "../util/EcdsaLib.sol";
+import {BytesLib} from "byteslib/BytesLib.sol";
 import "account-abstraction/core/Helpers.sol";
-import "../rlp/RLPDecoder.sol";
-import "../rlp/RLPEncoder.sol";
-import "../util/BytesLib.sol";
-import "../util/UserOpLib.sol";
-import "../util/EcdsaLib.sol";
+
+/**
+ * @dev Library to validate the signature for MEE on-chain Txn mode
+ *      This is the mode where superTx hash is appended to a regular txn (legacy or 1559) calldata
+ *      Type 1 (EIP-2930) transactions are not supported.
+ *      The whole txn is signed along with the superTx hash
+ *      Txn is executed prior to a superTx, so it can pass some funds from the EOA to the smart account
+ *      For more details see Fusion docs: 
+ *      - https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949    
+ *      - https://docs.biconomy.io/explained/eoa#fusion-module
+ *      @dev Some smart contracts may not be able to consume the txn with bytes32 appended to the calldata.
+ *           However this is very small subset. One of the cases when it can happen is when the smart contract
+ *           is has separate receive() and fallback() functions. Then if a txn is a value transfer, it will
+ *           be expected to be consumed by the receive() function. However, if there's bytes32 appended to the calldata,
+ *           it will be consumed by the fallback() function which may not be expected. In this case, the provided
+ *           contracts/forwarder/Forwarder.sol can be used to 'clear' the bytes32 from the calldata.
+ *      @dev In theory, the last 32 bytes of calldata from any transaction by the EOA can be interpreted as 
+ *           a superTx hash. Even if it was not assumed. This introduces the potential risk of phishing attacks
+ *           where the user may unknowingly sign a transaction where the last 32 bytes of the calldata end up
+ *           being a superTx hash. However, it is not easy to craft a txn that makes sense for a user and allows
+ *           arbitrary bytes32 as last 32 bytes. Thus, wallets and users should be aware of this potential risk
+ *           and should not sign txns where the last 32 bytes of the calldata do not belong to the function arguments
+ *           and are just appended at the end.
+ */
 
 library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;
     uint8 constant EIP1559_TX_TYPE = 0x02;
 
-    uint8 constant RLP_ENCODED_R_S_BYTE_SIZE = 66; // 2 * 33bytes (for r, s components)
     uint8 constant EIP_155_MIN_V_VALUE = 37;
     uint8 constant HASH_BYTE_SIZE = 32;
 
@@ -39,6 +61,17 @@ library TxValidatorLib {
         uint48 upperBoundTimestamp;
     }
 
+    // To save a bit of gas, not pass timestamps where not needed
+    struct TxDataShort {
+        uint8 txType;
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+        bytes32 utxHash;
+        bytes32 superTxHash;
+        bytes32[] proof;
+    }
+
     struct TxParams {
         uint256 v;
         bytes32 r;
@@ -49,9 +82,9 @@ library TxValidatorLib {
     /**
      * This function parses the given userOpSignature into a valid fully signed EVM transaction.
      * Once parsed, the function will check for three conditions:
-     *      1. is the expected hash found in the tx.data as the last 32bytes?
+     *      1. is the userOp part of the superTX merkle tree
      *      2. is the recovered tx signer equal to the expected signer?
-     *      2. is the given UserOp a part of the merkle tree
+     *      3. is the given UserOp a part of the merkle tree
      *
      * If all the conditions are met - outside contract can be sure that the expected signer has indeed
      * approved the given hash by performing given on-chain transaction.
@@ -62,65 +95,71 @@ library TxValidatorLib {
      *    3. extracted hash wasn't equal to the provided expected hash
      *    4. recovered signer wasn't equal to the expected signer
      *
-     * Returns true if the expected signer did indeed approve the given expectedHash by signing an on-chain transaction.
-     *
-     * @param userOp UserOp being validated.
+     * @param userOpHash UserOp hash being validated.
      * @param parsedSignature Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
-     *                        Expecting to receive fully signed serialized EVM transcaction here of type 0x00 (LEGACY)
+     *                        Expecting to receive fully signed serialized EVM transaction here of type 0x00 (LEGACY)
      *                        or 0x02 (EIP1556).
      *                        For LEGACY tx type the "0x00" prefix has to be added manually while the EIP1559 tx type
      *                        already contains 0x02 prefix.
-     * @param expectedSigner Expected EOA signer of the given userOp and the EVM transaction.
+     * @param expectedSigner Expected EOA signer of the given EVM transaction => superTX.
      */
-    function validateUserOp(PackedUserOperation calldata userOp, bytes memory parsedSignature, address expectedSigner)
+    function validateUserOp(bytes32 userOpHash, bytes calldata parsedSignature, address expectedSigner)
         internal
         view
         returns (uint256)
     {
         TxData memory decodedTx = decodeTx(parsedSignature);
 
-        bytes32 userOpHash =
-            UserOpLib.getUserOpHash(userOp, decodedTx.lowerBoundTimestamp, decodedTx.upperBoundTimestamp);
+        bytes32 meeUserOpHash =
+            MEEUserOpHashLib.getMEEUserOpHash(userOpHash, decodedTx.lowerBoundTimestamp, decodedTx.upperBoundTimestamp);
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, userOpHash)) {
+        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, meeUserOpHash)) {
             return SIG_VALIDATION_FAILED;
         }
 
         return _packValidationData(false, decodedTx.upperBoundTimestamp, decodedTx.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 hash, bytes memory parsedSignature)
+    /**
+     * @dev validate the signature for the owner of the superTx
+     *      used fot the 1271 flow and for the stateless validators (erc7579 module type 7)
+     * @param expectedSigner the expected signer of the superTx
+     * @param dataHash the hash of the data to be signed
+     * @param parsedSignature the signature to be validated
+     * @return true if the signature is valid, false otherwise
+     */
+    function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes calldata parsedSignature)
         internal
-        pure
+        view
         returns (bool)
     {
-        TxData memory decodedTx = decodeTx(parsedSignature);
+        TxDataShort memory decodedTx = decodeTxShort(parsedSignature);
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
+        
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return false;
         }
 
-        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, hash)) {
+        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, dataHash)) {
             return false;
         }
-
         return true;
     }
 
-    function decodeTx(bytes memory self) internal pure returns (TxData memory) {
+    function decodeTx(bytes calldata self) internal pure returns (TxData memory) {
         uint8 txType = uint8(self[0]); //first byte is tx type
         uint48 lowerBoundTimestamp =
-            uint48(bytes6((self.slice(self.length - 2 * TIMESTAMP_BYTE_SIZE, TIMESTAMP_BYTE_SIZE))));
-        uint48 upperBoundTimestamp = uint48(bytes6(self.slice(self.length - TIMESTAMP_BYTE_SIZE, TIMESTAMP_BYTE_SIZE)));
+            uint48(bytes6((self[self.length - 2 * TIMESTAMP_BYTE_SIZE: self.length - TIMESTAMP_BYTE_SIZE])));        
+        uint48 upperBoundTimestamp = uint48(bytes6(self[self.length - TIMESTAMP_BYTE_SIZE:]));
         uint8 proofItemsCount = uint8(self[self.length - 2 * TIMESTAMP_BYTE_SIZE - 1]);
         uint256 appendedDataLen = (uint256(proofItemsCount) * PROOF_ITEM_BYTE_SIZE + 1) + 2 * TIMESTAMP_BYTE_SIZE;
-        bytes memory rlpEncodedTx = self.slice(1, self.length - appendedDataLen - 1);
+        bytes calldata rlpEncodedTx = self[1:self.length - appendedDataLen];
         RLPDecoder.RLPItem memory parsedRlpEncodedTx = rlpEncodedTx.toRlpItem();
         RLPDecoder.RLPItem[] memory parsedRlpEncodedTxItems = parsedRlpEncodedTx.toList();
         TxParams memory params = extractParams(txType, parsedRlpEncodedTxItems);
@@ -130,11 +169,31 @@ library TxValidatorLib {
             _adjustV(params.v),
             params.r,
             params.s,
-            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v),
+            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
             extractAppendedHash(params.callData),
             extractProof(self, proofItemsCount),
             lowerBoundTimestamp,
             upperBoundTimestamp
+        );
+    }
+
+    function decodeTxShort(bytes calldata self) internal pure returns (TxDataShort memory) {
+        uint8 txType = uint8(self[0]); //first byte is tx type
+        uint8 proofItemsCount = uint8(self[self.length - 1]);
+        uint256 appendedDataLen = (uint256(proofItemsCount) * PROOF_ITEM_BYTE_SIZE + 1);
+        bytes calldata rlpEncodedTx = self[1:self.length - appendedDataLen];
+        RLPDecoder.RLPItem memory parsedRlpEncodedTx = rlpEncodedTx.toRlpItem();
+        RLPDecoder.RLPItem[] memory parsedRlpEncodedTxItems = parsedRlpEncodedTx.toList();
+        TxParams memory params = extractParams(txType, parsedRlpEncodedTxItems);
+
+        return TxDataShort(
+            txType,
+            _adjustV(params.v),
+            params.r,
+            params.s,
+            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
+            extractAppendedHash(params.callData),
+            extractProofShort(self, proofItemsCount)
         );
     }
 
@@ -172,21 +231,36 @@ library TxValidatorLib {
         iTxHash = bytes32(callData.slice(callData.length - ITX_HASH_BYTE_SIZE, ITX_HASH_BYTE_SIZE));
     }
 
-    function extractProof(bytes memory signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
+    function extractProof(bytes calldata signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
         proof = new bytes32[](proofItemsCount);
         uint256 pos = signedTx.length - 2 * TIMESTAMP_BYTE_SIZE - 1;
         for (proofItemsCount; proofItemsCount > 0; proofItemsCount--) {
-            proof[proofItemsCount - 1] = bytes32(signedTx.slice(pos - PROOF_ITEM_BYTE_SIZE, PROOF_ITEM_BYTE_SIZE));
+            proof[proofItemsCount - 1] = bytes32(signedTx[pos - PROOF_ITEM_BYTE_SIZE:pos]);
             pos = pos - PROOF_ITEM_BYTE_SIZE;
         }
     }
 
-    function calculateUnsignedTxHash(uint8 txType, bytes memory rlpEncodedTx, uint256 rlpEncodedTxPayloadLen, uint256 v)
+    function extractProofShort(bytes calldata signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
+        proof = new bytes32[](proofItemsCount);
+        uint256 pos = signedTx.length - 1;
+        for (proofItemsCount; proofItemsCount > 0; proofItemsCount--) {
+            proof[proofItemsCount - 1] = bytes32(signedTx[pos - PROOF_ITEM_BYTE_SIZE:pos]);
+            pos = pos - PROOF_ITEM_BYTE_SIZE;
+        }
+    }
+
+    function calculateUnsignedTxHash(
+        uint8 txType, 
+        bytes memory 
+        rlpEncodedTx, 
+        uint256 rlpEncodedTxPayloadLen, 
+        uint256 v, bytes32 r, bytes32 s
+    )
         private
         pure
         returns (bytes32 hash)
     {
-        uint256 totalSignatureSize = RLP_ENCODED_R_S_BYTE_SIZE + v.encodeUint().length;
+        uint256 totalSignatureSize = uint256(r).encodeUint().length + uint256(s).encodeUint().length + v.encodeUint().length;
         uint256 totalPrefixSize = rlpEncodedTx.length - rlpEncodedTxPayloadLen;
         bytes memory rlpEncodedTxNoSigAndPrefix =
             rlpEncodedTx.slice(totalPrefixSize, rlpEncodedTx.length - totalSignatureSize - totalPrefixSize);
