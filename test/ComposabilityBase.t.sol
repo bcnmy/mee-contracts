@@ -3,11 +3,14 @@ pragma solidity ^0.8.23;
 
 import "./Base.t.sol";
 import {MockAccountNonComposable} from "./mock/MockAccountNonComposable.sol";
+
 import {ComposableExecutionModule} from "contracts/composability/ComposableExecutionModule.sol";
+
 contract ComposabilityTestBase is BaseTest {
 
     ComposableExecutionModule internal composabilityHandler;    
     MockAccountNonComposable internal mockAccountNonComposable;
+    MockAccount internal mockAccount;
 
     function setUp() public virtual override {        
         super.setUp();
@@ -19,6 +22,11 @@ contract ComposabilityTestBase is BaseTest {
                 _handler: address(composabilityHandler)
             }
         );
+
+        mockAccount = deployMockAccount({
+            validator: address(0),
+            handler: address(composabilityHandler)
+        });
     }
 
 }
