@@ -70,14 +70,14 @@ library ComposableExecutionLib {
     // TODO: change all abi.decodes to calldata slicing
     function processInput(InputParam calldata param) internal view returns (bytes memory) {
         if (param.fetcherType == InputParamFetcherType.RAW_BYTES) {
-            return param.paramData;
+            return _validateConstraints(param.paramData, param.constraints);
         } else if (param.fetcherType == InputParamFetcherType.STATIC_CALL) {
             (address contractAddr, bytes memory callData) = abi.decode(param.paramData, (address, bytes));
             (bool success, bytes memory returnData) = contractAddr.staticcall(callData);
             if (!success) {
                 revert ExecutionFailed();
             }
-            return returnData;
+            return _validateConstraints(returnData, param.constraints);
         } else {
             revert InvalidParameterEncoding();
         }
@@ -119,8 +119,8 @@ library ComposableExecutionLib {
         }
     }
 
-    function _validateContraints(bytes memory rawValue, bytes calldata constraints) private pure {
-        if (constraints.length == 0) { return; }
+    function _validateConstraints(bytes memory rawValue, bytes calldata constraints) private pure returns (bytes memory) {
+        if (constraints.length == 0) { return rawValue; }
         bytes1 constraintType = bytes1(constraints[0:1]);
         bytes32 rawValueBytes32 = bytes32(rawValue);
         
@@ -142,6 +142,8 @@ library ComposableExecutionLib {
         else {
             revert InvalidConstraintType();
         }
+
+        return rawValue;
     }
 
 }
