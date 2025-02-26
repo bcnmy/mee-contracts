@@ -89,35 +89,41 @@ library ComposableExecutionLib {
 
     function processOutput(OutputParam calldata param, bytes memory returnData, address account) internal {
         // only static types are supported for now as return values
+        // can also process all the static return values which are before the first dynamic return value in the returnData
         if (param.fetcherType == OutputParamFetcherType.EXEC_RESULT) {
-            (uint256 returnValues, address targetStorageContract, bytes32 targetSlot) = abi.decode(param.paramData, (uint256, address, bytes32));
-            for (uint256 i; i < returnValues; i++) {
-                bytes32 value;
-                assembly {
-                    value := mload(add(returnData, add(0x20, mul(i, 0x20))))
-                }
-                Storage(targetStorageContract).writeStorage({
-                    slot: keccak256(abi.encodePacked(targetSlot, i)),
-                    value: value,
-                    account: account
-                });
-            }
+            (uint256 returnValues, address targetStorageContract, bytes32 targetStorageSlot) = abi.decode(param.paramData, (uint256, address, bytes32));
+            _parseReturnDataAndWriteToStorage(returnValues, returnData, targetStorageContract, targetStorageSlot, account);
+        // same for static calls
         } else if (param.fetcherType == OutputParamFetcherType.STATIC_CALL) {
-            (
+            (   
+                uint256 returnValues,
                 address sourceContract,
                 bytes memory sourceCallData,
                 address targetStorageContract,
                 bytes32 targetStorageSlot
-            ) = abi.decode(param.paramData, (address, bytes, address, bytes32));
+            ) = abi.decode(param.paramData, (uint256, address, bytes, address, bytes32));
             (bool outputSuccess, bytes memory outputReturnData) = sourceContract.staticcall(sourceCallData);
             if (!outputSuccess) {
                 // TODO : USE OTHER ERROR
                 revert ExecutionFailed();
             }
-            Storage(targetStorageContract).writeStorage(targetStorageSlot, abi.decode(outputReturnData, (bytes32)), account);
+            _parseReturnDataAndWriteToStorage(returnValues, outputReturnData, targetStorageContract, targetStorageSlot, account);
         } else {
             revert InvalidOutputParamFetcherType();
         }
     }
 
+    function _parseReturnDataAndWriteToStorage(uint256 returnValues, bytes memory returnData, address targetStorageContract, bytes32 targetStorageSlot, address account) internal {
+        for (uint256 i; i < returnValues; i++) {
+            bytes32 value;
+            assembly {
+                value := mload(add(returnData, add(0x20, mul(i, 0x20))))
+            }
+            Storage(targetStorageContract).writeStorage({
+                slot: keccak256(abi.encodePacked(targetStorageSlot, i)),
+                value: value,
+                account: account
+            });
+        }
+    }
 }
