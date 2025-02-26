@@ -15,8 +15,8 @@ import "account-abstraction/core/Helpers.sol";
  *      Type 1 (EIP-2930) transactions are not supported.
  *      The whole txn is signed along with the superTx hash
  *      Txn is executed prior to a superTx, so it can pass some funds from the EOA to the smart account
- *      For more details see Fusion docs: 
- *      - https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949    
+ *      For more details see Fusion docs:
+ *      - https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949
  *      - https://docs.biconomy.io/explained/eoa#fusion-module
  *      @dev Some smart contracts may not be able to consume the txn with bytes32 appended to the calldata.
  *           However this is very small subset. One of the cases when it can happen is when the smart contract
@@ -24,7 +24,7 @@ import "account-abstraction/core/Helpers.sol";
  *           be expected to be consumed by the receive() function. However, if there's bytes32 appended to the calldata,
  *           it will be consumed by the fallback() function which may not be expected. In this case, the provided
  *           contracts/forwarder/Forwarder.sol can be used to 'clear' the bytes32 from the calldata.
- *      @dev In theory, the last 32 bytes of calldata from any transaction by the EOA can be interpreted as 
+ *      @dev In theory, the last 32 bytes of calldata from any transaction by the EOA can be interpreted as
  *           a superTx hash. Even if it was not assumed. This introduces the potential risk of phishing attacks
  *           where the user may unknowingly sign a transaction where the last 32 bytes of the calldata end up
  *           being a superTx hash. However, it is not easy to craft a txn that makes sense for a user and allows
@@ -32,7 +32,6 @@ import "account-abstraction/core/Helpers.sol";
  *           and should not sign txns where the last 32 bytes of the calldata do not belong to the function arguments
  *           and are just appended at the end.
  */
-
 library TxValidatorLib {
     uint8 constant LEGACY_TX_TYPE = 0x00;
     uint8 constant EIP1559_TX_TYPE = 0x02;
@@ -141,7 +140,7 @@ library TxValidatorLib {
         TxDataShort memory decodedTx = decodeTxShort(parsedSignature);
 
         bytes memory signature = abi.encodePacked(decodedTx.r, decodedTx.s, decodedTx.v);
-        
+
         if (!EcdsaLib.isValidSignature(expectedSigner, decodedTx.utxHash, signature)) {
             return false;
         }
@@ -155,7 +154,7 @@ library TxValidatorLib {
     function decodeTx(bytes calldata self) internal pure returns (TxData memory) {
         uint8 txType = uint8(self[0]); //first byte is tx type
         uint48 lowerBoundTimestamp =
-            uint48(bytes6((self[self.length - 2 * TIMESTAMP_BYTE_SIZE: self.length - TIMESTAMP_BYTE_SIZE])));        
+            uint48(bytes6((self[self.length - 2 * TIMESTAMP_BYTE_SIZE:self.length - TIMESTAMP_BYTE_SIZE])));
         uint48 upperBoundTimestamp = uint48(bytes6(self[self.length - TIMESTAMP_BYTE_SIZE:]));
         uint8 proofItemsCount = uint8(self[self.length - 2 * TIMESTAMP_BYTE_SIZE - 1]);
         uint256 appendedDataLen = (uint256(proofItemsCount) * PROOF_ITEM_BYTE_SIZE + 1) + 2 * TIMESTAMP_BYTE_SIZE;
@@ -231,7 +230,11 @@ library TxValidatorLib {
         iTxHash = bytes32(callData.slice(callData.length - ITX_HASH_BYTE_SIZE, ITX_HASH_BYTE_SIZE));
     }
 
-    function extractProof(bytes calldata signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
+    function extractProof(bytes calldata signedTx, uint8 proofItemsCount)
+        private
+        pure
+        returns (bytes32[] memory proof)
+    {
         proof = new bytes32[](proofItemsCount);
         uint256 pos = signedTx.length - 2 * TIMESTAMP_BYTE_SIZE - 1;
         for (proofItemsCount; proofItemsCount > 0; proofItemsCount--) {
@@ -240,7 +243,11 @@ library TxValidatorLib {
         }
     }
 
-    function extractProofShort(bytes calldata signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
+    function extractProofShort(bytes calldata signedTx, uint8 proofItemsCount)
+        private
+        pure
+        returns (bytes32[] memory proof)
+    {
         proof = new bytes32[](proofItemsCount);
         uint256 pos = signedTx.length - 1;
         for (proofItemsCount; proofItemsCount > 0; proofItemsCount--) {
@@ -250,17 +257,15 @@ library TxValidatorLib {
     }
 
     function calculateUnsignedTxHash(
-        uint8 txType, 
-        bytes memory 
-        rlpEncodedTx, 
-        uint256 rlpEncodedTxPayloadLen, 
-        uint256 v, bytes32 r, bytes32 s
-    )
-        private
-        pure
-        returns (bytes32 hash)
-    {
-        uint256 totalSignatureSize = uint256(r).encodeUint().length + uint256(s).encodeUint().length + v.encodeUint().length;
+        uint8 txType,
+        bytes memory rlpEncodedTx,
+        uint256 rlpEncodedTxPayloadLen,
+        uint256 v,
+        bytes32 r,
+        bytes32 s
+    ) private pure returns (bytes32 hash) {
+        uint256 totalSignatureSize =
+            uint256(r).encodeUint().length + uint256(s).encodeUint().length + v.encodeUint().length;
         uint256 totalPrefixSize = rlpEncodedTx.length - rlpEncodedTxPayloadLen;
         bytes memory rlpEncodedTxNoSigAndPrefix =
             rlpEncodedTx.slice(totalPrefixSize, rlpEncodedTx.length - totalSignatureSize - totalPrefixSize);

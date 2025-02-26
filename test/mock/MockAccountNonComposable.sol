@@ -14,7 +14,6 @@ import {ModeLib, ModeCode as ExecutionMode, CallType, ExecType, CALLTYPE_SINGLE}
 import {console2} from "forge-std/console2.sol";
 
 contract MockAccountNonComposable is IAccount {
-
     event MockAccountValidateUserOp(PackedUserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds);
     event MockAccountExecute(address to, uint256 value, bytes data);
     event MockAccountReceive(uint256 value);
@@ -36,30 +35,37 @@ contract MockAccountNonComposable is IAccount {
         handler = IFallback(_handler);
     }
 
-    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds) external returns (uint256 vd) {
+    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
+        external
+        returns (uint256 vd)
+    {
         if (address(validator) != address(0)) {
-            vd = validator.validateUserOp(userOp, userOpHash);    
+            vd = validator.validateUserOp(userOp, userOpHash);
         }
         // if validator is not set, return 0 = success
     }
 
     function isValidSignature(bytes32 hash, bytes calldata signature) external view returns (bytes4) {
-        return IValidator(address(validator)).isValidSignatureWithSender({
-            sender: msg.sender, 
-            hash: hash,
-            data: signature
+        return
+            IValidator(address(validator)).isValidSignatureWithSender({sender: msg.sender, hash: hash, data: signature});
+    }
+
+    function validateSignatureWithData(bytes32 signedHash, bytes calldata signature, bytes calldata signerData)
+        external
+        view
+        returns (bool)
+    {
+        return IStatelessValidator(address(validator)).validateSignatureWithData({
+            hash: signedHash,
+            signature: signature,
+            data: signerData
         });
     }
 
-    function validateSignatureWithData(bytes32 signedHash, bytes calldata signature, bytes calldata signerData) external view returns (bool) {
-        return IStatelessValidator(address(validator)).validateSignatureWithData({
-                hash: signedHash,
-                signature: signature,
-                data: signerData
-            });
-    }
-
-    function execute(address to, uint256 value, bytes calldata data) external returns (bool success, bytes memory result) {
+    function execute(address to, uint256 value, bytes calldata data)
+        external
+        returns (bool success, bytes memory result)
+    {
         emit MockAccountExecute(to, value, data);
         (success, result) = to.call{value: value}(data);
     }
@@ -67,13 +73,14 @@ contract MockAccountNonComposable is IAccount {
     // TODO: rebuild this method as per ERC-7579 account interface
     // TODO: make ComposableBase.t.sol
 
-    function executeFromExecutor(
-        ExecutionMode mode,
-        bytes calldata executionCalldata
-    ) external payable returns (bytes[] memory returnData) {
+    function executeFromExecutor(ExecutionMode mode, bytes calldata executionCalldata)
+        external
+        payable
+        returns (bytes[] memory returnData)
+    {
         require(msg.sender == address(executor), OnlyExecutor());
 
-        (CallType callType, ExecType execType, ,) = mode.decode();
+        (CallType callType, ExecType execType,,) = mode.decode();
         if (callType == CALLTYPE_SINGLE) {
             returnData = new bytes[](1);
             // support for single execution only
@@ -84,7 +91,11 @@ contract MockAccountNonComposable is IAccount {
         }
     }
 
-    function _execute(address target, uint256 value, bytes calldata callData) internal virtual returns (bytes memory result) {
+    function _execute(address target, uint256 value, bytes calldata callData)
+        internal
+        virtual
+        returns (bytes memory result)
+    {
         /// @solidity memory-safe-assembly
         assembly {
             result := mload(0x40)
@@ -106,7 +117,8 @@ contract MockAccountNonComposable is IAccount {
     }
 
     fallback(bytes calldata callData) external payable returns (bytes memory) {
-        (bool success, bytes memory result) = address(handler).call{ value: msg.value }(ERC2771Lib.get2771CallData(callData));
+        (bool success, bytes memory result) =
+            address(handler).call{value: msg.value}(ERC2771Lib.get2771CallData(callData));
         emit MockAccountFallback(callData, msg.value);
     }
 
@@ -123,14 +135,6 @@ contract MockAccountNonComposable is IAccount {
             uint256[] memory extensions
         )
     {
-        return (
-            bytes1(0),
-            "MockAccount",
-            "1.0",
-            block.chainid,
-            address(this),
-            bytes32(0),
-            new uint256[](0)
-        );
+        return (bytes1(0), "MockAccount", "1.0", block.chainid, address(this), bytes32(0), new uint256[](0));
     }
 }

@@ -6,14 +6,26 @@ import "test/ComposabilityBase.t.sol";
 import {ComposableExecutionModule} from "contracts/composability/ComposableExecutionModule.sol";
 import {Storage} from "contracts/composability/Storage.sol";
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
-import {ComposableExecution, InputParam, OutputParam, ParamValueType, OutputParamFetcherType, InputParamFetcherType} from "contracts/composability/ComposableExecutionLib.sol";
-import { CONSTRAINT_TYPE_EQ, CONSTRAINT_TYPE_GTE, CONSTRAINT_TYPE_LTE, CONSTRAINT_TYPE_IN } from "contracts/types/Constants.sol";
+import {
+    ComposableExecution,
+    InputParam,
+    OutputParam,
+    ParamValueType,
+    OutputParamFetcherType,
+    InputParamFetcherType
+} from "contracts/composability/ComposableExecutionLib.sol";
+import {
+    CONSTRAINT_TYPE_EQ,
+    CONSTRAINT_TYPE_GTE,
+    CONSTRAINT_TYPE_LTE,
+    CONSTRAINT_TYPE_IN
+} from "contracts/types/Constants.sol";
 
 event Uint256Emitted(uint256 value);
+
 event Uint256Emitted2(uint256 value1, uint256 value2);
 
 contract DummyContract {
-
     uint256 internal foo;
 
     function A() external pure returns (uint256) {
@@ -53,7 +65,6 @@ contract DummyContract {
 }
 
 contract ComposableExecutionTest is ComposabilityTestBase {
-    
     Storage public storageContract;
     DummyContract public dummyContract;
 
@@ -118,9 +129,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         _inputParamUsingEqConstraints(address(mockAccount), address(mockAccount));
     }
 
-    // TODO:  
+    // TODO:
     // test that input value works correctly with all types: address, bool.
-
 
     // ================================ TEST SCENARIOS ================================
 
@@ -149,7 +159,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(address(dummyContract), abi.encodeWithSelector(DummyContract.A.selector), address(storageContract), SLOT_A)
+            paramData: abi.encode(
+                address(dummyContract), abi.encodeWithSelector(DummyContract.A.selector), address(storageContract), SLOT_A
+            )
         });
 
         // Call empty function and it should revert because dynamic param value doesnt meet constraints
@@ -206,7 +218,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(address(dummyContract), abi.encodeWithSelector(DummyContract.A.selector), address(storageContract), SLOT_A)
+            paramData: abi.encode(
+                address(dummyContract), abi.encodeWithSelector(DummyContract.A.selector), address(storageContract), SLOT_A
+            )
         });
 
         // Call empty function and it should revert because dynamic param value doesnt meet constraints
@@ -272,7 +286,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(address(dummyContract), abi.encodeWithSelector(DummyContract.A.selector), address(storageContract), SLOT_A)
+            paramData: abi.encode(
+                address(dummyContract), abi.encodeWithSelector(DummyContract.A.selector), address(storageContract), SLOT_A
+            )
         });
 
         // Call empty function and it should revert because dynamic param value doesnt meet constraints (value below lower bound)
@@ -341,7 +357,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(address(dummyContract), abi.encodeWithSelector(DummyContract.A.selector), address(storageContract), SLOT_A)
+            paramData: abi.encode(
+                address(dummyContract), abi.encodeWithSelector(DummyContract.A.selector), address(storageContract), SLOT_A
+            )
         });
 
         // Call empty function and it should revert because dynamic param value doesnt meet constraints
@@ -397,8 +415,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         });
 
         // Call function A through native executeComposable
-       IComposableExecution(address(account)).executeComposable(executions);
-        
+        IComposableExecution(address(account)).executeComposable(executions);
+
         // Verify the result (42) was stored correctly
         bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
         bytes32 storedValueA = storageContract.readStorage(namespace, SLOT_A);
@@ -470,7 +488,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         vm.stopPrank();
     }
-    
+
     // test static call output fetcher.
     // call getFoo() on dummyContract
     // store the result in the composability storage
@@ -484,7 +502,12 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(address(dummyContract), abi.encodeWithSelector(DummyContract.getFoo.selector), address(storageContract), SLOT_B)
+            paramData: abi.encode(
+                address(dummyContract),
+                abi.encodeWithSelector(DummyContract.getFoo.selector),
+                address(storageContract),
+                SLOT_B
+            )
         });
 
         ComposableExecution[] memory executions = new ComposableExecution[](1);
@@ -496,14 +519,13 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             outputParams: outputParams
         });
 
-
         uint256 expectedValue = 2517;
         dummyContract.setFoo(expectedValue);
         assertEq(dummyContract.getFoo(), expectedValue, "Value not stored correctly in the contract itself");
 
         IComposableExecution(address(account)).executeComposable(executions);
-        vm.stopPrank();        
-        
+        vm.stopPrank();
+
         bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
         bytes32 storedValue = storageContract.readStorage(namespace, SLOT_B);
         assertEq(uint256(storedValue), expectedValue, "Value not stored correctly in the composability storage");
@@ -540,7 +562,12 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParams_execution1[1] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(address(dummyContract), abi.encodeWithSelector(DummyContract.getFoo.selector), address(storageContract), SLOT_B)
+            paramData: abi.encode(
+                address(dummyContract),
+                abi.encodeWithSelector(DummyContract.getFoo.selector),
+                address(storageContract),
+                SLOT_B
+            )
         });
 
         bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
@@ -626,6 +653,10 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
         bytes32 storedValue = storageContract.readStorage(namespace, SLOT_A);
-        assertEq(address(uint160(uint256(storedValue))), address(dummyContract), "Value not stored correctly in the composability storage");
+        assertEq(
+            address(uint160(uint256(storedValue))),
+            address(dummyContract),
+            "Value not stored correctly in the composability storage"
+        );
     }
 }

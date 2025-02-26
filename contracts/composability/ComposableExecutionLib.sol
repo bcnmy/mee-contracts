@@ -2,7 +2,9 @@
 pragma solidity ^0.8.27;
 
 import "./Storage.sol";
-import { CONSTRAINT_TYPE_EQ, CONSTRAINT_TYPE_GTE, CONSTRAINT_TYPE_LTE, CONSTRAINT_TYPE_IN } from "../types/Constants.sol";
+import {
+    CONSTRAINT_TYPE_EQ, CONSTRAINT_TYPE_GTE, CONSTRAINT_TYPE_LTE, CONSTRAINT_TYPE_IN
+} from "../types/Constants.sol";
 
 import {console2} from "forge-std/console2.sol";
 
@@ -49,7 +51,6 @@ struct ComposableExecution {
 }
 
 library ComposableExecutionLib {
-
     error InvalidComposerInstructions();
     error InvalidParameterEncoding();
     error StorageReadFailed();
@@ -58,7 +59,11 @@ library ComposableExecutionLib {
     error ExecutionFailed();
     error InvalidConstraintType();
 
-    function processInputs(InputParam[] calldata inputParams, bytes4 functionSig) internal view returns (bytes memory) {
+    function processInputs(InputParam[] calldata inputParams, bytes4 functionSig)
+        internal
+        view
+        returns (bytes memory)
+    {
         bytes memory composedCalldata = abi.encodePacked(functionSig);
         uint256 length = inputParams.length;
         for (uint256 i; i < length; i++) {
@@ -113,37 +118,39 @@ library ComposableExecutionLib {
                 // TODO : USE OTHER ERROR
                 revert ExecutionFailed();
             }
-            Storage(targetStorageContract).writeStorage(targetStorageSlot, abi.decode(outputReturnData, (bytes32)), account);
+            Storage(targetStorageContract).writeStorage(
+                targetStorageSlot, abi.decode(outputReturnData, (bytes32)), account
+            );
         } else {
             revert InvalidOutputParamFetcherType();
         }
     }
 
-    function _validateConstraints(bytes memory rawValue, bytes calldata constraints) private pure returns (bytes memory) {
-        if (constraints.length == 0) { return rawValue; }
+    function _validateConstraints(bytes memory rawValue, bytes calldata constraints)
+        private
+        pure
+        returns (bytes memory)
+    {
+        if (constraints.length == 0) return rawValue;
         bytes1 constraintType = bytes1(constraints[0:1]);
         bytes32 rawValueBytes32 = bytes32(rawValue);
-        
+
         if (constraintType == CONSTRAINT_TYPE_EQ) {
             bytes32 constraintValue = bytes32(constraints[1:]);
-            require (rawValueBytes32 == constraintValue, "EQ constraint not met.");
+            require(rawValueBytes32 == constraintValue, "EQ constraint not met.");
         } else if (constraintType == CONSTRAINT_TYPE_GTE) {
             bytes32 constraintValue = bytes32(constraints[1:]);
-            require (rawValueBytes32 >= constraintValue, "GTE constraint not met.");
-        }
-        else if (constraintType == CONSTRAINT_TYPE_LTE) {
+            require(rawValueBytes32 >= constraintValue, "GTE constraint not met.");
+        } else if (constraintType == CONSTRAINT_TYPE_LTE) {
             bytes32 constraintValue = bytes32(constraints[1:]);
-            require (rawValueBytes32 <= constraintValue, "LTE constraint not met.");
-        }
-        else if (constraintType == CONSTRAINT_TYPE_IN) {
+            require(rawValueBytes32 <= constraintValue, "LTE constraint not met.");
+        } else if (constraintType == CONSTRAINT_TYPE_IN) {
             (bytes32 lowerBound, bytes32 upperBound) = abi.decode(constraints[1:], (bytes32, bytes32));
             require(rawValueBytes32 >= lowerBound && rawValueBytes32 <= upperBound, "IN constraint not met");
-        }
-        else {
+        } else {
             revert InvalidConstraintType();
         }
 
         return rawValue;
     }
-
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-library ERC2771Lib {    
+library ERC2771Lib {
     function get2771CallData(bytes calldata cd) internal view returns (bytes memory callData) {
         /// @solidity memory-safe-assembly
         (cd);
