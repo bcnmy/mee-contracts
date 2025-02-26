@@ -1,9 +1,10 @@
 [profile.default]
+evm_version = "cancun"
 src = "contracts"
 out = "out"
-#solc = "0.8.27"
+solc = "0.8.27"
 auto_detect_solc = true
 libs = ["node_modules", "lib"]
-via-ir = true
+via-ir = false
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
