@@ -2,9 +2,6 @@
 pragma solidity ^0.8.27;
 
 import "./Storage.sol";
-import {
-    CONSTRAINT_TYPE_EQ, CONSTRAINT_TYPE_GTE, CONSTRAINT_TYPE_LTE, CONSTRAINT_TYPE_IN
-} from "../types/Constants.sol";
 
 import {console2} from "forge-std/console2.sol";
 
@@ -49,6 +46,15 @@ struct ComposableExecution {
     InputParam[] inputParams;
     OutputParam[] outputParams;
 }
+
+enum ConstraintType {
+    EQ,
+    GTE,
+    LTE,
+    IN
+}
+
+error ConstraintNotMet(ConstraintType constraintType);
 
 library ComposableExecutionLib {
     error InvalidComposerInstructions();
@@ -96,31 +102,26 @@ library ComposableExecutionLib {
     }
 
     function processOutput(OutputParam calldata param, bytes memory returnData, address account) internal {
-        // TODO: What if function returns multiple values?
-        // Or something that is not bytes32
-        // Then returnData is not decodable as bytes32
+        // only static types are supported for now as return values
+        // can also process all the static return values which are before the first dynamic return value in the returnData
         if (param.fetcherType == OutputParamFetcherType.EXEC_RESULT) {
-            (address targetStorageContract, bytes32 targetSlot) = abi.decode(param.paramData, (address, bytes32));
-            Storage(targetStorageContract).writeStorage({
-                slot: targetSlot,
-                value: abi.decode(returnData, (bytes32)),
-                account: account
-            });
+            (uint256 returnValues, address targetStorageContract, bytes32 targetStorageSlot) = abi.decode(param.paramData, (uint256, address, bytes32));
+            _parseReturnDataAndWriteToStorage(returnValues, returnData, targetStorageContract, targetStorageSlot, account);
+        // same for static calls
         } else if (param.fetcherType == OutputParamFetcherType.STATIC_CALL) {
-            (
+            (   
+                uint256 returnValues,
                 address sourceContract,
                 bytes memory sourceCallData,
                 address targetStorageContract,
                 bytes32 targetStorageSlot
-            ) = abi.decode(param.paramData, (address, bytes, address, bytes32));
+            ) = abi.decode(param.paramData, (uint256, address, bytes, address, bytes32));
             (bool outputSuccess, bytes memory outputReturnData) = sourceContract.staticcall(sourceCallData);
             if (!outputSuccess) {
                 // TODO : USE OTHER ERROR
                 revert ExecutionFailed();
             }
-            Storage(targetStorageContract).writeStorage(
-                targetStorageSlot, abi.decode(outputReturnData, (bytes32)), account
-            );
+            _parseReturnDataAndWriteToStorage(returnValues, outputReturnData, targetStorageContract, targetStorageSlot, account);
         } else {
             revert InvalidOutputParamFetcherType();
         }
@@ -132,25 +133,39 @@ library ComposableExecutionLib {
         returns (bytes memory)
     {
         if (constraints.length == 0) return rawValue;
-        bytes1 constraintType = bytes1(constraints[0:1]);
+        ConstraintType constraintType = ConstraintType(uint8(constraints[0]));
         bytes32 rawValueBytes32 = bytes32(rawValue);
 
-        if (constraintType == CONSTRAINT_TYPE_EQ) {
+        if (constraintType == ConstraintType.EQ) {
             bytes32 constraintValue = bytes32(constraints[1:]);
-            require(rawValueBytes32 == constraintValue, "EQ constraint not met.");
-        } else if (constraintType == CONSTRAINT_TYPE_GTE) {
+            require(rawValueBytes32 == constraintValue, ConstraintNotMet(ConstraintType.EQ));
+        } else if (constraintType == ConstraintType.GTE) {
             bytes32 constraintValue = bytes32(constraints[1:]);
-            require(rawValueBytes32 >= constraintValue, "GTE constraint not met.");
-        } else if (constraintType == CONSTRAINT_TYPE_LTE) {
+            require(rawValueBytes32 >= constraintValue, ConstraintNotMet(ConstraintType.GTE));
+        } else if (constraintType == ConstraintType.LTE) {
             bytes32 constraintValue = bytes32(constraints[1:]);
-            require(rawValueBytes32 <= constraintValue, "LTE constraint not met.");
-        } else if (constraintType == CONSTRAINT_TYPE_IN) {
+            require(rawValueBytes32 <= constraintValue, ConstraintNotMet(ConstraintType.LTE));
+        } else if (constraintType == ConstraintType.IN) {
             (bytes32 lowerBound, bytes32 upperBound) = abi.decode(constraints[1:], (bytes32, bytes32));
-            require(rawValueBytes32 >= lowerBound && rawValueBytes32 <= upperBound, "IN constraint not met");
+            require(rawValueBytes32 >= lowerBound && rawValueBytes32 <= upperBound, ConstraintNotMet(ConstraintType.IN));
         } else {
             revert InvalidConstraintType();
         }
 
         return rawValue;
+    }
+
+    function _parseReturnDataAndWriteToStorage(uint256 returnValues, bytes memory returnData, address targetStorageContract, bytes32 targetStorageSlot, address account) internal {
+        for (uint256 i; i < returnValues; i++) {
+            bytes32 value;
+            assembly {
+                value := mload(add(returnData, add(0x20, mul(i, 0x20))))
+            }
+            Storage(targetStorageContract).writeStorage({
+                slot: keccak256(abi.encodePacked(targetStorageSlot, i)),
+                value: value,
+                account: account
+            });
+        }
     }
 }

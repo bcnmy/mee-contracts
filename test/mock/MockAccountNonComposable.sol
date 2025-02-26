@@ -119,6 +119,9 @@ contract MockAccountNonComposable is IAccount {
     fallback(bytes calldata callData) external payable returns (bytes memory) {
         (bool success, bytes memory result) =
             address(handler).call{value: msg.value}(ERC2771Lib.get2771CallData(callData));
+        if (!success) {
+            revert(string(result));
+        }
         emit MockAccountFallback(callData, msg.value);
     }
 
