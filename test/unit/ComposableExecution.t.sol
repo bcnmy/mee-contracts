@@ -53,6 +53,10 @@ contract DummyContract {
     function getBool() external view returns (bool) {
         return true;
     }
+
+    function returnMultipleValues() external view returns (uint256, address, bytes32, bool) {
+        return (2517, address(this), keccak256("DUMMY"), true);
+    }
 }
 
 contract ComposableExecutionTest is ComposabilityTestBase {
@@ -403,5 +407,44 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         bytes32 SLOT_A_0 = keccak256(abi.encodePacked(SLOT_A, uint256(0)));
         bytes32 storedValue = storageContract.readStorage(namespace, SLOT_A_0);
         assertTrue(uint8(uint256(storedValue)) == 1, "Value not stored correctly in the composability storage");
+    }
+
+    function outputExecResultMultipleValues(address account, address caller) internal {
+        vm.startPrank(ENTRYPOINT_V07_ADDRESS);
+
+        InputParam[] memory inputParams = new InputParam[](0);
+        
+        OutputParam[] memory outputParams = new OutputParam[](1);
+        outputParams[0] = OutputParam({
+            fetcherType: OutputParamFetcherType.EXEC_RESULT,
+            valueType: ParamValueType.UINT256,
+            paramData: abi.encode(4, address(storageContract), SLOT_A)
+        });
+
+        ComposableExecution[] memory executions = new ComposableExecution[](1);
+        executions[0] = ComposableExecution({
+            to: address(dummyContract),
+            value: 0, // no value sent
+            functionSig: DummyContract.returnMultipleValues.selector,
+            inputParams: inputParams,
+            outputParams: outputParams
+        });
+
+        IComposableExecution(address(account)).executeComposable(executions);
+        vm.stopPrank();
+
+        bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
+        bytes32 SLOT_A_0 = keccak256(abi.encodePacked(SLOT_A, uint256(0)));
+        bytes32 SLOT_A_1 = keccak256(abi.encodePacked(SLOT_A, uint256(1)));
+        bytes32 SLOT_A_2 = keccak256(abi.encodePacked(SLOT_A, uint256(2)));
+        bytes32 SLOT_A_3 = keccak256(abi.encodePacked(SLOT_A, uint256(3)));
+        bytes32 storedValue0 = storageContract.readStorage(namespace, SLOT_A_0);
+        bytes32 storedValue1 = storageContract.readStorage(namespace, SLOT_A_1);
+        bytes32 storedValue2 = storageContract.readStorage(namespace, SLOT_A_2);
+        bytes32 storedValue3 = storageContract.readStorage(namespace, SLOT_A_3);
+        assertEq(uint256(storedValue0), 2517, "Value 0 not stored correctly in the composability storage");
+        assertEq(address(uint160(uint256(storedValue1))), address(dummyContract), "Value 1 not stored correctly in the composability storage");
+        assertEq(storedValue2, keccak256("DUMMY"), "Value 2 not stored correctly in the composability storage");
+        assertEq(uint8(uint256(storedValue3)), 1, "Value 3 not stored correctly in the composability storage");
     }
 }

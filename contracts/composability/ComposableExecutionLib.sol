@@ -88,6 +88,7 @@ library ComposableExecutionLib {
     }
 
     function processOutput(OutputParam calldata param, bytes memory returnData, address account) internal {
+        // only static types are supported for now as return values
         if (param.fetcherType == OutputParamFetcherType.EXEC_RESULT) {
             (uint256 returnValues, address targetStorageContract, bytes32 targetSlot) = abi.decode(param.paramData, (uint256, address, bytes32));
             for (uint256 i; i < returnValues; i++) {
