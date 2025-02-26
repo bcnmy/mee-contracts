@@ -8,20 +8,23 @@ import {ModeLib} from "erc7579/lib/ModeLib.sol";
 import {ExecutionLib} from "erc7579/lib/ExecutionLib.sol";
 import {ERC7579FallbackBase} from "@rhinestone/module-bases/src/ERC7579FallbackBase.sol";
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
-import {ComposableExecutionLib, InputParam, OutputParam, ComposableExecution} from "contracts/composability/ComposableExecutionLib.sol";
+import {
+    ComposableExecutionLib,
+    InputParam,
+    OutputParam,
+    ComposableExecution
+} from "contracts/composability/ComposableExecutionLib.sol";
 import {IGetEntryPoint} from "contracts/interfaces/IGetEntryPoint.sol";
 
 /**
  * @title Composable Execution Module: Executor and Fallback
  * @dev A module for ERC-7579 accounts that enables composable transactions execution
  */
-
 contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579FallbackBase {
-    
     using ComposableExecutionLib for InputParam[];
     using ComposableExecutionLib for OutputParam[];
 
-    error ModuleAlreadyInitialized();    
+    error ModuleAlreadyInitialized();
     error ExecutionFailed();
     error OnlyEntryPointOrAccount();
     error InsufficientMsgValue();
@@ -44,7 +47,7 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
         address sender = _msgSender();
         require(sender == ENTRY_POINT || sender == msg.sender, OnlyEntryPointOrAccount());
 
-        // we can not use erc-7579 batch mode here because we may need to compose 
+        // we can not use erc-7579 batch mode here because we may need to compose
         // the next call in the batch based on the execution result of the previous call
         uint256 length = executions.length;
         uint256 aggregateValue = 0;
@@ -54,8 +57,7 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
             require(msg.value >= aggregateValue, InsufficientMsgValue());
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
             bytes[] memory returnData = IERC7579Account(msg.sender).executeFromExecutor(
-                ModeLib.encodeSimpleSingle(), 
-                ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
+                ModeLib.encodeSimpleSingle(), ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
             );
             execution.outputParams.processOutputs(returnData[0], msg.sender);
         }
@@ -75,6 +77,4 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     function isModuleType(uint256 moduleTypeId) external pure override returns (bool) {
         return moduleTypeId == TYPE_EXECUTOR || moduleTypeId == TYPE_FALLBACK;
     }
-
-
 }

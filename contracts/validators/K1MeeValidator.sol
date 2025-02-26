@@ -7,7 +7,15 @@ import {ISessionValidator} from "contracts/interfaces/ISessionValidator.sol";
 import {EnumerableSet} from "EnumerableSet4337/EnumerableSet4337.sol";
 import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
 import {ERC7739Validator} from "erc7739Validator/ERC7739Validator.sol";
-import {SIG_TYPE_SIMPLE, SIG_TYPE_ON_CHAIN, SIG_TYPE_ERC20_PERMIT, EIP1271_SUCCESS, EIP1271_FAILED, MODULE_TYPE_STATELESS_VALIDATOR, SIG_TYPE_MEE_FLOW} from "contracts/types/Constants.sol";
+import {
+    SIG_TYPE_SIMPLE,
+    SIG_TYPE_ON_CHAIN,
+    SIG_TYPE_ERC20_PERMIT,
+    EIP1271_SUCCESS,
+    EIP1271_FAILED,
+    MODULE_TYPE_STATELESS_VALIDATOR,
+    SIG_TYPE_MEE_FLOW
+} from "contracts/types/Constants.sol";
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
 import {PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
@@ -21,20 +29,19 @@ import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
  *        - Simple (Super Tx hash is signed)
  *        - On-chain Tx (Super Tx hash is appended to a regular txn and signed)
  *        - ERC-2612 Permit (Super Tx hash is pasted into deadline field of the ERC-2612 Permit and signed)
- * 
+ *
  *        Further improvements:
  *        - Further gas optimizations
  *        - Use EIP-712 to make superTx hash not blind => use 7739 for the MEE 1271 flows
- *        
+ *
  *        Using erc7739 for MEE flows makes no sense currently because user signs blind hashes anyways
  *        (except permit mode, but the superTx hash is still blind in it).
  *        So we just hash smart account address into the og hash for 1271 MEE flow currently.
  *        In future full scale 7739 will replace it when superTx hash is 712 and transparent.
- *        
+ *
  */
 
 contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
-    
     using EnumerableSet for EnumerableSet.AddressSet;
     /*//////////////////////////////////////////////////////////////////////////
                             CONSTANTS & STORAGE
@@ -153,7 +160,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         external
         override
         returns (uint256)
-    {   
+    {
         bytes4 sigType = bytes4(userOp.signature[0:4]);
         address owner = getOwner(userOp.sender);
 
@@ -186,8 +193,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         virtual
         override
         returns (bytes4 sigValidationResult)
-    {   
-        if (bytes3(signature[0:3]) != SIG_TYPE_MEE_FLOW) { 
+    {
+        if (bytes3(signature[0:3]) != SIG_TYPE_MEE_FLOW) {
             // Non MEE 7739 flow
             // goes to ERC7739Validator to apply 7739 magic and then returns back
             // to this contract's _erc1271IsValidSignatureNowCalldata() method.
@@ -196,9 +203,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
             // non-7739 flow
             // hash the SA into the `hash` to protect against two SA's with same owner vector
             return _validateSignatureForOwner(
-                getOwner(msg.sender), 
-                keccak256(abi.encodePacked(hash, msg.sender)),
-                _erc1271UnwrapSignature(signature)
+                getOwner(msg.sender), keccak256(abi.encodePacked(hash, msg.sender)), _erc1271UnwrapSignature(signature)
             ) ? EIP1271_SUCCESS : EIP1271_FAILED;
         }
     }
@@ -273,9 +278,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         } else {
             // fallback flow => non MEE flow => no prefix
             return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
-        } 
+        }
     }
-
 
     /// @notice Checks if the smart account is initialized with an owner
     /// @param smartAccount The address of the smart account

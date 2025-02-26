@@ -15,7 +15,7 @@ library NoMeeFlowLib {
      */
     function validateUserOp(bytes32 userOpHash, bytes memory parsedSignature, address expectedSigner)
         internal
-        view 
+        view
         returns (uint256)
     {
         if (!EcdsaLib.isValidSignature(expectedSigner, userOpHash, parsedSignature)) {

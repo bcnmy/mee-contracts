@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import { Test, Vm, console2 } from "forge-std/Test.sol";
+import {Test, Vm, console2} from "forge-std/Test.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {EntryPoint} from "account-abstraction/core/EntryPoint.sol";
 import {PackedUserOperation, UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
@@ -20,11 +20,15 @@ import "contracts/types/Constants.sol";
 import {LibZip} from "solady/utils/LibZip.sol";
 import {ERC20Permit} from "openzeppelin/token/ERC20/extensions/ERC20Permit.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
-import {PERMIT_TYPEHASH, DecodedErc20PermitSig, DecodedErc20PermitSigShort, PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
+import {
+    PERMIT_TYPEHASH,
+    DecodedErc20PermitSig,
+    DecodedErc20PermitSigShort,
+    PermitValidatorLib
+} from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {ComposableExecutionModule} from "contracts/composability/ComposableExecutionModule.sol";
 
 contract BaseTest is Test {
-
     struct TestTemps {
         bytes32 userOpHash;
         bytes32 contents;
@@ -47,7 +51,7 @@ contract BaseTest is Test {
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0x57c6b773c86c7c891af9ba9aafa76da2dca20198b06532e2aebc6013c8044f11;
+    bytes32 constant NODE_PM_CODE_HASH = 0x181147b1c85d5151cd47c92a7e00e56335c9d2d5d19ed4b1406ba5b72e2b62a4;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address constant MEE_NODE_ADDRESS = 0x177EE170D31177Ee170D31177ee170d31177eE17;
@@ -61,7 +65,7 @@ contract BaseTest is Test {
     MockTarget internal mockTarget;
     address nodePmDeployer = address(0x011a23423423423);
 
-    function setUp() public virtual {        
+    function setUp() public virtual {
         setupEntrypoint();
         deployMEEEntryPoint();
         vm.deal(MEE_NODE_ADDRESS, 1_000 ether);
@@ -93,7 +97,7 @@ contract BaseTest is Test {
 
     function setupEntrypoint() internal {
         if (block.chainid == 31337) {
-            if(address(ENTRYPOINT) != address(0)){
+            if (address(ENTRYPOINT) != address(0)) {
                 return;
             }
             ENTRYPOINT = new EntryPoint();
@@ -113,11 +117,7 @@ contract BaseTest is Test {
         uint256 preVerificationGasLimit,
         uint128 verificationGasLimit,
         uint128 callGasLimit
-    )
-        internal
-        view
-        returns (PackedUserOperation memory userOp)
-    {
+    ) internal view returns (PackedUserOperation memory userOp) {
         uint256 nonce = ENTRYPOINT.getNonce(account, 0);
         userOp = buildPackedUserOp(account, nonce, verificationGasLimit, callGasLimit, preVerificationGasLimit);
         userOp.callData = callData;
@@ -131,7 +131,7 @@ contract BaseTest is Test {
     /// @param nonce The nonce
     /// @return userOp The built user operation
     function buildPackedUserOp(
-        address sender, 
+        address sender,
         uint256 nonce,
         uint128 verificationGasLimit,
         uint128 callGasLimit,
@@ -150,7 +150,11 @@ contract BaseTest is Test {
         });
     }
 
-    function signUserOp(Vm.Wallet memory wallet, PackedUserOperation memory userOp) internal view returns (bytes memory) {
+    function signUserOp(Vm.Wallet memory wallet, PackedUserOperation memory userOp)
+        internal
+        view
+        returns (bytes memory)
+    {
         bytes32 opHash = ENTRYPOINT.getUserOpHash(userOp);
         opHash = MessageHashUtils.toEthSignedMessageHash(opHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wallet.privateKey, opHash);
@@ -167,8 +171,11 @@ contract BaseTest is Test {
         Vm.Wallet memory wallet,
         bytes4 sigType
     ) internal view returns (PackedUserOperation memory) {
-        uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
-        userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
+        uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
+            + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
+        userOp.paymasterAndData = makePMAndDataForOwnPM(
+            address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage
+        );
         userOp.signature = signUserOp(wallet, userOp);
         if (sigType != bytes4(0)) {
             userOp.signature = abi.encodePacked(sigType, userOp.signature);
@@ -176,26 +183,34 @@ contract BaseTest is Test {
         return userOp;
     }
 
-    function duplicateUserOpAndIncrementNonce(PackedUserOperation memory userOp, Vm.Wallet memory userOpSigner) internal view returns (PackedUserOperation memory) {
+    function duplicateUserOpAndIncrementNonce(PackedUserOperation memory userOp, Vm.Wallet memory userOpSigner)
+        internal
+        view
+        returns (PackedUserOperation memory)
+    {
         PackedUserOperation memory newUserOp = userOp.deepCopy();
         newUserOp.nonce = userOp.nonce + 1;
         newUserOp.signature = signUserOp(userOpSigner, newUserOp);
         return newUserOp;
     }
 
-    function cloneUserOpToAnArray(PackedUserOperation memory userOp, Vm.Wallet memory userOpSigner, uint256 numOfClones) internal view returns (PackedUserOperation[] memory) {
-        PackedUserOperation[] memory userOps = new PackedUserOperation[](numOfClones+1);
+    function cloneUserOpToAnArray(PackedUserOperation memory userOp, Vm.Wallet memory userOpSigner, uint256 numOfClones)
+        internal
+        view
+        returns (PackedUserOperation[] memory)
+    {
+        PackedUserOperation[] memory userOps = new PackedUserOperation[](numOfClones + 1);
         userOps[0] = userOp;
         for (uint256 i = 0; i < numOfClones; i++) {
             assertEq(userOps[i].nonce, i);
-            userOps[i+1] = duplicateUserOpAndIncrementNonce(userOps[i], userOpSigner);
+            userOps[i + 1] = duplicateUserOpAndIncrementNonce(userOps[i], userOpSigner);
         }
         return userOps;
     }
 
     function buildLeavesOutOfUserOps(
-        PackedUserOperation[] memory userOps, 
-        uint48 lowerBoundTimestamp, 
+        PackedUserOperation[] memory userOps,
+        uint48 lowerBoundTimestamp,
         uint48 upperBoundTimestamp
     ) internal view returns (bytes32[] memory) {
         bytes32[] memory leaves = new bytes32[](userOps.length);
@@ -205,9 +220,12 @@ contract BaseTest is Test {
         }
         return leaves;
     }
-                // ==== SIMPLE SUPER TX UTILS ====
+    // ==== SIMPLE SUPER TX UTILS ====
 
-    function makeSimpleSuperTx(PackedUserOperation[] memory userOps, Vm.Wallet memory superTxSigner) internal returns (PackedUserOperation[] memory) {
+    function makeSimpleSuperTx(PackedUserOperation[] memory userOps, Vm.Wallet memory superTxSigner)
+        internal
+        returns (PackedUserOperation[] memory)
+    {
         PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
         uint48 lowerBoundTimestamp = uint48(block.timestamp);
         uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
@@ -222,17 +240,9 @@ contract BaseTest is Test {
         for (uint256 i = 0; i < userOps.length; i++) {
             superTxUserOps[i] = userOps[i].deepCopy();
             bytes32[] memory proof = tree.getProof(leaves, i);
-            bytes memory signature = 
-                abi.encodePacked(
-                    SIG_TYPE_SIMPLE,
-                    abi.encode(
-                        root,
-                        lowerBoundTimestamp,
-                        upperBoundTimestamp,
-                        proof,
-                        superTxHashSignature
-                    )
-            );            
+            bytes memory signature = abi.encodePacked(
+                SIG_TYPE_SIMPLE, abi.encode(root, lowerBoundTimestamp, upperBoundTimestamp, proof, superTxHashSignature)
+            );
             superTxUserOps[i].signature = signature;
         }
         return superTxUserOps;
@@ -250,8 +260,8 @@ contract BaseTest is Test {
         bytes32[] memory leaves = new bytes32[](total);
 
         bytes32 hash;
-        for(uint256 i=0; i<total; i++) {
-            if (i/2 == 0) {
+        for (uint256 i = 0; i < total; i++) {
+            if (i / 2 == 0) {
                 hash = keccak256(abi.encode(baseHash, i));
             } else {
                 hash = keccak256(abi.encodePacked(keccak256(abi.encode(baseHash, i)), address(mockAccount)));
@@ -265,7 +275,7 @@ contract BaseTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(superTxSigner.privateKey, root);
         bytes memory superTxHashSignature = abi.encodePacked(r, s, v);
 
-        for(uint256 i=0; i<total; i++) {
+        for (uint256 i = 0; i < total; i++) {
             bytes32[] memory proof = tree.getProof(leaves, i);
             bytes memory signature = abi.encodePacked(SIG_TYPE_SIMPLE, abi.encode(root, proof, superTxHashSignature));
             meeSigs[i] = signature;
@@ -273,14 +283,14 @@ contract BaseTest is Test {
         return meeSigs;
     }
 
-                // ==== PERMIT SUPER TX UTILS ====
+    // ==== PERMIT SUPER TX UTILS ====
 
     function makePermitSuperTx(
-            PackedUserOperation[] memory userOps,
-            IERC20Permit token, 
-            Vm.Wallet memory signer,
-            address spender, 
-            uint256 amount
+        PackedUserOperation[] memory userOps,
+        IERC20Permit token,
+        Vm.Wallet memory signer,
+        address spender,
+        uint256 amount
     ) internal returns (PackedUserOperation[] memory) {
         PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
         uint48 lowerBoundTimestamp = uint48(block.timestamp);
@@ -297,7 +307,7 @@ contract BaseTest is Test {
                 signer.addr,
                 spender,
                 amount,
-                token.nonces(signer.addr),//nonce
+                token.nonces(signer.addr), //nonce
                 root //we use deadline field to store the super tx root hash
             )
         );
@@ -317,7 +327,7 @@ contract BaseTest is Test {
                         token: token,
                         spender: spender,
                         domainSeparator: token.DOMAIN_SEPARATOR(),
-                        amount: amount,                    
+                        amount: amount,
                         nonce: token.nonces(signer.addr),
                         isPermitTx: i == 0 ? true : false,
                         superTxHash: root,
@@ -349,8 +359,8 @@ contract BaseTest is Test {
 
         bytes32[] memory leaves = new bytes32[](total);
 
-        for(uint256 i=0; i<total; i++) {
-            if (i/2 == 0) {
+        for (uint256 i = 0; i < total; i++) {
+            if (i / 2 == 0) {
                 leaves[i] = keccak256(abi.encode(baseHash, i));
             } else {
                 leaves[i] = keccak256(abi.encodePacked(keccak256(abi.encode(baseHash, i)), spender));
@@ -366,19 +376,19 @@ contract BaseTest is Test {
                 signer.addr,
                 spender,
                 amount,
-                token.nonces(signer.addr),//nonce
+                token.nonces(signer.addr), //nonce
                 root //we use deadline field to store the super tx root hash
             )
         );
 
-        bytes32 dataHashToSign = MessageHashUtils.toTypedDataHash(token.DOMAIN_SEPARATOR(), structHash); 
+        bytes32 dataHashToSign = MessageHashUtils.toTypedDataHash(token.DOMAIN_SEPARATOR(), structHash);
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.privateKey, dataHashToSign);
 
-        for(uint256 i=0; i<total; i++) {
+        for (uint256 i = 0; i < total; i++) {
             bytes32[] memory proof = tree.getProof(leaves, i);
             bytes memory signature = abi.encodePacked(
-                SIG_TYPE_ERC20_PERMIT, 
+                SIG_TYPE_ERC20_PERMIT,
                 abi.encode(
                     DecodedErc20PermitSigShort({
                         spender: spender,
@@ -401,7 +411,7 @@ contract BaseTest is Test {
     //                  ========== ON CHAIN TXN MODE ==========
 
     function makeOnChainTxnSuperTx(
-        PackedUserOperation[] memory userOps, 
+        PackedUserOperation[] memory userOps,
         Vm.Wallet memory superTxSigner,
         bytes memory serializedTx
     ) internal returns (PackedUserOperation[] memory) {
@@ -444,8 +454,8 @@ contract BaseTest is Test {
 
         bytes32[] memory leaves = new bytes32[](total);
 
-        for(uint256 i=0; i<total; i++) {
-            if (i/2 == 0) {
+        for (uint256 i = 0; i < total; i++) {
+            if (i / 2 == 0) {
                 leaves[i] = keccak256(abi.encode(baseHash, i));
             } else {
                 leaves[i] = keccak256(abi.encodePacked(keccak256(abi.encode(baseHash, i)), smartAccount));
@@ -458,20 +468,14 @@ contract BaseTest is Test {
         //console2.log("super tx root");
         //console2.logBytes32(root);
 
-        for(uint256 i=0; i<total; i++) {
+        for (uint256 i = 0; i < total; i++) {
             bytes32[] memory proof = tree.getProof(leaves, i);
-            bytes memory signature = abi.encodePacked(
-                SIG_TYPE_ON_CHAIN, 
-                serializedTx,
-                abi.encodePacked(proof), 
-                uint8(proof.length)
-            );
+            bytes memory signature =
+                abi.encodePacked(SIG_TYPE_ON_CHAIN, serializedTx, abi.encodePacked(proof), uint8(proof.length));
             meeSigs[i] = signature;
         }
         return meeSigs;
     }
-
-
 
     // ============ WALLET UTILS ============
 
@@ -489,42 +493,36 @@ contract BaseTest is Test {
 
     // ============ USER OP UTILS ============
 
-    function unpackMaxPriorityFeePerGasMemory(PackedUserOperation memory userOp)
-    internal pure returns (uint256) {
+    function unpackMaxPriorityFeePerGasMemory(PackedUserOperation memory userOp) internal pure returns (uint256) {
         return UserOperationLib.unpackHigh128(userOp.gasFees);
     }
 
-    function unpackMaxFeePerGasMemory(PackedUserOperation memory userOp)
-    internal pure returns (uint256) {
+    function unpackMaxFeePerGasMemory(PackedUserOperation memory userOp) internal pure returns (uint256) {
         return UserOperationLib.unpackLow128(userOp.gasFees);
     }
 
-    function unpackVerificationGasLimitMemory(PackedUserOperation memory userOp)
-    internal pure returns (uint256) {
+    function unpackVerificationGasLimitMemory(PackedUserOperation memory userOp) internal pure returns (uint256) {
         return UserOperationLib.unpackHigh128(userOp.accountGasLimits);
     }
 
-    function unpackCallGasLimitMemory(PackedUserOperation memory userOp)
-    internal pure returns (uint256) {
+    function unpackCallGasLimitMemory(PackedUserOperation memory userOp) internal pure returns (uint256) {
         return UserOperationLib.unpackLow128(userOp.accountGasLimits);
     }
 
     // ============ PM DATA UTILS ============
 
     function makePMAndDataForOwnPM(
-        address nodePM, 
-        uint128 pmValidationGasLimit, 
-        uint128 pmPostOpGasLimit, 
-        uint256 maxGasLimit, 
+        address nodePM,
+        uint128 pmValidationGasLimit,
+        uint128 pmPostOpGasLimit,
+        uint256 maxGasLimit,
         uint256 premiumPercentage
     ) internal view returns (bytes memory) {
         return abi.encodePacked(
-            nodePM, 
+            nodePM,
             pmValidationGasLimit, // pm validation gas limit
             pmPostOpGasLimit, // pm post-op gas limit
             premiumPercentage
         );
     }
-
 }
-

@@ -25,11 +25,24 @@ enum ParamValueType {
     BOOL
 }
 
+enum ConstraintType {
+    EQ,
+    GTE,
+    LTE,
+    IN
+}
+
+struct Constraint {
+    ConstraintType constraintType;
+    bytes referenceData;
+}
+
 // Structure to define parameter composition
 struct InputParam {
     InputParamFetcherType fetcherType; // How to fetch the parameter
     ParamValueType valueType; // What type of parameter to fetch
     bytes paramData;
+    Constraint[] constraints;
 }
 
 struct OutputParam {
@@ -46,16 +59,22 @@ struct ComposableExecution {
     OutputParam[] outputParams;
 }
 
-library ComposableExecutionLib {
+error ConstraintNotMet(ConstraintType constraintType);
 
+library ComposableExecutionLib {
     error InvalidComposerInstructions();
     error InvalidParameterEncoding();
     error StorageReadFailed();
     error InvalidReturnDataHandling();
     error InvalidOutputParamFetcherType();
     error ExecutionFailed();
+    error InvalidConstraintType();
 
-    function processInputs(InputParam[] calldata inputParams, bytes4 functionSig) internal view returns (bytes memory) {
+    function processInputs(InputParam[] calldata inputParams, bytes4 functionSig)
+        internal
+        view
+        returns (bytes memory)
+    {
         bytes memory composedCalldata = abi.encodePacked(functionSig);
         uint256 length = inputParams.length;
         for (uint256 i; i < length; i++) {
@@ -67,6 +86,7 @@ library ComposableExecutionLib {
     // TODO: change all abi.decodes to calldata slicing
     function processInput(InputParam calldata param) internal view returns (bytes memory) {
         if (param.fetcherType == InputParamFetcherType.RAW_BYTES) {
+            _validateConstraints(param.paramData, param.constraints);
             return param.paramData;
         } else if (param.fetcherType == InputParamFetcherType.STATIC_CALL) {
             (address contractAddr, bytes memory callData) = abi.decode(param.paramData, (address, bytes));
@@ -74,6 +94,7 @@ library ComposableExecutionLib {
             if (!success) {
                 revert ExecutionFailed();
             }
+            _validateConstraints(returnData, param.constraints);
             return returnData;
         } else {
             revert InvalidParameterEncoding();
@@ -110,6 +131,33 @@ library ComposableExecutionLib {
             _parseReturnDataAndWriteToStorage(returnValues, outputReturnData, targetStorageContract, targetStorageSlot, account);
         } else {
             revert InvalidOutputParamFetcherType();
+        }
+    }
+
+    function _validateConstraints(bytes memory rawValue, Constraint[] calldata constraints)
+        private
+        pure
+    {
+        if (constraints.length > 0) {
+            for (uint256 i; i < constraints.length; i++) {
+                Constraint memory constraint = constraints[i];
+                bytes32 returnValue;
+                assembly {
+                    returnValue := mload(add(rawValue, add(0x20, mul(i, 0x20))))
+                }
+                if (constraint.constraintType == ConstraintType.EQ) {
+                    require(returnValue == bytes32(constraint.referenceData), ConstraintNotMet(ConstraintType.EQ));
+                } else if (constraint.constraintType == ConstraintType.GTE) {
+                    require(returnValue >= bytes32(constraint.referenceData), ConstraintNotMet(ConstraintType.GTE));
+                } else if (constraint.constraintType == ConstraintType.LTE) {
+                    require(returnValue <= bytes32(constraint.referenceData), ConstraintNotMet(ConstraintType.LTE));
+                } else if (constraint.constraintType == ConstraintType.IN) {
+                    (bytes32 lowerBound, bytes32 upperBound) = abi.decode(constraint.referenceData, (bytes32, bytes32));
+                    require(returnValue >= lowerBound && returnValue <= upperBound, ConstraintNotMet(ConstraintType.IN));
+                } else {
+                    revert InvalidConstraintType();
+                }
+            }
         }
     }
 
