@@ -7,67 +7,7 @@ import {ComposableExecutionModule} from "contracts/composability/ComposableExecu
 import {Storage} from "contracts/composability/Storage.sol";
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
 import "contracts/composability/ComposableExecutionLib.sol";
-
-event Uint256Emitted(uint256 value);
-
-event Uint256Emitted2(uint256 value1, uint256 value2);
-event AddressEmitted(address addr);
-event Bytes32Emitted(bytes32 slot);
-event BoolEmitted(bool flag);
-
-contract DummyContract {
-    uint256 internal foo;
-
-    function A() external pure returns (uint256) {
-        return 42;
-    }
-
-    function B(uint256 value) external pure returns (uint256) {
-        // Return the input value multiplied by 2
-        return value * 2;
-    }
-
-    function getFoo() external view returns (uint256) {
-        return foo;
-    }
-
-    function setFoo(uint256 value) external {
-        foo = value;
-    }
-
-    function emitUint256(uint256 value) external {
-        emit Uint256Emitted(value);
-    }
-
-    function swap(uint256 exactInput, uint256 minOutput) external returns (uint256 output1) {
-        emit Uint256Emitted2(exactInput, minOutput);
-        output1 = exactInput + 1;
-        emit Uint256Emitted(output1);
-    }
-
-    function stake(uint256 toStake, uint256 foo) external {
-        emit Uint256Emitted2(toStake, foo);
-    }
-
-    function getAddress() external view returns (address) {
-        return address(this);
-    }
-
-    function getBool() external view returns (bool) {
-        return true;
-    }
-
-    function returnMultipleValues() external view returns (uint256, address, bytes32, bool) {
-        return (2517, address(this), keccak256("DUMMY"), true);
-    }
-
-    function acceptMultipleValues(uint256 value1, address addr, bytes32 slot, bool flag) external {
-        emit Uint256Emitted(value1);
-        emit AddressEmitted(addr);
-        emit Bytes32Emitted(slot);
-        emit BoolEmitted(flag);
-    }
-}
+import "test/mock/DummyContract.sol";
 
 contract ComposableExecutionTest is ComposabilityTestBase {
     Storage public storageContract;
@@ -180,8 +120,10 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         // via native executeComposable
         _inputStaticCallMultipleValues(address(mockAccount), address(mockAccount));
     }
-
+    
+    // =================================================================================
     // ================================ TEST SCENARIOS ================================
+    // =================================================================================
 
     function _inputParamUsingGteConstraints(address account, address caller) internal {
         Constraint[] memory constraints = new Constraint[](1);

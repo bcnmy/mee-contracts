@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-// TODO: USE IT AS DEPENDENCY INSTEAD
 import {IExecutor} from "erc7579/interfaces/IERC7579Module.sol";
 import {IERC7579Account} from "erc7579/interfaces/IERC7579Account.sol";
 import {ModeLib} from "erc7579/lib/ModeLib.sol";
@@ -28,15 +27,10 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     error ExecutionFailed();
     error OnlyEntryPointOrAccount();
     error InsufficientMsgValue();
-
-    address internal immutable ENTRY_POINT;
+    error InvalidDataLength();
 
     /// @notice Mapping of smart account addresses to their respective module installation
-    mapping(address => bool) public override isInitialized;
-
-    constructor(address _entryPoint) {
-        ENTRY_POINT = _entryPoint;
-    }
+    mapping(address => address) private entryPoints;
 
     /**
      * @notice Executes a composable transaction with dynamic parameter composition and return value handling
@@ -45,7 +39,7 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     function executeComposable(ComposableExecution[] calldata executions) external payable {
         // access control
         address sender = _msgSender();
-        require(sender == ENTRY_POINT || sender == msg.sender, OnlyEntryPointOrAccount());
+        require(sender == entryPoints[msg.sender] || sender == msg.sender, OnlyEntryPointOrAccount());
 
         // we can not use erc-7579 batch mode here because we may need to compose
         // the next call in the batch based on the execution result of the previous call
@@ -56,24 +50,43 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
             aggregateValue += execution.value;
             require(msg.value >= aggregateValue, InsufficientMsgValue());
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
-            bytes[] memory returnData = IERC7579Account(msg.sender).executeFromExecutor(
-                ModeLib.encodeSimpleSingle(), ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
-            );
+            bytes[] memory returnData; 
+            if (execution.to != address(0)) {
+                returnData = IERC7579Account(msg.sender).executeFromExecutor({
+                    mode: ModeLib.encodeSimpleSingle(),
+                    executionCalldata: ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
+                });
+            } else {
+                returnData = new bytes[](1);
+                returnData[0] = "";
+            }
             execution.outputParams.processOutputs(returnData[0], msg.sender);
         }
     }
-
-    function entryPoint() external view returns (address) {
-        return ENTRY_POINT;
+    
+    /// @dev returns the entry point address
+    function getEntryPoint(address account) external view returns (address) {
+        return entryPoints[account];
     }
 
+    /// @dev called when the module is installed
     function onInstall(bytes calldata data) external override {
-        require(!isInitialized[msg.sender], ModuleAlreadyInitialized());
-        isInitialized[msg.sender] = true;
+        require(entryPoints[msg.sender] == address(0), ModuleAlreadyInitialized());
+        require(data.length >= 20, InvalidDataLength());
+        entryPoints[msg.sender] = address(bytes20(data[0:20]));
     }
 
-    function onUninstall(bytes calldata data) external override {}
+    /// @dev returns true if the module is initialized for the given account
+    function isInitialized(address account) external view returns (bool) {
+        return entryPoints[account] != address(0);
+    }
 
+    /// @dev called when the module is uninstalled
+    function onUninstall(bytes calldata data) external override {
+        delete entryPoints[msg.sender];
+    }
+
+    /// @dev Reports that this module is an executor and a fallback module
     function isModuleType(uint256 moduleTypeId) external pure override returns (bool) {
         return moduleTypeId == TYPE_EXECUTOR || moduleTypeId == TYPE_FALLBACK;
     }

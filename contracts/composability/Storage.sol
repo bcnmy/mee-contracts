@@ -8,12 +8,7 @@ import "../interfaces/ILayerZeroEndpoint.sol";
  * @dev Contract to handle generic storage operations with cross-chain support
  */
 contract Storage {
-    error ReadFailed();
-    error WriteFailed();
     error SlotNotInitialized();
-    error InvalidDataLength();
-    error InvalidCrossChainCall();
-    error MessageFailed();
 
     // Mapping to track initialized slots
     mapping(bytes32 => bool) private initializedSlots;

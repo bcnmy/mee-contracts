@@ -18,7 +18,6 @@ abstract contract ComposableExecutionBase is IComposableExecution {
     // Feel free to override it to introduce additional access control or other checks
     function executeComposable(ComposableExecution[] calldata executions) external payable virtual;
 
-    // TODO: any space for optimization here?
     function _executeComposable(ComposableExecution[] calldata executions) internal {
         uint256 length = executions.length;
         uint256 aggregateValue = 0;
@@ -27,7 +26,12 @@ abstract contract ComposableExecutionBase is IComposableExecution {
             aggregateValue += execution.value;
             require(msg.value >= aggregateValue, InsufficientMsgValue());
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
-            bytes memory returnData = _executeAction(execution.to, execution.value, composedCalldata);
+            bytes memory returnData;
+            if (execution.to != address(0)) {
+                returnData = _executeAction(execution.to, execution.value, composedCalldata);
+            } else {
+                returnData = new bytes(0);
+            }
             execution.outputParams.processOutputs(returnData, address(this));
         }
     }
