@@ -60,6 +60,7 @@ struct ComposableExecution {
 }
 
 error ConstraintNotMet(ConstraintType constraintType);
+error Output_StaticCallFailed();
 
 library ComposableExecutionLib {
     error InvalidComposerInstructions();
@@ -125,8 +126,7 @@ library ComposableExecutionLib {
             ) = abi.decode(param.paramData, (uint256, address, bytes, address, bytes32));
             (bool outputSuccess, bytes memory outputReturnData) = sourceContract.staticcall(sourceCallData);
             if (!outputSuccess) {
-                // TODO : USE OTHER ERROR
-                revert ExecutionFailed();
+                revert Output_StaticCallFailed();
             }
             _parseReturnDataAndWriteToStorage(returnValues, outputReturnData, targetStorageContract, targetStorageSlot, account);
         } else {

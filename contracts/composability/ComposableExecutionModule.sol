@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-// TODO: USE IT AS DEPENDENCY INSTEAD
 import {IExecutor} from "erc7579/interfaces/IERC7579Module.sol";
 import {IERC7579Account} from "erc7579/interfaces/IERC7579Account.sol";
 import {ModeLib} from "erc7579/lib/ModeLib.sol";
@@ -56,9 +55,16 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
             aggregateValue += execution.value;
             require(msg.value >= aggregateValue, InsufficientMsgValue());
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
-            bytes[] memory returnData = IERC7579Account(msg.sender).executeFromExecutor(
-                ModeLib.encodeSimpleSingle(), ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
-            );
+            bytes[] memory returnData; 
+            if (execution.to != address(0)) {
+                returnData = IERC7579Account(msg.sender).executeFromExecutor({
+                    mode: ModeLib.encodeSimpleSingle(),
+                    executionCalldata: ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
+                });
+            } else {
+                returnData = new bytes[](1);
+                returnData[0] = "";
+            }
             execution.outputParams.processOutputs(returnData[0], msg.sender);
         }
     }
