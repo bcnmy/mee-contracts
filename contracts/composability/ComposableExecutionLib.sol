@@ -92,9 +92,6 @@ library ComposableExecutionLib {
     }
 
     // Process a single input parameter and return the composed calldata
-
-    // TODO: change all abi.decodes to calldata slicing
-
     function processInput(InputParam calldata param) internal view returns (bytes memory) {
         if (param.fetcherType == InputParamFetcherType.RAW_BYTES) {
             _validateConstraints(param.paramData, param.constraints);
@@ -132,17 +129,34 @@ library ComposableExecutionLib {
         // only static types are supported for now as return values
         // can also process all the static return values which are before the first dynamic return value in the returnData
         if (param.fetcherType == OutputParamFetcherType.EXEC_RESULT) {
-            (uint256 returnValues, address targetStorageContract, bytes32 targetStorageSlot) = abi.decode(param.paramData, (uint256, address, bytes32));
+            uint256 returnValues;
+            address targetStorageContract;
+            bytes32 targetStorageSlot;
+            bytes calldata paramData = param.paramData;
+            assembly {
+                returnValues := calldataload(paramData.offset)
+                targetStorageContract := calldataload(add(paramData.offset, 0x20))
+                targetStorageSlot := calldataload(add(paramData.offset, 0x40))
+            }
             _parseReturnDataAndWriteToStorage(returnValues, returnData, targetStorageContract, targetStorageSlot, account);
         // same for static calls
         } else if (param.fetcherType == OutputParamFetcherType.STATIC_CALL) {
-            (   
-                uint256 returnValues,
-                address sourceContract,
-                bytes memory sourceCallData,
-                address targetStorageContract,
-                bytes32 targetStorageSlot
-            ) = abi.decode(param.paramData, (uint256, address, bytes, address, bytes32));
+            uint256 returnValues;
+            address sourceContract;
+            bytes calldata sourceCallData;
+            address targetStorageContract;
+            bytes32 targetStorageSlot;
+            bytes calldata paramData = param.paramData;
+            assembly {
+                returnValues := calldataload(paramData.offset)
+                sourceContract := calldataload(add(paramData.offset, 0x20))
+                let s := calldataload(add(paramData.offset, 0x40))
+                let u := add(paramData.offset, s)
+                sourceCallData.offset := add(u, 0x20)
+                sourceCallData.length := calldataload(u)
+                targetStorageContract := calldataload(add(paramData.offset, 0x60))
+                targetStorageSlot := calldataload(add(paramData.offset, 0x80))
+            }
             (bool outputSuccess, bytes memory outputReturnData) = sourceContract.staticcall(sourceCallData);
             if (!outputSuccess) {
                 revert Output_StaticCallFailed();
