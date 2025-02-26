@@ -49,6 +49,10 @@ contract DummyContract {
     function getAddress() external view returns (address) {
         return address(this);
     }
+
+    function getBool() external view returns (bool) {
+        return true;
+    }
 }
 
 contract ComposableExecutionTest is ComposabilityTestBase {
@@ -364,5 +368,34 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
         bytes32 storedValue = storageContract.readStorage(namespace, SLOT_A);
         assertEq(address(uint160(uint256(storedValue))), address(dummyContract), "Value not stored correctly in the composability storage");
+    }
+
+    function _outputExecResultBool(address account, address caller) internal {
+        vm.startPrank(ENTRYPOINT_V07_ADDRESS);
+
+        InputParam[] memory inputParams = new InputParam[](0);
+
+        OutputParam[] memory outputParams = new OutputParam[](1);
+        outputParams[0] = OutputParam({
+            fetcherType: OutputParamFetcherType.EXEC_RESULT,
+            valueType: ParamValueType.BOOL,
+            paramData: abi.encode(address(storageContract), SLOT_A)
+        });
+
+        ComposableExecution[] memory executions = new ComposableExecution[](1);
+        executions[0] = ComposableExecution({
+            to: address(dummyContract),
+            value: 0, // no value sent
+            functionSig: DummyContract.getBool.selector,
+            inputParams: inputParams,
+            outputParams: outputParams
+        });
+
+        IComposableExecution(address(account)).executeComposable(executions);
+        vm.stopPrank();
+
+        bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
+        bytes32 storedValue = storageContract.readStorage(namespace, SLOT_A);
+        assertTrue(uint8(uint256(storedValue)) == 1, "Value not stored correctly in the composability storage");
     }
 }
