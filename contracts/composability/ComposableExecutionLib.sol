@@ -25,12 +25,24 @@ enum ParamValueType {
     BOOL
 }
 
+enum ConstraintType {
+    EQ,
+    GTE,
+    LTE,
+    IN
+}
+
+struct Constraint {
+    ConstraintType constraintType;
+    bytes referenceData;
+}
+
 // Structure to define parameter composition
 struct InputParam {
     InputParamFetcherType fetcherType; // How to fetch the parameter
     ParamValueType valueType; // What type of parameter to fetch
     bytes paramData;
-    bytes constraints;
+    Constraint[] constraints;
 }
 
 struct OutputParam {
@@ -45,13 +57,6 @@ struct ComposableExecution {
     bytes4 functionSig;
     InputParam[] inputParams;
     OutputParam[] outputParams;
-}
-
-enum ConstraintType {
-    EQ,
-    GTE,
-    LTE,
-    IN
 }
 
 error ConstraintNotMet(ConstraintType constraintType);
@@ -81,14 +86,16 @@ library ComposableExecutionLib {
     // TODO: change all abi.decodes to calldata slicing
     function processInput(InputParam calldata param) internal view returns (bytes memory) {
         if (param.fetcherType == InputParamFetcherType.RAW_BYTES) {
-            return _validateConstraints(param.paramData, param.constraints);
+            _validateConstraints(param.paramData, param.constraints);
+            return param.paramData;
         } else if (param.fetcherType == InputParamFetcherType.STATIC_CALL) {
             (address contractAddr, bytes memory callData) = abi.decode(param.paramData, (address, bytes));
             (bool success, bytes memory returnData) = contractAddr.staticcall(callData);
             if (!success) {
                 revert ExecutionFailed();
             }
-            return _validateConstraints(returnData, param.constraints);
+            _validateConstraints(returnData, param.constraints);
+            return returnData;
         } else {
             revert InvalidParameterEncoding();
         }
@@ -127,32 +134,31 @@ library ComposableExecutionLib {
         }
     }
 
-    function _validateConstraints(bytes memory rawValue, bytes calldata constraints)
+    function _validateConstraints(bytes memory rawValue, Constraint[] calldata constraints)
         private
         pure
-        returns (bytes memory)
     {
-        if (constraints.length == 0) return rawValue;
-        ConstraintType constraintType = ConstraintType(uint8(constraints[0]));
-        bytes32 rawValueBytes32 = bytes32(rawValue);
-
-        if (constraintType == ConstraintType.EQ) {
-            bytes32 constraintValue = bytes32(constraints[1:]);
-            require(rawValueBytes32 == constraintValue, ConstraintNotMet(ConstraintType.EQ));
-        } else if (constraintType == ConstraintType.GTE) {
-            bytes32 constraintValue = bytes32(constraints[1:]);
-            require(rawValueBytes32 >= constraintValue, ConstraintNotMet(ConstraintType.GTE));
-        } else if (constraintType == ConstraintType.LTE) {
-            bytes32 constraintValue = bytes32(constraints[1:]);
-            require(rawValueBytes32 <= constraintValue, ConstraintNotMet(ConstraintType.LTE));
-        } else if (constraintType == ConstraintType.IN) {
-            (bytes32 lowerBound, bytes32 upperBound) = abi.decode(constraints[1:], (bytes32, bytes32));
-            require(rawValueBytes32 >= lowerBound && rawValueBytes32 <= upperBound, ConstraintNotMet(ConstraintType.IN));
-        } else {
-            revert InvalidConstraintType();
+        if (constraints.length > 0) {
+            for (uint256 i; i < constraints.length; i++) {
+                Constraint memory constraint = constraints[i];
+                bytes32 returnValue;
+                assembly {
+                    returnValue := mload(add(rawValue, add(0x20, mul(i, 0x20))))
+                }
+                if (constraint.constraintType == ConstraintType.EQ) {
+                    require(returnValue == bytes32(constraint.referenceData), ConstraintNotMet(ConstraintType.EQ));
+                } else if (constraint.constraintType == ConstraintType.GTE) {
+                    require(returnValue >= bytes32(constraint.referenceData), ConstraintNotMet(ConstraintType.GTE));
+                } else if (constraint.constraintType == ConstraintType.LTE) {
+                    require(returnValue <= bytes32(constraint.referenceData), ConstraintNotMet(ConstraintType.LTE));
+                } else if (constraint.constraintType == ConstraintType.IN) {
+                    (bytes32 lowerBound, bytes32 upperBound) = abi.decode(constraint.referenceData, (bytes32, bytes32));
+                    require(returnValue >= lowerBound && returnValue <= upperBound, ConstraintNotMet(ConstraintType.IN));
+                } else {
+                    revert InvalidConstraintType();
+                }
+            }
         }
-
-        return rawValue;
     }
 
     function _parseReturnDataAndWriteToStorage(uint256 returnValues, bytes memory returnData, address targetStorageContract, bytes32 targetStorageSlot, address account) internal {
