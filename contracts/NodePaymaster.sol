@@ -13,7 +13,6 @@ import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol
  * @notice A paymaster every MEE Node should deploy.
  * It is used to sponsor userOps. Introduced for gas efficient MEE flow.
  */
-
 contract NodePaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
@@ -22,7 +21,7 @@ contract NodePaymaster is BasePaymaster {
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000;
     // PM.postOp() consumes around 44k. We add a buffer for EP penalty calc
     // and chains with non-standard gas pricing
-    uint256 private constant POST_OP_GAS = 49_999; 
+    uint256 private constant POST_OP_GAS = 49_999;
     mapping(bytes32 => bool) private executedUserOps;
 
     error EmptyMessageValue();
@@ -31,10 +30,8 @@ contract NodePaymaster is BasePaymaster {
     error Disabled();
     error OnlySponsorOwnStuff();
     error PostOpGasLimitTooLow();
-    constructor(
-        IEntryPoint _entryPoint,
-        address _meeNodeAddress
-    ) payable BasePaymaster(_entryPoint) {
+
+    constructor(IEntryPoint _entryPoint, address _meeNodeAddress) payable BasePaymaster(_entryPoint) {
         _transferOwnership(_meeNodeAddress);
     }
 
@@ -54,16 +51,17 @@ contract NodePaymaster is BasePaymaster {
         virtual
         override
         returns (bytes memory context, uint256 validationData)
-    {   
-        require(tx.origin == owner(), OnlySponsorOwnStuff()); 
+    {
+        require(tx.origin == owner(), OnlySponsorOwnStuff());
         uint256 premiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
         uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
         require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());
         context = abi.encode(
-            userOp.sender, 
-            userOp.unpackMaxFeePerGas(), 
-            userOp.preVerificationGas + userOp.unpackVerificationGasLimit() + userOp.unpackCallGasLimit() + userOp.unpackPaymasterVerificationGasLimit() + postOpGasLimit,
-            userOpHash, 
+            userOp.sender,
+            userOp.unpackMaxFeePerGas(),
+            userOp.preVerificationGas + userOp.unpackVerificationGasLimit() + userOp.unpackCallGasLimit()
+                + userOp.unpackPaymasterVerificationGasLimit() + postOpGasLimit,
+            userOpHash,
             premiumPercentage,
             postOpGasLimit
         );
@@ -85,14 +83,14 @@ contract NodePaymaster is BasePaymaster {
         internal
         virtual
         override
-    {  
+    {
         address sender;
         uint256 maxFeePerGas;
         uint256 maxGasLimit;
         bytes32 userOpHash;
         uint256 premiumPercentage;
         uint256 postOpGasLimit;
-        
+
         assembly {
             sender := calldataload(context.offset)
             maxFeePerGas := calldataload(add(context.offset, 0x20))
@@ -105,9 +103,9 @@ contract NodePaymaster is BasePaymaster {
         executedUserOps[userOpHash] = true;
 
         uint256 refund = _calculateRefund({
-            maxFeePerGas: maxFeePerGas, 
-            actualGasUsed: actualGasCost/actualUserOpFeePerGas, 
-            actualUserOpFeePerGas: actualUserOpFeePerGas, 
+            maxFeePerGas: maxFeePerGas,
+            actualGasUsed: actualGasCost / actualUserOpFeePerGas,
+            actualUserOpFeePerGas: actualUserOpFeePerGas,
             maxGasLimit: maxGasLimit,
             postOpGasLimit: postOpGasLimit,
             premiumPercentage: premiumPercentage
@@ -134,21 +132,23 @@ contract NodePaymaster is BasePaymaster {
         uint256 postOpGasLimit,
         uint256 premiumPercentage
     ) internal view returns (uint256 refund) {
-
         //account for postOpGas
-        actualGasUsed = actualGasUsed + postOpGasLimit;  
+        actualGasUsed = actualGasUsed + postOpGasLimit;
 
         // If there's unused gas, add penalty
         // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
         // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
-        // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
-        actualGasUsed += (maxGasLimit - actualGasUsed)/10;
-        
+        // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0
+        actualGasUsed += (maxGasLimit - actualGasUsed) / 10;
+
         // account for MEE Node premium
-        uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)) / PREMIUM_CALCULATION_BASE;
+        uint256 costWithPremium = (
+            actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)
+        ) / PREMIUM_CALCULATION_BASE;
 
         // as MEE_NODE charges user with the premium
-        uint256 maxCostWithPremium = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage) / PREMIUM_CALCULATION_BASE;
+        uint256 maxCostWithPremium =
+            maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage) / PREMIUM_CALCULATION_BASE;
 
         // We do not check for the case, when costWithPremium > maxCost
         // maxCost charged by the MEE Node should include the premium
@@ -162,7 +162,7 @@ contract NodePaymaster is BasePaymaster {
      * @dev check if the userOp was executed
      * @param userOpHash the hash of the userOp
      * @return executed true if the userOp was executed, false otherwise
-     */ 
+     */
     function wasUserOpExecuted(bytes32 userOpHash) public view returns (bool) {
         return executedUserOps[userOpHash];
     }
