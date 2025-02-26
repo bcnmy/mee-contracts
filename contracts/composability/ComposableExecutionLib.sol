@@ -14,8 +14,8 @@ enum InputParamFetcherType {
 }
 
 enum OutputParamFetcherType {
-    EXEC_RESULT,
-    STATIC_CALL
+    EXEC_RESULT, // The retuirn of the execution call
+    STATIC_CALL // Call to some other function
 }
 
 // Return value handling configuration
@@ -26,13 +26,15 @@ enum ParamValueType {
     BOOL
 }
 
+// Constraint type for parameter validation
 enum ConstraintType {
-    EQ,
-    GTE,
-    LTE,
-    IN
+    EQ, // Equal to
+    GTE, // Greater than or equal to
+    LTE, // Less than or equal to
+    IN // In range
 }
 
+// Constraint for parameter validation
 struct Constraint {
     ConstraintType constraintType;
     bytes referenceData;
@@ -46,12 +48,14 @@ struct InputParam {
     Constraint[] constraints;
 }
 
+// Structure to define return value handling
 struct OutputParam {
     OutputParamFetcherType fetcherType; // How to fetch the parameter
     ParamValueType valueType; // What type of parameter to fetch
     bytes paramData;
 }
 
+// Structure to define a composable execution
 struct ComposableExecution {
     address to;
     uint256 value;
@@ -63,6 +67,7 @@ struct ComposableExecution {
 error ConstraintNotMet(ConstraintType constraintType);
 error Output_StaticCallFailed();
 
+// Library for composable execution handling
 library ComposableExecutionLib {
     error InvalidComposerInstructions();
     error InvalidParameterEncoding();
@@ -72,6 +77,7 @@ library ComposableExecutionLib {
     error ExecutionFailed();
     error InvalidConstraintType();
 
+    // Process the input parameters and return the composed calldata
     function processInputs(InputParam[] calldata inputParams, bytes4 functionSig)
         internal
         view
@@ -85,13 +91,25 @@ library ComposableExecutionLib {
         return composedCalldata;
     }
 
+    // Process a single input parameter and return the composed calldata
+
     // TODO: change all abi.decodes to calldata slicing
+
     function processInput(InputParam calldata param) internal view returns (bytes memory) {
         if (param.fetcherType == InputParamFetcherType.RAW_BYTES) {
             _validateConstraints(param.paramData, param.constraints);
             return param.paramData;
         } else if (param.fetcherType == InputParamFetcherType.STATIC_CALL) {
-            (address contractAddr, bytes memory callData) = abi.decode(param.paramData, (address, bytes));
+            address contractAddr;
+            bytes calldata callData;
+            bytes calldata paramData = param.paramData;
+            assembly {
+                contractAddr := calldataload(paramData.offset)
+                let s := calldataload(add(paramData.offset, 0x20))
+                let u := add(paramData.offset, s)
+                callData.offset := add(u, 0x20)
+                callData.length := calldataload(u)
+            }
             (bool success, bytes memory returnData) = contractAddr.staticcall(callData);
             if (!success) {
                 revert ExecutionFailed();
