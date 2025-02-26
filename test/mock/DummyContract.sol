@@ -38,8 +38,8 @@ contract DummyContract {
         emit Uint256Emitted(output1);
     }
 
-    function stake(uint256 toStake, uint256 foo) external {
-        emit Uint256Emitted2(toStake, foo);
+    function stake(uint256 toStake, uint256 param2) external {
+        emit Uint256Emitted2(toStake, param2);
     }
 
     function getAddress() external view returns (address) {
