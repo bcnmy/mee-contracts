@@ -131,7 +131,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParamsA[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(storageContract, SLOT_A)
+            paramData: abi.encode(1, storageContract, SLOT_A)
         });
 
         ComposableExecution[] memory executions = new ComposableExecution[](1);
@@ -148,7 +148,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         
         // Verify the result (42) was stored correctly
         bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
-        bytes32 storedValueA = storageContract.readStorage(namespace, SLOT_A);
+        bytes32 SLOT_A_0 = keccak256(abi.encodePacked(SLOT_A, uint256(0)));
+        bytes32 storedValueA = storageContract.readStorage(namespace, SLOT_A_0);
         assertEq(uint256(storedValueA), 42, "Function A result not stored correctly");
 
         // Step 2: Call function B using the stored value from A
@@ -156,7 +157,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         inputParamsB[0] = InputParam({
             fetcherType: InputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A)))
+            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A_0)))
         });
 
         // Prepare return value config for function B
@@ -164,7 +165,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParamsB[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(storageContract, SLOT_B)
+            paramData: abi.encode(1, storageContract, SLOT_B)
         });
 
         ComposableExecution[] memory executionsB = new ComposableExecution[](1);
@@ -179,7 +180,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         IComposableExecution(address(account)).executeComposable(executionsB);
 
         // Verify the result (84 = 42 * 2) was stored correctly
-        bytes32 storedValueB = storageContract.readStorage(namespace, SLOT_B);
+        bytes32 SLOT_B_0 = keccak256(abi.encodePacked(SLOT_B, uint256(0)));
+        bytes32 storedValueB = storageContract.readStorage(namespace, SLOT_B_0);
         assertEq(uint256(storedValueB), 84, "Function B result not stored correctly");
 
         vm.stopPrank();
@@ -278,7 +280,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParams_execution1[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(address(storageContract), SLOT_A)
+            paramData: abi.encode(1, address(storageContract), SLOT_A)
         });
         outputParams_execution1[1] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
@@ -288,12 +290,14 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
 
+        bytes32 SLOT_A_0 = keccak256(abi.encodePacked(SLOT_A, uint256(0)));
+
         // second execution => call stake with the result of the first execution
         InputParam[] memory inputParams_execution2 = new InputParam[](2);
         inputParams_execution2[0] = InputParam({
             fetcherType: InputParamFetcherType.STATIC_CALL,
             valueType: ParamValueType.UINT256,
-            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A)))
+            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A_0)))
         });
         inputParams_execution2[1] = InputParam({
             fetcherType: InputParamFetcherType.STATIC_CALL,
@@ -329,7 +333,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         IComposableExecution(address(account)).executeComposable(executions);
 
         //check storage slots
-        bytes32 storedValueA = storageContract.readStorage(namespace, SLOT_A);
+        bytes32 storedValueA = storageContract.readStorage(namespace, SLOT_A_0);
         assertEq(uint256(storedValueA), expectedToStake, "Value not stored correctly in the composability storage");
         bytes32 storedValueB = storageContract.readStorage(namespace, SLOT_B);
         assertEq(uint256(storedValueB), input1, "Value not stored correctly in the composability storage");
@@ -350,7 +354,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
             valueType: ParamValueType.ADDRESS,
-            paramData: abi.encode(address(storageContract), SLOT_A)
+            paramData: abi.encode(1, address(storageContract), SLOT_A)
         });
 
         ComposableExecution[] memory executions = new ComposableExecution[](1);
@@ -366,7 +370,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         vm.stopPrank();
 
         bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
-        bytes32 storedValue = storageContract.readStorage(namespace, SLOT_A);
+        bytes32 SLOT_A_0 = keccak256(abi.encodePacked(SLOT_A, uint256(0)));
+        bytes32 storedValue = storageContract.readStorage(namespace, SLOT_A_0);
         assertEq(address(uint160(uint256(storedValue))), address(dummyContract), "Value not stored correctly in the composability storage");
     }
 
@@ -379,7 +384,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
             valueType: ParamValueType.BOOL,
-            paramData: abi.encode(address(storageContract), SLOT_A)
+            paramData: abi.encode(1, address(storageContract), SLOT_A)
         });
 
         ComposableExecution[] memory executions = new ComposableExecution[](1);
@@ -395,7 +400,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         vm.stopPrank();
 
         bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
-        bytes32 storedValue = storageContract.readStorage(namespace, SLOT_A);
+        bytes32 SLOT_A_0 = keccak256(abi.encodePacked(SLOT_A, uint256(0)));
+        bytes32 storedValue = storageContract.readStorage(namespace, SLOT_A_0);
         assertTrue(uint8(uint256(storedValue)) == 1, "Value not stored correctly in the composability storage");
     }
 }

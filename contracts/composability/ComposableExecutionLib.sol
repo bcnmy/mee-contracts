@@ -88,16 +88,19 @@ library ComposableExecutionLib {
     }
 
     function processOutput(OutputParam calldata param, bytes memory returnData, address account) internal {
-        // TODO: What if function returns multiple values?
-        // Or something that is not bytes32
-        // Then returnData is not decodable as bytes32
         if (param.fetcherType == OutputParamFetcherType.EXEC_RESULT) {
-            (address targetStorageContract, bytes32 targetSlot) = abi.decode(param.paramData, (address, bytes32));
-            Storage(targetStorageContract).writeStorage({
-                slot: targetSlot,
-                value: abi.decode(returnData, (bytes32)),
-                account: account
-            });
+            (uint256 returnValues, address targetStorageContract, bytes32 targetSlot) = abi.decode(param.paramData, (uint256, address, bytes32));
+            for (uint256 i; i < returnValues; i++) {
+                bytes32 value;
+                assembly {
+                    value := mload(add(returnData, add(0x20, mul(i, 0x20))))
+                }
+                Storage(targetStorageContract).writeStorage({
+                    slot: keccak256(abi.encodePacked(targetSlot, i)),
+                    value: value,
+                    account: account
+                });
+            }
         } else if (param.fetcherType == OutputParamFetcherType.STATIC_CALL) {
             (
                 address sourceContract,

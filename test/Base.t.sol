@@ -47,7 +47,7 @@ contract BaseTest is Test {
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0xc6f0a03003eadb3366120ed0517bb39c35edbbaa996d3980c23ba245eae408dd;
+    bytes32 constant NODE_PM_CODE_HASH = 0x57c6b773c86c7c891af9ba9aafa76da2dca20198b06532e2aebc6013c8044f11;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address constant MEE_NODE_ADDRESS = 0x177EE170D31177Ee170D31177ee170d31177eE17;
