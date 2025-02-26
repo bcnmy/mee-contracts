@@ -10,6 +10,9 @@ import {ComposableExecution, InputParam, OutputParam, ParamValueType, OutputPara
 
 event Uint256Emitted(uint256 value);
 event Uint256Emitted2(uint256 value1, uint256 value2);
+event AddressEmitted(address addr);
+event Bytes32Emitted(bytes32 slot);
+event BoolEmitted(bool flag);
 
 contract DummyContract {
 
@@ -56,6 +59,13 @@ contract DummyContract {
 
     function returnMultipleValues() external view returns (uint256, address, bytes32, bool) {
         return (2517, address(this), keccak256("DUMMY"), true);
+    }
+
+    function acceptMultipleValues(uint256 value1, address addr, bytes32 slot, bool flag) external {
+        emit Uint256Emitted(value1);
+        emit AddressEmitted(addr);
+        emit Bytes32Emitted(slot);
+        emit BoolEmitted(flag);
     }
 }
 
@@ -140,6 +150,14 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         // via native executeComposable
         _outputStaticCallMultipleValues(address(mockAccount), address(mockAccount));
+    }
+
+    function test_inputStaticCallMultipleValues_Success() public {
+        // via composability module
+        _inputStaticCallMultipleValues(address(mockAccountNonComposable), address(composabilityHandler));
+
+        // via native executeComposable
+        _inputStaticCallMultipleValues(address(mockAccount), address(mockAccount));
     }
 
 
@@ -511,4 +529,34 @@ contract ComposableExecutionTest is ComposabilityTestBase {
     }
 
     // test inputStaticCall with multiple return values
+    function _inputStaticCallMultipleValues(address account, address caller) internal {
+        vm.startPrank(ENTRYPOINT_V07_ADDRESS);
+
+        InputParam[] memory inputParams = new InputParam[](1);
+        inputParams[0] = InputParam({
+            fetcherType: InputParamFetcherType.STATIC_CALL,
+            valueType: ParamValueType.UINT256,
+            paramData: abi.encode(address(dummyContract), abi.encodeWithSelector(DummyContract.returnMultipleValues.selector))
+        });
+
+        OutputParam[] memory outputParams = new OutputParam[](0);
+
+        ComposableExecution[] memory executions = new ComposableExecution[](1);
+        executions[0] = ComposableExecution({
+            to: address(dummyContract),
+            value: 0, // no value sent
+            functionSig: DummyContract.acceptMultipleValues.selector,
+            inputParams: inputParams,
+            outputParams: outputParams
+        });
+
+        vm.expectEmit(address(dummyContract));
+        emit Uint256Emitted(2517);
+        emit AddressEmitted(address(dummyContract));
+        emit Bytes32Emitted(keccak256("DUMMY"));
+        emit BoolEmitted(true);
+
+        IComposableExecution(address(account)).executeComposable(executions);
+        vm.stopPrank();
+    }
 }
