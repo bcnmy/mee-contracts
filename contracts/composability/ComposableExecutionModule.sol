@@ -13,13 +13,15 @@ import {
     OutputParam,
     ComposableExecution
 } from "contracts/composability/ComposableExecutionLib.sol";
-import {IGetEntryPoint} from "contracts/interfaces/IGetEntryPoint.sol";
 
 /**
  * @title Composable Execution Module: Executor and Fallback
  * @dev A module for ERC-7579 accounts that enables composable transactions execution
  */
 contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579FallbackBase {
+
+    address public constant ENTRY_POINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
+
     using ComposableExecutionLib for InputParam[];
     using ComposableExecutionLib for OutputParam[];
 
@@ -27,7 +29,6 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     error ExecutionFailed();
     error OnlyEntryPointOrAccount();
     error InsufficientMsgValue();
-    error InvalidDataLength();
 
     /// @notice Mapping of smart account addresses to their respective module installation
     mapping(address => address) private entryPoints;
@@ -39,7 +40,11 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     function executeComposable(ComposableExecution[] calldata executions) external payable {
         // access control
         address sender = _msgSender();
-        require(sender == entryPoints[msg.sender] || sender == msg.sender, OnlyEntryPointOrAccount());
+        // in most cases, only first condition (against constant) will be checked
+        // so no extra sloads
+        require(sender == ENTRY_POINT_V07_ADDRESS || 
+                sender == entryPoints[msg.sender] || 
+                sender == msg.sender, OnlyEntryPointOrAccount());
 
         // we can not use erc-7579 batch mode here because we may need to compose
         // the next call in the batch based on the execution result of the previous call
@@ -63,17 +68,22 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
             execution.outputParams.processOutputs(returnData[0], msg.sender);
         }
     }
-    
+
+    /// @dev sets the entry point for the account
+    function setEntryPoint(address _entryPoint) external {
+        entryPoints[msg.sender] = _entryPoint;
+    }
+        
     /// @dev returns the entry point address
     function getEntryPoint(address account) external view returns (address) {
-        return entryPoints[account];
+        return entryPoints[account] == address(0) ? ENTRY_POINT_V07_ADDRESS : entryPoints[account];
     }
 
     /// @dev called when the module is installed
     function onInstall(bytes calldata data) external override {
-        require(entryPoints[msg.sender] == address(0), ModuleAlreadyInitialized());
-        require(data.length >= 20, InvalidDataLength());
-        entryPoints[msg.sender] = address(bytes20(data[0:20]));
+        if (data.length >= 20) {
+            entryPoints[msg.sender] = address(bytes20(data[0:20]));
+        }
     }
 
     /// @dev returns true if the module is initialized for the given account

@@ -70,9 +70,6 @@ contract MockAccountNonComposable is IAccount {
         (success, result) = to.call{value: value}(data);
     }
 
-    // TODO: rebuild this method as per ERC-7579 account interface
-    // TODO: make ComposableBase.t.sol
-
     function executeFromExecutor(ExecutionMode mode, bytes calldata executionCalldata)
         external
         payable

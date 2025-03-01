@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-import "../interfaces/ILayerZeroEndpoint.sol";
-
 /**
  * @title Storage
  * @dev Contract to handle generic storage operations with cross-chain support

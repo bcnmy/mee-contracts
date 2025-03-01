@@ -3,9 +3,6 @@ pragma solidity ^0.8.27;
 
 import "./Storage.sol";
 
-// TODO: remove this
-import {console2} from "forge-std/console2.sol";
-
 // Parameter type for composition
 enum InputParamFetcherType {
     RAW_BYTES, // Already encoded bytes
