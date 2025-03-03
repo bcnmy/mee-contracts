@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.23;
 
-import { IModule } from "erc7579/interfaces/IERC7579Module.sol";
+import {IModule} from "erc7579/interfaces/IERC7579Module.sol";
 
 uint256 constant ERC7579_MODULE_TYPE_STATELESS_VALIDATOR = 7;
 
@@ -18,11 +18,7 @@ uint256 constant ERC7579_MODULE_TYPE_STATELESS_VALIDATOR = 7;
  *  data the config data that is used to validate the signature
  */
 interface ISessionValidator is IModule {
-    function validateSignatureWithData(
-        bytes32 hash,
-        bytes calldata sig,
-        bytes calldata data
-    )
+    function validateSignatureWithData(bytes32 hash, bytes calldata sig, bytes calldata data)
         external
         view
         returns (bool validSig);

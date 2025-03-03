@@ -3,31 +3,35 @@ pragma solidity ^0.8.23;
 
 import {IAccount} from "account-abstraction/interfaces/IAccount.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
-import {IValidator, IFallback} from "erc7579/interfaces/IERC7579Module.sol";
+import {IValidator, IFallback, IExecutor} from "erc7579/interfaces/IERC7579Module.sol";
 import {IStatelessValidator} from "node_modules/@rhinestone/module-bases/src/interfaces/IStatelessValidator.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {ERC2771Lib} from "./lib/ERC2771Lib.sol";
 import {ComposableExecutionBase} from "contracts/composability/ComposableExecutionBase.sol";
-import {ComposableExecution} from "contracts/composability/ComposableExecutionLib.sol";
+import {ExecutionLib} from "erc7579/lib/ExecutionLib.sol";
+import {ModeLib, ModeCode as ExecutionMode, CallType, ExecType, CALLTYPE_SINGLE} from "erc7579/lib/ModeLib.sol";
 
 import {console2} from "forge-std/console2.sol";
 
-address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
-
-contract MockAccount is ComposableExecutionBase, IAccount {
+contract MockAccountNonComposable is IAccount {
     event MockAccountValidateUserOp(PackedUserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds);
     event MockAccountExecute(address to, uint256 value, bytes data);
     event MockAccountReceive(uint256 value);
     event MockAccountFallback(bytes callData, uint256 value);
 
     error ExecutionFailed();
-    error OnlyEntryPointOrSelf();
+    error OnlyExecutor();
 
     IValidator public validator;
     IFallback public handler;
+    IExecutor public executor;
 
-    constructor(address _validator, address _handler) {
+    using ExecutionLib for bytes;
+    using ModeLib for ExecutionMode;
+
+    constructor(address _validator, address _executor, address _handler) {
         validator = IValidator(_validator);
+        executor = IExecutor(_executor);
         handler = IFallback(_handler);
     }
 
@@ -66,20 +70,42 @@ contract MockAccount is ComposableExecutionBase, IAccount {
         (success, result) = to.call{value: value}(data);
     }
 
-    function executeComposable(ComposableExecution[] calldata executions) external payable override {
-        require(msg.sender == ENTRY_POINT_V07 || msg.sender == address(this), OnlyEntryPointOrSelf());
-        _executeComposable(executions);
+    function executeFromExecutor(ExecutionMode mode, bytes calldata executionCalldata)
+        external
+        payable
+        returns (bytes[] memory returnData)
+    {
+        require(msg.sender == address(executor), OnlyExecutor());
+
+        (CallType callType, ExecType execType,,) = mode.decode();
+        if (callType == CALLTYPE_SINGLE) {
+            returnData = new bytes[](1);
+            // support for single execution only
+            (address target, uint256 value, bytes calldata callData) = executionCalldata.decodeSingle();
+            returnData[0] = _execute(target, value, callData);
+        } else {
+            revert("Unsupported call type");
+        }
     }
 
-    function _executeAction(address to, uint256 value, bytes memory data)
+    function _execute(address target, uint256 value, bytes calldata callData)
         internal
-        override
-        returns (bytes memory returnData)
+        virtual
+        returns (bytes memory result)
     {
-        bool success;
-        (success, returnData) = to.call{value: value}(data);
-        if (!success) {
-            revert ExecutionFailed();
+        /// @solidity memory-safe-assembly
+        assembly {
+            result := mload(0x40)
+            calldatacopy(result, callData.offset, callData.length)
+            if iszero(call(gas(), target, value, result, callData.length, codesize(), 0x00)) {
+                // Bubble up the revert if the call reverts.
+                returndatacopy(result, 0x00, returndatasize())
+                revert(result, returndatasize())
+            }
+            mstore(result, returndatasize()) // Store the length.
+            let o := add(result, 0x20)
+            returndatacopy(o, 0x00, returndatasize()) // Copy the returndata.
+            mstore(0x40, add(o, returndatasize())) // Allocate the memory.
         }
     }
 
