@@ -46,16 +46,17 @@ contract BaseTest is Test {
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0xc98f74edd98795d6535e24958b712b853480a40fc281205479e9b0f5aa62c3d1;
+    bytes32 constant NODE_PM_CODE_HASH = 0x7e18943fa216a4963592af36720eb3d55fb05d74e710250e0ebc3c2451625430;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
-    address constant MEE_NODE_ADDRESS = 0x177EE170D31177Ee170D31177ee170d31177eE17;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
 
     IEntryPoint internal ENTRYPOINT;
     MEEEntryPoint internal MEE_ENTRYPOINT;
     NodePaymaster internal NODE_PAYMASTER;
     K1MeeValidator internal k1MeeValidator;
+    address internal MEE_NODE_ADDRESS;
+    Vm.Wallet internal MEE_NODE;
     
     MockTarget internal mockTarget;
     address nodePmDeployer = address(0x011a23423423423);
@@ -63,7 +64,9 @@ contract BaseTest is Test {
     function setUp() public virtual {        
         setupEntrypoint();
         deployMEEEntryPoint();
-        vm.deal(MEE_NODE_ADDRESS, 1_000 ether);
+        MEE_NODE = createAndFundWallet("MEE_NODE", 1_000 ether);
+        MEE_NODE_ADDRESS = MEE_NODE.addr;
+
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
@@ -150,10 +153,21 @@ contract BaseTest is Test {
     }
 
     function signUserOp(Vm.Wallet memory wallet, PackedUserOperation memory userOp) internal view returns (bytes memory) {
-        bytes32 opHash = ENTRYPOINT.getUserOpHash(userOp);
-        opHash = MessageHashUtils.toEthSignedMessageHash(opHash);
+        bytes32 opHash = MessageHashUtils.toEthSignedMessageHash(_getUserOpHash(userOp));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wallet.privateKey, opHash);
         return abi.encodePacked(r, s, v);
+    }
+
+    function addNodeMasterSig(PackedUserOperation memory userOp, Vm.Wallet memory nodeMaster) internal view returns (PackedUserOperation memory) {
+        bytes32 opHash = MessageHashUtils.toEthSignedMessageHash(_getUserOpHash(userOp));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(nodeMaster.privateKey, opHash);
+        bytes memory nodeMasterSig = abi.encodePacked(r, s, v);
+        userOp.signature = abi.encodePacked(nodeMasterSig, userOp.signature);
+        return userOp;
+    }
+
+    function _getUserOpHash(PackedUserOperation memory userOp) internal view returns (bytes32) {
+        return ENTRYPOINT.getUserOpHash(userOp);
     }
 
     // ============ MEE USER OP SUPER TX UTILS ============

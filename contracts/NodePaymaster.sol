@@ -7,6 +7,7 @@ import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPoint
 import "account-abstraction/core/Helpers.sol";
 import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
+import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
 
 /**
  * @title Node Paymaster
@@ -17,6 +18,7 @@ import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol
 contract NodePaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
+    using EcdsaLib for address;
 
     // 100% with 5 decimals precision
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000;
@@ -55,7 +57,7 @@ contract NodePaymaster is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {   
-        require(tx.origin == owner(), OnlySponsorOwnStuff()); 
+        require(_checkMeeNodeMasterSig(userOp.signature, userOpHash), OnlySponsorOwnStuff()); 
         uint256 premiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
         uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
         require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());
@@ -165,5 +167,11 @@ contract NodePaymaster is BasePaymaster {
      */ 
     function wasUserOpExecuted(bytes32 userOpHash) public view returns (bool) {
         return executedUserOps[userOpHash];
+    }
+
+    // TODO: Check if the assembly calldata slicing is cheaper
+    function _checkMeeNodeMasterSig(bytes calldata userOpSigData, bytes32 userOpHash) internal view returns (bool) {
+        bytes calldata nodeMasterSig = userOpSigData[:65];
+        return owner().isValidSignature(userOpHash, nodeMasterSig);
     }
 }
