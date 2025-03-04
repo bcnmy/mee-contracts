@@ -77,7 +77,7 @@ contract PMPerNodeTest is BaseTest {
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
 
-        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
@@ -130,7 +130,7 @@ contract PMPerNodeTest is BaseTest {
         userOps[0] = addNodeMasterSig(userOp, MEE_NODE);
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
-        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();

@@ -25,6 +25,12 @@ contract MockAccount is IAccount {
         if (address(validator) != address(0)) {
             vd = validator.validateUserOp(userOp, userOpHash);    
         }
+        assembly {
+            if missingAccountFunds {
+                // Ignore failure (it's EntryPoint's job to verify, not the account's).
+                pop(call(gas(), caller(), missingAccountFunds, codesize(), 0x00, codesize(), 0x00))
+            }
+        }
         // if validator is not set, return 0 = success
     }
 

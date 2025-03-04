@@ -51,6 +51,8 @@ contract BaseTest is Test {
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
 
+    address constant MEE_NODE_EXECUTOR_EOA = address(0xa11cebeefb0bdecaf0);
+
     IEntryPoint internal ENTRYPOINT;
     MEEEntryPoint internal MEE_ENTRYPOINT;
     NodePaymaster internal NODE_PAYMASTER;
@@ -247,6 +249,7 @@ contract BaseTest is Test {
                     )
             );            
             superTxUserOps[i].signature = signature;
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE);
         }
         return superTxUserOps;
     }
@@ -345,6 +348,7 @@ contract BaseTest is Test {
             );
 
             superTxUserOps[i].signature = signature;
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE);
         }
         return superTxUserOps;
     }
@@ -442,6 +446,7 @@ contract BaseTest is Test {
                 upperBoundTimestamp
             );
             superTxUserOps[i].signature = signature;
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE);
         }
         return superTxUserOps;
     }

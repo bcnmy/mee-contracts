@@ -3,6 +3,8 @@ import { anvil } from "viem/chains";
 import { createWalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
+// npx tsx get-serialized-txn.ts
+
 //todo => get it as a param
 const privateKey = "0x46a31f1f917570aa8a60b2339f1a0469cbce2feb53c705746446981548845b3b"; //random wallet pk that is used in the tests
 
@@ -21,11 +23,11 @@ const encodedTransfer = "0xa9059cbb000000000000000000000000c7183455a4c133ae27077
 //const superTxHash = "0x1d69c064e2bd749cfe331b748be1dd5324cbf4e1839dda346cbb741a3e3169d1"
 
 // some hash for non validate flow
-const superTxHash = "0x09baefff4ddcd60b2bab8827d1811b6422ca3de2d953ccd24f1d8f40b23e0924"
+const superTxHash = "0x2546ebbc42c960937dadc932bbc42ba10dbeb8489e0c50ab628fbd9b3120aff9"
 
 // concat transfer and superTxHash
 const data = concat([encodedTransfer, superTxHash])
-console.log(data);
+// console.log(data);
 
 const request = await wallet.prepareTransactionRequest({ 
     to: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
@@ -36,6 +38,6 @@ const request = await wallet.prepareTransactionRequest({
 
 const serializedTransaction = await wallet.signTransaction(request)
 
-console.log(serializedTransaction);  
+console.log("Serialized transaction: ", serializedTransaction);  
 
 
