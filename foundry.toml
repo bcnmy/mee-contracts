@@ -1,7 +1,8 @@
 [profile.default]
 src = "contracts"
 out = "out"
-#solc = "0.8.27"
+solc = "0.8.27"
+evm_version = "prague"
 auto_detect_solc = true
 libs = ["node_modules", "lib"]
 via-ir = true
