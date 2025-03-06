@@ -32,10 +32,10 @@ contract DeployMEE is Script {
 
     address constant MEE_NODE_ADDRESS = 0x4b19129EA58431A06D01054f69AcAe5de50633b6;
 
-    bytes32 constant MEE_EP_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
-    bytes32 constant MEE_K1_VALIDATOR_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
-    bytes32 constant ETH_FORWARDER_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
-    bytes32 constant NODE_PM_BICO_SALT = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    bytes32 constant NODE_PM_BICO_SALT = 0x00000000000000000000000000000000000000009dbeea830d92b603e4e69cb0; // => 0x0000008b0e7612B02D57d716E6C91fCBb8871e56;
+    bytes32 constant MEE_EP_SALT = 0x00000000000000000000000000000000000000005099cea4ac48bc03cc6676d6; // => 0x00000088E0ebbFDaa725441fA1d35e509B15E136; 
+    bytes32 constant MEE_K1_VALIDATOR_SALT = 0x0000000000000000000000000000000000000000eaa184d30a3e6a00421ff5e0; // => 0x0000000081c2635362C66dbBAb2c644FBac3af43;
+    bytes32 constant ETH_FORWARDER_SALT = 0x00000000000000000000000000000000000000000f80327a9fcbf603fe0768e1; //=> 0x0000002825824461DFcC87C3F46330B54421137a 
 
     function setUp() public {
      
@@ -52,7 +52,7 @@ contract DeployMEE is Script {
     }
 
     function _checkMEEAddresses() internal {
-        // Node Paymaster contract
+        // =================== Node Paymaster contract
         bytes memory bytecode = vm.getCode("scripts/bash-deploy/artifacts/NodePaymaster/NodePaymaster.json");
         bytes memory args = abi.encode(ENTRY_POINT_V07, MEE_NODE_ADDRESS);
         address expectedNodePaymaster = DeterministicDeployerLib.computeAddress(bytecode, args, NODE_PM_BICO_SALT);
@@ -61,6 +61,10 @@ contract DeployMEE is Script {
             codeSize := extcodesize(expectedNodePaymaster)
         }
         console2.log("Node Paymaster Addr: ", expectedNodePaymaster, " || >> Code Size: ", codeSize);
+
+        console2.log("Node PM initcode for salt generation: ");
+        console2.logBytes32(keccak256(abi.encodePacked(bytecode, args)));
+
         address noBroadcastDeployedNodePMAddress;
         //No broadcast
         if (codeSize == 0) {
@@ -75,7 +79,7 @@ contract DeployMEE is Script {
         }
         //console2.logBytes32(expectedNodePMCodeHash);
 
-        // MEE Entry Point
+        // =================== MEE Entry Point ===================
         bytecode = vm.getCode("scripts/bash-deploy/artifacts/MEEEntryPoint/MEEEntryPoint.json");
         args = abi.encode(ENTRY_POINT_V07, expectedNodePMCodeHash);
 
@@ -90,7 +94,7 @@ contract DeployMEE is Script {
         console2.log("MEE EP initcode for salt generation: ");
         console2.logBytes32(keccak256(abi.encodePacked(bytecode, args)));
 
-        // K1 MEE Validator
+        // =================== K1 MEE Validator ===================
         bytecode = vm.getCode("scripts/bash-deploy/artifacts/K1MeeValidator/K1MeeValidator.json");
 
         address meeK1Validator = DeterministicDeployerLib.computeAddress(bytecode, MEE_K1_VALIDATOR_SALT);
@@ -101,13 +105,19 @@ contract DeployMEE is Script {
         
         console2.log("MEE K1 Validator Addr: ", meeK1Validator, " || >> Code Size: ", codeSize);
 
-        // ETH Forwarder contract
+        console2.log("MEE K1 Validator initcode for salt generation: ");
+        console2.logBytes32(keccak256(bytecode));
+
+        // =================== ETH Forwarder contract ===================
         bytecode = vm.getCode("scripts/bash-deploy/artifacts/EtherForwarder/EtherForwarder.json");
         address expectedEtherForwarder = DeterministicDeployerLib.computeAddress(bytecode, ETH_FORWARDER_SALT);
         assembly {
             codeSize := extcodesize(expectedEtherForwarder)
         }
         console2.log("ETH Forwarder Addr: ", expectedEtherForwarder, " || >> Code Size: ", codeSize);
+
+        console2.log("ETH Forwarder initcode for salt generation: ");
+        console2.logBytes32(keccak256(bytecode));
 
     }
 
