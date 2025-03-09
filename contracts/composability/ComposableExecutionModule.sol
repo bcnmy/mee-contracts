@@ -57,7 +57,7 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
             bytes[] memory returnData; 
             if (execution.to != address(0)) {
-                returnData = IERC7579Account(msg.sender).executeFromExecutor({
+                returnData = IERC7579Account(msg.sender).executeFromExecutor{value:execution.value}({
                     mode: ModeLib.encodeSimpleSingle(),
                     executionCalldata: ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
                 });
