@@ -14,9 +14,6 @@ contract Storage {
     // Mapping to track length of dynamic data
     mapping(bytes32 => uint256) private dynamicDataLength;
 
-    event CrossChainStorageSet(uint16 srcChainId, bytes32 slot, bytes32 value);
-    event RemoteStorageSet(uint16 dstChainId, bytes32 slot, bytes32 value);
-
     /**
      * @dev Internal function to write a value to a specific storage slot
      */

@@ -7,8 +7,10 @@ event Uint256Emitted2(uint256 value1, uint256 value2);
 event AddressEmitted(address addr);
 event Bytes32Emitted(bytes32 slot);
 event BoolEmitted(bool flag);
+event Received(uint256 amount);
 
 contract DummyContract {
+
     uint256 internal foo;
 
     function A() external pure returns (uint256) {
@@ -28,25 +30,28 @@ contract DummyContract {
         foo = value;
     }
 
-    function emitUint256(uint256 value) external {
+    function emitUint256(uint256 value) external payable {
         emit Uint256Emitted(value);
+        emit Received(msg.value);
     }
 
-    function swap(uint256 exactInput, uint256 minOutput) external returns (uint256 output1) {
+    function swap(uint256 exactInput, uint256 minOutput) external payable returns (uint256 output1) {
         emit Uint256Emitted2(exactInput, minOutput);
         output1 = exactInput + 1;
         emit Uint256Emitted(output1);
+        emit Received(msg.value);
     }
 
-    function stake(uint256 toStake, uint256 param2) external {
+    function stake(uint256 toStake, uint256 param2) external payable {
         emit Uint256Emitted2(toStake, param2);
+        emit Received(msg.value);
     }
 
     function getAddress() external view returns (address) {
         return address(this);
     }
 
-    function getBool() external view returns (bool) {
+    function getBool() external pure returns (bool) {
         return true;
     }
 

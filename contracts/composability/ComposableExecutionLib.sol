@@ -66,10 +66,7 @@ error Output_StaticCallFailed();
 
 // Library for composable execution handling
 library ComposableExecutionLib {
-    error InvalidComposerInstructions();
     error InvalidParameterEncoding();
-    error StorageReadFailed();
-    error InvalidReturnDataHandling();
     error InvalidOutputParamFetcherType();
     error ExecutionFailed();
     error InvalidConstraintType();

@@ -10,6 +10,8 @@ import "contracts/composability/ComposableExecutionLib.sol";
 import "test/mock/DummyContract.sol";
 
 contract ComposableExecutionTest is ComposabilityTestBase {
+
+    event MockAccountReceive(uint256 amount);
     Storage public storageContract;
     DummyContract public dummyContract;
 
@@ -140,7 +142,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             fetcherType: InputParamFetcherType.RAW_BYTES,
             valueType: ParamValueType.UINT256,
             paramData: abi.encode(42),
-            //constraints: abi.encodePacked(ConstraintType.GTE, bytes32(uint256(43))) // value must be >= 43 but 42 provided
             constraints: constraints
         });
 
@@ -150,7 +151,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             fetcherType: InputParamFetcherType.RAW_BYTES,
             valueType: ParamValueType.UINT256,
             paramData: abi.encode(43),
-            //constraints: abi.encodePacked(ConstraintType.GTE, bytes32(uint256(43))) // value must be >= 42
             constraints: constraints
         });
 
@@ -452,10 +452,17 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         // Prepare return value config for function B
         OutputParam[] memory outputParams = new OutputParam[](0);
 
+        uint256 valueToSendExecution;
+        uint256 valueToSendToComposableModule;
+        if (address(account) == address(mockAccountNonComposable)) {
+            valueToSendExecution = 1e15;
+            valueToSendToComposableModule = 2 * valueToSendExecution;
+        }
+
         ComposableExecution[] memory executions = new ComposableExecution[](1);
         executions[0] = ComposableExecution({
             to: address(dummyContract),
-            value: 0, // no value sent
+            value: valueToSendExecution,
             functionSig: DummyContract.emitUint256.selector,
             inputParams: inputParams,
             outputParams: outputParams
@@ -463,7 +470,12 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         vm.expectEmit(address(dummyContract));
         emit Uint256Emitted(1);
-        IComposableExecution(address(account)).executeComposable(executions);
+        if (address(account) == address(mockAccountNonComposable)) {
+            emit Received(valueToSendExecution);
+            vm.expectEmit(address(mockAccountNonComposable));
+            emit MockAccountReceive(valueToSendExecution);
+        }
+        IComposableExecution(address(account)).executeComposable{value: valueToSendToComposableModule}(executions);
 
         vm.stopPrank();
     }
@@ -572,17 +584,19 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         });
         OutputParam[] memory outputParams_execution2 = new OutputParam[](0);
 
+        uint256 valueToSend = 1e15;
+
         ComposableExecution[] memory executions = new ComposableExecution[](2);
         executions[0] = ComposableExecution({
             to: address(dummyContract),
-            value: 0, // no value sent
+            value: valueToSend,
             functionSig: DummyContract.swap.selector,
             inputParams: inputParams_execution1,
             outputParams: outputParams_execution1
         });
         executions[1] = ComposableExecution({
             to: address(dummyContract),
-            value: 0, // no value sent
+            value: valueToSend,
             functionSig: DummyContract.stake.selector,
             inputParams: inputParams_execution2,
             outputParams: outputParams_execution2
@@ -596,7 +610,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         emit Uint256Emitted(expectedToStake);
         // stake emits input params: first param is from swap, second param is from getFoo which is just input1
         emit Uint256Emitted2(expectedToStake, input1);
-        IComposableExecution(address(account)).executeComposable(executions);
+        emit Received(valueToSend);
+        IComposableExecution(address(account)).executeComposable{value: 2 * valueToSend}(executions);
 
         //check storage slots
         bytes32 storedValueA = storageContract.readStorage(namespace, SLOT_A_0);
