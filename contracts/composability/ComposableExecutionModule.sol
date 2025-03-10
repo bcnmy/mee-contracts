@@ -92,6 +92,7 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
 
     /// @dev called when the module is installed
     function onInstall(bytes calldata data) external override {
+        require(entryPoints[msg.sender] == address(0), AlreadyInitialized(msg.sender));
         if (data.length >= 20) {
             entryPoints[msg.sender] = address(bytes20(data[0:20]));
         }
