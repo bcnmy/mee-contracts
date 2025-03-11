@@ -140,7 +140,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory invalidInputParams = new InputParam[](1);
         invalidInputParams[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(42),
             constraints: constraints
         });
@@ -149,7 +148,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory validInputParams = new InputParam[](1);
         validInputParams[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(43),
             constraints: constraints
         });
@@ -194,7 +192,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory invalidInputParams = new InputParam[](1);
         invalidInputParams[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(42),
             //constraints: abi.encodePacked(ConstraintType.LTE, bytes32(uint256(41))) // value must be <= 41 but 42 provided
             constraints: constraints
@@ -204,7 +201,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory validInputParams = new InputParam[](1);
         validInputParams[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(41),
             //constraints: abi.encodePacked(ConstraintType.LTE, bytes32(uint256(41))) // value must be <= 41
             constraints: constraints
@@ -249,7 +245,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory invalidInputParamsA = new InputParam[](1);
         invalidInputParamsA[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(40),
             //constraints: abi.encodePacked(ConstraintType.IN, abi.encode(bytes32(uint256(41)), bytes32(uint256(43)))) // value must be between 41 & 43
             constraints: constraints
@@ -259,7 +254,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory invalidInputParamsB = new InputParam[](1);
         invalidInputParamsB[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(44),
             //constraints: abi.encodePacked(ConstraintType.IN, abi.encode(bytes32(uint256(41)), bytes32(uint256(43)))) // value must be between 41 & 43
             constraints: constraints
@@ -269,7 +263,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory validInputParams = new InputParam[](1);
         validInputParams[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(42),
             //constraints: abi.encodePacked(ConstraintType.IN, abi.encode(bytes32(uint256(41)), bytes32(uint256(43)))) // value must be between 41 & 43
             constraints: constraints
@@ -326,7 +319,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory invalidInputParams = new InputParam[](1);
         invalidInputParams[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(43),
             //constraints: abi.encodePacked(ConstraintType.EQ, bytes32(uint256(42))) // value must be exactly 42
             constraints: constraints
@@ -336,7 +328,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory validInputParams = new InputParam[](1);
         validInputParams[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(42),
             //constraints: abi.encodePacked(ConstraintType.EQ, bytes32(uint256(42))) // value must be exactly 42
             constraints: constraints
@@ -378,7 +369,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         OutputParam[] memory outputParamsA = new OutputParam[](1);
         outputParamsA[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(1, storageContract, SLOT_A)
         });
 
@@ -404,7 +394,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory inputParamsB = new InputParam[](1);
         inputParamsB[0] = InputParam({
             fetcherType: InputParamFetcherType.STATIC_CALL,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A_0))),
             constraints: emptyConstraints
         });
@@ -413,7 +402,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         OutputParam[] memory outputParamsB = new OutputParam[](1);
         outputParamsB[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(1, storageContract, SLOT_B)
         });
 
@@ -444,7 +432,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory inputParams = new InputParam[](1);
         inputParams[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(1),
             constraints: emptyConstraints
         });
@@ -492,7 +479,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         OutputParam[] memory outputParams = new OutputParam[](1);
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(
                 1,
                 address(dummyContract),
@@ -535,13 +521,11 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory inputParams_execution1 = new InputParam[](2);
         inputParams_execution1[0] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(input1),
             constraints: emptyConstraints
         });
         inputParams_execution1[1] = InputParam({
             fetcherType: InputParamFetcherType.RAW_BYTES,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(input2),
             constraints: emptyConstraints
         });
@@ -549,12 +533,10 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         OutputParam[] memory outputParams_execution1 = new OutputParam[](2);
         outputParams_execution1[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(1, address(storageContract), SLOT_A)
         });
         outputParams_execution1[1] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(
                 1,
                 address(dummyContract),
@@ -572,13 +554,11 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory inputParams_execution2 = new InputParam[](2);
         inputParams_execution2[0] = InputParam({
             fetcherType: InputParamFetcherType.STATIC_CALL,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A_0))),
             constraints: emptyConstraints
         });
         inputParams_execution2[1] = InputParam({
             fetcherType: InputParamFetcherType.STATIC_CALL,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_B_0))),
             constraints: emptyConstraints
         });
@@ -634,7 +614,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         OutputParam[] memory outputParams = new OutputParam[](1);
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
-            valueType: ParamValueType.ADDRESS,
             paramData: abi.encode(1, address(storageContract), SLOT_A)
         });
 
@@ -664,7 +643,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         OutputParam[] memory outputParams = new OutputParam[](1);
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
-            valueType: ParamValueType.BOOL,
             paramData: abi.encode(1, address(storageContract), SLOT_A)
         });
 
@@ -694,7 +672,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         OutputParam[] memory outputParams = new OutputParam[](1);
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.EXEC_RESULT,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(4, address(storageContract), SLOT_A)
         });
 
@@ -734,7 +711,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         OutputParam[] memory outputParams = new OutputParam[](1);
         outputParams[0] = OutputParam({
             fetcherType: OutputParamFetcherType.STATIC_CALL,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(4, address(dummyContract), abi.encodeWithSelector(DummyContract.returnMultipleValues.selector), address(storageContract), SLOT_A)
         });
 
@@ -790,7 +766,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         InputParam[] memory inputParams = new InputParam[](1);
         inputParams[0] = InputParam({
             fetcherType: InputParamFetcherType.STATIC_CALL,
-            valueType: ParamValueType.UINT256,
             paramData: abi.encode(address(dummyContract), abi.encodeWithSelector(DummyContract.returnMultipleValues.selector)),
             constraints: constraints
         });
