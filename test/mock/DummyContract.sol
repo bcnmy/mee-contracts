@@ -10,6 +10,8 @@ event BoolEmitted(bool flag);
 event BytesEmitted(bytes data);
 event Received(uint256 amount);
 
+error DummyRevert(uint256 value);
+
 struct MockSwapStruct {
     address tokenIn;
     address tokenOut;
@@ -89,5 +91,9 @@ contract DummyContract {
         emit Uint256Emitted(swapStruct.fee);
         emit AddressEmitted(swapStruct.tokenIn);
         emit AddressEmitted(swapStruct.tokenOut);
+    }
+
+    function revertWithReason(uint256 value) external pure {
+        revert DummyRevert(value);
     }
 }

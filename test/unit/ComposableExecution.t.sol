@@ -138,6 +138,11 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         _read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized(address(mockAccount), address(mockAccount));
     }
     
+    // if the account does not revert on unsuccessful execution,
+    // the revert reason is saved in the storage
+    function test_save_Revert_Reason_in_Storage() public {
+        _save_Revert_Reason_in_Storage(address(mockAccountNonRevert), address(mockAccountNonRevert));
+    }
     
     // =================================================================================
     // ================================ TEST SCENARIOS ================================
@@ -1018,7 +1023,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         ComposableExecution[] memory executions = new ComposableExecution[](1);
         executions[0] = ComposableExecution({
-            to: address(account),
+            to: address(dummyContract),
             value: 0, // no value sent
             functionSig: DummyContract.B.selector,
             inputParams: inputParams,
@@ -1039,18 +1044,44 @@ contract ComposableExecutionTest is ComposabilityTestBase {
     // use some account that does not revert when one of the execution fails
     // and saves the revert reason in the storage
     function _save_Revert_Reason_in_Storage(address account, address caller) internal {
+        uint256 someStaticValue = 2517;
+
         vm.startPrank(ENTRYPOINT_V07_ADDRESS);
 
-        InputParam[] memory inputParamsExecA = new InputParam[](0);
+        InputParam[] memory inputParamsExecA = new InputParam[](1);
+        inputParamsExecA[0] = InputParam({
+            fetcherType: InputParamFetcherType.RAW_BYTES,
+            paramData: abi.encode(someStaticValue),
+            constraints: emptyConstraints
+        });
+
         OutputParam[] memory outputParamsExecA = new OutputParam[](1);
         outputParamsExecA[0] = OutputParam({
-            fetcherType: OutputParamFetcherType.STATIC_CALL,
-            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A))),
-            constraints: emptyConstraints
+            fetcherType: OutputParamFetcherType.EXEC_RESULT,
+            paramData: abi.encode(
+                1,
+                address(storageContract),
+                SLOT_B
+            )
         });
 
         ComposableExecution[] memory executionsA = new ComposableExecution[](1);
         executionsA[0] = ComposableExecution({
+            to: address(dummyContract),
+            value: 0, // no value sent
+            functionSig: DummyContract.revertWithReason.selector,
+            inputParams: inputParamsExecA,
+            outputParams: outputParamsExecA
+        });
+
+        IComposableExecution(address(account)).executeComposable(executionsA);
+
+        bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
+        bytes32 SLOT_B_0 = keccak256(abi.encodePacked(SLOT_B, uint256(0)));
+        bytes32 storedValue0 = storageContract.readStorage(namespace, SLOT_B_0);
+        
+        bytes32 expectedValue = bytes32(DummyRevert.selector);
+        assertEq(storedValue0, expectedValue, "Value 0 not stored correctly in the composability storage");
 
         vm.stopPrank();
     }
