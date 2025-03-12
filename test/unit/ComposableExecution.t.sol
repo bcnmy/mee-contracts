@@ -179,7 +179,12 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             inputParams: invalidInputParams, // use constrainted input parameter that's going to fail
             outputParams: outputParams
         });
-        bytes memory expectedRevertData = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.GTE);
+        bytes memory expectedRevertData; 
+        if (address(account) == address(mockAccountNonComposable)) {
+            expectedRevertData = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.GTE));
+        } else {
+            expectedRevertData = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.GTE);
+        }
         vm.expectRevert(expectedRevertData);
         IComposableExecution(address(account)).executeComposable(failingExecutions);
 
@@ -233,7 +238,13 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             inputParams: invalidInputParams, // use constrainted input parameter that's going to fail
             outputParams: outputParams
         });
-        vm.expectRevert(abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.LTE));
+        bytes memory expectedRevertReason; 
+        if (address(account) == address(mockAccountNonComposable)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.LTE));
+        } else {
+            expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.LTE);
+        }
+        vm.expectRevert(expectedRevertReason);
         IComposableExecution(address(account)).executeComposable(failingExecutions);
 
         // Call empty function and it should NOT revert because dynamic param value meets constraints
@@ -295,7 +306,13 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             inputParams: invalidInputParamsA, // use constrainted input parameter that's going to fail
             outputParams: outputParams
         });
-        vm.expectRevert(abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
+        bytes memory expectedRevertReason; 
+        if (address(account) == address(mockAccountNonComposable)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
+        } else {
+            expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN);
+        }
+        vm.expectRevert(expectedRevertReason);
         IComposableExecution(address(account)).executeComposable(failingExecutionsA);
 
         // Call empty function and it should revert because dynamic param value doesnt meet constraints (value below lower bound)
@@ -307,7 +324,13 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             inputParams: invalidInputParamsB, // use constrainted input parameter that's going to fail
             outputParams: outputParams
         });
-        vm.expectRevert(abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
+        
+        if (address(account) == address(mockAccountNonComposable)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
+        } else {
+            expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN);
+        }
+        vm.expectRevert(expectedRevertReason);
         IComposableExecution(address(account)).executeComposable(failingExecutionsB);
 
         // Call empty function and it should NOT revert because dynamic param value meets constraints
@@ -360,7 +383,13 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             inputParams: invalidInputParams, // use constrainted input parameter that's going to fail
             outputParams: outputParams
         });
-        vm.expectRevert(abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.EQ));
+        bytes memory expectedRevertReason; 
+        if (address(account) == address(mockAccountNonComposable)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.EQ));
+        } else {
+            expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.EQ);
+        }
+        vm.expectRevert(expectedRevertReason);
         IComposableExecution(address(account)).executeComposable(failingExecutions);
 
         // Call empty function and it should NOT revert because dynamic param value meets constraints
@@ -1011,6 +1040,17 @@ contract ComposableExecutionTest is ComposabilityTestBase {
     // and saves the revert reason in the storage
     function _save_Revert_Reason_in_Storage(address account, address caller) internal {
         vm.startPrank(ENTRYPOINT_V07_ADDRESS);
+
+        InputParam[] memory inputParamsExecA = new InputParam[](0);
+        OutputParam[] memory outputParamsExecA = new OutputParam[](1);
+        outputParamsExecA[0] = OutputParam({
+            fetcherType: OutputParamFetcherType.STATIC_CALL,
+            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A))),
+            constraints: emptyConstraints
+        });
+
+        ComposableExecution[] memory executionsA = new ComposableExecution[](1);
+        executionsA[0] = ComposableExecution({
 
         vm.stopPrank();
     }
