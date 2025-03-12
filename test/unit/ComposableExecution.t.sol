@@ -800,4 +800,34 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         IComposableExecution(address(account)).executeComposable(executions);
         vm.stopPrank();
     }
+
+    function inputDynamicBytesArrayAsRawBytes(address account, address caller) internal {
+        vm.startPrank(ENTRYPOINT_V07_ADDRESS);
+
+        InputParam[] memory inputParams = new InputParam[](1);
+        inputParams[0] = InputParam({
+            fetcherType: InputParamFetcherType.RAW_BYTES,
+            valueType: ParamValueType.UINT256,
+            paramData: abi.encode(1),
+            constraints: emptyConstraints
+        });
+
+        // Prepare return value config for function B
+        OutputParam[] memory outputParams = new OutputParam[](0);
+
+        ComposableExecution[] memory executions = new ComposableExecution[](1);
+        executions[0] = ComposableExecution({
+            to: address(dummyContract),
+            value: 0, // no value sent
+            functionSig: DummyContract.acceptStaticAndDynamicValues.selector,
+            inputParams: inputParams,
+            outputParams: outputParams
+        });
+
+        vm.expectEmit(address(dummyContract));
+        emit Uint256Emitted(1);
+        IComposableExecution(address(account)).executeComposable(executions);
+
+        vm.stopPrank();
+    }
 }

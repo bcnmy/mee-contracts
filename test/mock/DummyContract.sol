@@ -7,7 +7,7 @@ event Uint256Emitted2(uint256 value1, uint256 value2);
 event AddressEmitted(address addr);
 event Bytes32Emitted(bytes32 slot);
 event BoolEmitted(bool flag);
-
+event BytesEmitted(bytes data);
 contract DummyContract {
     uint256 internal foo;
 
@@ -59,5 +59,11 @@ contract DummyContract {
         emit AddressEmitted(addr);
         emit Bytes32Emitted(slot);
         emit BoolEmitted(flag);
+    }
+
+    function acceptStaticAndDynamicValues(uint256 staticValue, bytes calldata dynamicValue, address addr) external {
+        emit Uint256Emitted(staticValue);
+        emit AddressEmitted(addr);
+        emit BytesEmitted(dynamicValue);
     }
 }
