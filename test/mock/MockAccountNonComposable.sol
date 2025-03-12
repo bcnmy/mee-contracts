@@ -19,9 +19,8 @@ contract MockAccountNonComposable is IAccount {
     event MockAccountReceive(uint256 value);
     event MockAccountFallback(bytes callData, uint256 value);
 
-    error ExecutionFailed();
     error OnlyExecutor();
-
+    error FallbackFailed(bytes result);
     IValidator public validator;
     IFallback public handler;
     IExecutor public executor;
@@ -117,7 +116,7 @@ contract MockAccountNonComposable is IAccount {
         (bool success, bytes memory result) =
             address(handler).call{value: msg.value}(ERC2771Lib.get2771CallData(callData));
         if (!success) {
-            revert(string(result));
+            revert FallbackFailed(result);
         }
         emit MockAccountFallback(callData, msg.value);
     }

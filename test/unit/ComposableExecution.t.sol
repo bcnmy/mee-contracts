@@ -132,6 +132,12 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         _structInjection(address(mockAccountNonComposable), address(composabilityHandler));
         _structInjection(address(mockAccount), address(mockAccount));
     }
+
+    function test_read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized() public {
+        _read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized(address(mockAccountNonComposable), address(composabilityHandler));        
+        _read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized(address(mockAccount), address(mockAccount));
+    }
+    
     
     // =================================================================================
     // ================================ TEST SCENARIOS ================================
@@ -962,4 +968,51 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         vm.stopPrank();
     }
+
+    // It can happen when the previous call, that creates the output params, fail. 
+    // In this case, the composable execution should revert when reading this from storage
+    function _read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized(address account, address caller) internal {        
+        vm.startPrank(ENTRYPOINT_V07_ADDRESS);
+
+        bytes32 namespace = storageContract.getNamespace(address(account), address(caller));
+
+        assertFalse(storageContract.isSlotInitialized(namespace, SLOT_A), "Slot should not be initialized");
+
+        InputParam[] memory inputParams = new InputParam[](1);
+        inputParams[0] = InputParam({
+            fetcherType: InputParamFetcherType.STATIC_CALL,
+            paramData: abi.encode(storageContract, abi.encodeCall(Storage.readStorage, (namespace, SLOT_A))),
+            constraints: emptyConstraints
+        });
+
+        OutputParam[] memory outputParams = new OutputParam[](0);
+
+        ComposableExecution[] memory executions = new ComposableExecution[](1);
+        executions[0] = ComposableExecution({
+            to: address(account),
+            value: 0, // no value sent
+            functionSig: DummyContract.B.selector,
+            inputParams: inputParams,
+            outputParams: outputParams
+        });
+
+        bytes memory expectedRevertReason; 
+        if (address(account) == address(mockAccountNonComposable)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodePacked(ExecutionFailed.selector));
+        } else {
+            expectedRevertReason = abi.encodePacked(ExecutionFailed.selector);
+        }
+        vm.expectRevert(expectedRevertReason);
+        IComposableExecution(address(account)).executeComposable(executions);
+        vm.stopPrank();
+    }
+
+    // use some account that does not revert when one of the execution fails
+    // and saves the revert reason in the storage
+    function _save_Revert_Reason_in_Storage(address account, address caller) internal {
+        vm.startPrank(ENTRYPOINT_V07_ADDRESS);
+
+        vm.stopPrank();
+    }
+
 }
