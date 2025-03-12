@@ -20,14 +20,14 @@ abstract contract ComposableExecutionBase is IComposableExecution {
 
     function _executeComposable(ComposableExecution[] calldata executions) internal {
         uint256 length = executions.length;
-        uint256 aggregateValue = 0;
+        uint256 aggregateValue;
         for (uint256 i; i < length; i++) {
             ComposableExecution calldata execution = executions[i];
-            aggregateValue += execution.value;
-            require(msg.value >= aggregateValue, InsufficientMsgValue());
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
             bytes memory returnData;
             if (execution.to != address(0)) {
+                aggregateValue += execution.value;
+                require(msg.value >= aggregateValue, InsufficientMsgValue());
                 returnData = _executeAction(execution.to, execution.value, composedCalldata);
             } else {
                 returnData = new bytes(0);

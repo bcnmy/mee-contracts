@@ -11,16 +11,8 @@ enum InputParamFetcherType {
 }
 
 enum OutputParamFetcherType {
-    EXEC_RESULT, // The retuirn of the execution call
+    EXEC_RESULT, // The return of the execution call
     STATIC_CALL // Call to some other function
-}
-
-// Return value handling configuration
-enum ParamValueType {
-    UINT256,
-    ADDRESS,
-    BYTES32,
-    BOOL
 }
 
 // Constraint type for parameter validation
@@ -40,7 +32,6 @@ struct Constraint {
 // Structure to define parameter composition
 struct InputParam {
     InputParamFetcherType fetcherType; // How to fetch the parameter
-    ParamValueType valueType; // What type of parameter to fetch
     bytes paramData;
     Constraint[] constraints;
 }
@@ -48,7 +39,6 @@ struct InputParam {
 // Structure to define return value handling
 struct OutputParam {
     OutputParamFetcherType fetcherType; // How to fetch the parameter
-    ParamValueType valueType; // What type of parameter to fetch
     bytes paramData;
 }
 
@@ -66,10 +56,7 @@ error Output_StaticCallFailed();
 
 // Library for composable execution handling
 library ComposableExecutionLib {
-    error InvalidComposerInstructions();
     error InvalidParameterEncoding();
-    error StorageReadFailed();
-    error InvalidReturnDataHandling();
     error InvalidOutputParamFetcherType();
     error ExecutionFailed();
     error InvalidConstraintType();

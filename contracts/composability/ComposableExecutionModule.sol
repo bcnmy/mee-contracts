@@ -25,17 +25,15 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     using ComposableExecutionLib for InputParam[];
     using ComposableExecutionLib for OutputParam[];
 
-    error ModuleAlreadyInitialized();
-    error ExecutionFailed();
     error OnlyEntryPointOrAccount();
     error InsufficientMsgValue();
-
-    /// @notice Mapping of smart account addresses to their respective module installation
+    error ZeroAddressNotAllowed();
+    /// @notice Mapping of smart account addresses to the EP address
     mapping(address => address) private entryPoints;
 
     /**
      * @notice Executes a composable transaction with dynamic parameter composition and return value handling
-     * @dev As per ERC-7579 account MUST append original msg.sender address to the calldata as per ERC-2771
+     * @dev As per ERC-7579 account MUST append original msg.sender address to the calldata in a way specified by ERC-2771
      */
     function executeComposable(ComposableExecution[] calldata executions) external payable {
         // access control
@@ -49,15 +47,15 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
         // we can not use erc-7579 batch mode here because we may need to compose
         // the next call in the batch based on the execution result of the previous call
         uint256 length = executions.length;
-        uint256 aggregateValue = 0;
+        uint256 aggregateValue;
         for (uint256 i; i < length; i++) {
             ComposableExecution calldata execution = executions[i];
-            aggregateValue += execution.value;
-            require(msg.value >= aggregateValue, InsufficientMsgValue());
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
             bytes[] memory returnData; 
             if (execution.to != address(0)) {
-                returnData = IERC7579Account(msg.sender).executeFromExecutor({
+                aggregateValue += execution.value;
+                require(msg.value >= aggregateValue, InsufficientMsgValue());
+                returnData = IERC7579Account(msg.sender).executeFromExecutor{value: execution.value}({
                     mode: ModeLib.encodeSimpleSingle(),
                     executionCalldata: ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
                 });
@@ -67,10 +65,23 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
             }
             execution.outputParams.processOutputs(returnData[0], msg.sender);
         }
+        // Return any excess msg.value to the Smart Account
+        assembly {
+            if gt(callvalue(), aggregateValue) {
+                let ptr := mload(0x40)
+                let excess := sub(callvalue(), aggregateValue)
+                let success := call(gas(), caller(), excess, 0, 0, ptr, returndatasize())
+                if iszero(success) {
+                    revert(ptr, returndatasize())
+                }
+                mstore(0x40, add(ptr, returndatasize()))
+            }
+        }
     }
 
     /// @dev sets the entry point for the account
     function setEntryPoint(address _entryPoint) external {
+        require(_entryPoint != address(0), ZeroAddressNotAllowed());
         entryPoints[msg.sender] = _entryPoint;
     }
         
@@ -81,6 +92,7 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
 
     /// @dev called when the module is installed
     function onInstall(bytes calldata data) external override {
+        require(entryPoints[msg.sender] == address(0), AlreadyInitialized(msg.sender));
         if (data.length >= 20) {
             entryPoints[msg.sender] = address(bytes20(data[0:20]));
         }
