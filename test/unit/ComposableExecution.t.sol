@@ -127,6 +127,11 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         _inputDynamicBytesArrayAsRawBytes(address(mockAccountNonComposable), address(composabilityHandler));
         _inputDynamicBytesArrayAsRawBytes(address(mockAccount), address(mockAccount));
     }
+
+    function test_structInjection_Success() public {
+        _structInjection(address(mockAccountNonComposable), address(composabilityHandler));
+        _structInjection(address(mockAccount), address(mockAccount));
+    }
     
     // =================================================================================
     // ================================ TEST SCENARIOS ================================
@@ -746,13 +751,6 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         assertEq(uint8(uint256(storedValue3)), 1, "Value 3 not stored correctly in the composability storage");
     }
 
-    // TODO: in the next versions, we can add handling multiple values returned from static call
-    // so only one of them can be used as input param
-    // this can be done by adding a new fetcher type PARTIAL_STATIC_CALL that has some parameters
-    // that specify which return value(s) to use
-    // TODO: Same applies to the static call output fetcher as well as to
-    // execution result output fetcher, as they both can return multiple values
-
     // test inputStaticCall with multiple return values
     function _inputStaticCallMultipleValues(address account, address caller) internal {
         Constraint[] memory constraints = new Constraint[](4);
@@ -859,6 +857,107 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         emit Uint256Emitted(expectedUint256);
         emit AddressEmitted(expectedAddress);
         emit BytesEmitted(expectedBytes);
+        IComposableExecution(address(account)).executeComposable(executions);
+
+        vm.stopPrank();
+    }
+
+    function _structInjection(address account, address caller) internal {
+        vm.startPrank(ENTRYPOINT_V07_ADDRESS);
+
+        uint256 someStaticValue = 2517;
+
+        address tokenIn = address(0xa11ce70c3170);
+        address tokenOut = address(0xb0b70c3170);
+        uint256 amountOutMin = 999;
+        uint256 deadline = block.timestamp + 1000;
+        uint256 fee = 500;
+
+        Constraint[] memory constraints = new Constraint[](1);
+        constraints[0] = Constraint({
+            constraintType: ConstraintType.LTE,
+            referenceData: abi.encode(bytes32(uint256(10_000)))
+        });
+
+        // represent the encoded call to acceptStruct() 
+        // as per abi encoding rules
+        InputParam[] memory inputParams = new InputParam[](8);
+
+        // static param
+        inputParams[0] = InputParam({
+            fetcherType: InputParamFetcherType.RAW_BYTES,
+            paramData: abi.encode(someStaticValue),
+            constraints: emptyConstraints
+        });
+
+        // offset, as per struct encoding
+        inputParams[1] = InputParam({
+            fetcherType: InputParamFetcherType.RAW_BYTES,
+            paramData: abi.encode(uint256(0x40)),
+            constraints: emptyConstraints
+        });
+
+        // tokenIn
+        inputParams[2] = InputParam({
+            fetcherType: InputParamFetcherType.RAW_BYTES,
+            paramData: abi.encode(tokenIn),
+            constraints: emptyConstraints
+        });
+
+        // tokenOut
+        inputParams[3] = InputParam({
+            fetcherType: InputParamFetcherType.RAW_BYTES,
+            paramData: abi.encode(tokenOut),
+            constraints: emptyConstraints
+        });
+
+        // amountIn
+        inputParams[4] = InputParam({
+            fetcherType: InputParamFetcherType.STATIC_CALL,
+            paramData: abi.encode(address(dummyContract), abi.encodeWithSelector(DummyContract.B.selector, someStaticValue)),
+            constraints: constraints
+        });
+
+        // amountOutMin
+        inputParams[5] = InputParam({
+            fetcherType: InputParamFetcherType.RAW_BYTES,
+            paramData: abi.encode(amountOutMin),
+            constraints: emptyConstraints
+        });
+
+
+        // deadline
+        inputParams[6] = InputParam({
+            fetcherType: InputParamFetcherType.RAW_BYTES,
+            paramData: abi.encode(deadline),
+            constraints: emptyConstraints
+        });
+
+        // fee
+        inputParams[7] = InputParam({
+            fetcherType: InputParamFetcherType.RAW_BYTES,
+            paramData: abi.encode(fee),
+            constraints: emptyConstraints
+        });
+
+        OutputParam[] memory outputParams = new OutputParam[](0);
+
+        ComposableExecution[] memory executions = new ComposableExecution[](1);
+        executions[0] = ComposableExecution({
+            to: address(dummyContract),
+            value: 0, // no value sent
+            functionSig: DummyContract.acceptStruct.selector,
+            inputParams: inputParams,
+            outputParams: outputParams
+        });
+
+        vm.expectEmit(address(dummyContract));
+        emit Uint256Emitted(someStaticValue*2); //amountIn
+        emit Uint256Emitted(amountOutMin); //amountOutMin
+        emit Uint256Emitted(deadline);
+        emit Uint256Emitted(fee);
+        emit AddressEmitted(tokenIn);
+        emit AddressEmitted(tokenOut);
         IComposableExecution(address(account)).executeComposable(executions);
 
         vm.stopPrank();

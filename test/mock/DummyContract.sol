@@ -10,6 +10,15 @@ event BoolEmitted(bool flag);
 event BytesEmitted(bytes data);
 event Received(uint256 amount);
 
+struct MockSwapStruct {
+    address tokenIn;
+    address tokenOut;
+    uint256 amountIn;
+    uint256 amountOutMin;
+    uint256 deadline;
+    uint256 fee;
+}
+
 contract DummyContract {
 
     uint256 internal foo;
@@ -71,5 +80,14 @@ contract DummyContract {
         emit Uint256Emitted(staticValue);
         emit AddressEmitted(addr);
         emit BytesEmitted(dynamicValue);
+    }
+
+    function acceptStruct(MockSwapStruct memory swapStruct) external {
+        emit Uint256Emitted(swapStruct.amountIn);
+        emit Uint256Emitted(swapStruct.amountOutMin);
+        emit Uint256Emitted(swapStruct.deadline);
+        emit Uint256Emitted(swapStruct.fee);
+        emit AddressEmitted(swapStruct.tokenIn);
+        emit AddressEmitted(swapStruct.tokenOut);
     }
 }
