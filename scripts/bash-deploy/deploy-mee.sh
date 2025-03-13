@@ -130,10 +130,10 @@ if [ $proceed = "y" ]; then
         if [ -z "$NODE_PAYMASTER" ]; then
             NODE_PAYMASTER=$(cat ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee.log | grep -e "Node Paymaster already deployed at:" | awk '{print $6}')
         fi
-        printf "Enter amount to deposit (*10^16, so 100 = 1 eth): "
+        printf "Enter amount to deposit (*10^16, so 1000 = 1 eth, 100 = 0.1 eth, 10 = 0.01 eth, 1 = 0.001 eth): "
         read -r amount
         # multiply amount by 10^16
-        amount=$(($amount*10000000000000000))
+        amount=$(($amount*1000000000000000))
         
         printf "Depositing $amount to $NODE_PAYMASTER\n"
         cast send --rpc-url $CHAIN_NAME --private-key $PRIVATE_KEY $GAS_SUFFIX $NODE_PAYMASTER "deposit()" --value $amount 1> ./logs/$CHAIN_NAME/$CHAIN_NAME-deposit-to-ep-via-node-pm.log 2> ./logs/$CHAIN_NAME/$CHAIN_NAME-deposit-to-ep-via-node-pm-errors.log
