@@ -16,6 +16,10 @@ contract MockAccountDelegateCaller {
         // delegatecall to the composableModule
         (bool success, bytes memory returnData) = composableModule.delegatecall(abi.encodeWithSelector(IComposableExecutionModule.executeComposableDelegateCall.selector, executions));
         emit MockAccountDelegateCall(returnData);
-        require(success, "Composable execution failed");
+        assembly {
+            if iszero(success) {
+                revert(add(returnData, 0x20), mload(returnData))
+            }
+        }
     }
 }

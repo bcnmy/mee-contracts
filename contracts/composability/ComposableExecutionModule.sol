@@ -14,8 +14,6 @@ import {
     ComposableExecution
 } from "contracts/composability/ComposableExecutionLib.sol";
 
-import "forge-std/console.sol";
-
 /**
  * @title Composable Execution Module: Executor and Fallback
  * @dev A module for ERC-7579 accounts that enables composable transactions execution
