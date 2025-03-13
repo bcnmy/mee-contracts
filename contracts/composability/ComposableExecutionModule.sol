@@ -21,6 +21,7 @@ import {
 contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579FallbackBase {
 
     address public constant ENTRY_POINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
+    address private immutable THIS_ADDRESS;
 
     using ComposableExecutionLib for InputParam[];
     using ComposableExecutionLib for OutputParam[];
@@ -30,6 +31,10 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     error ZeroAddressNotAllowed();
     /// @notice Mapping of smart account addresses to the EP address
     mapping(address => address) private entryPoints;
+
+    constructor() {
+        THIS_ADDRESS = address(this);
+    }
 
     /**
      * @notice Executes a composable transaction with dynamic parameter composition and return value handling
@@ -55,10 +60,17 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
             if (execution.to != address(0)) {
                 aggregateValue += execution.value;
                 require(msg.value >= aggregateValue, InsufficientMsgValue());
-                returnData = IERC7579Account(msg.sender).executeFromExecutor{value: execution.value}({
-                    mode: ModeLib.encodeSimpleSingle(),
-                    executionCalldata: ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
-                });
+                if(address(this) == THIS_ADDRESS) {
+                    // Regular call
+                    returnData = IERC7579Account(msg.sender).executeFromExecutor{value: execution.value}({
+                        mode: ModeLib.encodeSimpleSingle(),
+                        executionCalldata: ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
+                    });
+                } else {
+                    // Delegate call
+                    returnData = new bytes[](1);
+                    returnData[0] = _execute(execution.to, execution.value, composedCalldata);
+                }
             } else {
                 returnData = new bytes[](1);
                 returnData[0] = "";
@@ -111,5 +123,27 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     /// @dev Reports that this module is an executor and a fallback module
     function isModuleType(uint256 moduleTypeId) external pure override returns (bool) {
         return moduleTypeId == TYPE_EXECUTOR || moduleTypeId == TYPE_FALLBACK;
+    }
+
+    /// @notice Executes a call to a target address with specified value and data.
+    /// @notice calls to an EOA should be counted as successful.
+    /// @param target The address to execute the call on.
+    /// @param value The amount of wei to send with the call.
+    /// @param callData The calldata to send.
+    /// @return result The bytes returned from the execution, which contains the returned data from the target address.
+    function _execute(address target, uint256 value, bytes memory callData) internal virtual returns (bytes memory result) {
+        /// @solidity memory-safe-assembly
+        assembly {
+            result := mload(0x40)
+            if iszero(call(gas(), target, value, callData, mload(callData), codesize(), 0x00)) {
+                // Bubble up the revert if the call reverts.
+                returndatacopy(result, 0x00, returndatasize())
+                revert(result, returndatasize())
+            }
+            mstore(result, returndatasize()) // Store the length.
+            let o := add(result, 0x20)
+            returndatacopy(o, 0x00, returndatasize()) // Copy the returndata.
+            mstore(0x40, add(o, returndatasize())) // Allocate the memory.
+        }
     }
 }
