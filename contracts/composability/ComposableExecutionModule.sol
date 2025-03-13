@@ -6,7 +6,7 @@ import {IERC7579Account} from "erc7579/interfaces/IERC7579Account.sol";
 import {ModeLib} from "erc7579/lib/ModeLib.sol";
 import {ExecutionLib} from "erc7579/lib/ExecutionLib.sol";
 import {ERC7579FallbackBase} from "@rhinestone/module-bases/src/ERC7579FallbackBase.sol";
-import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
+import {IComposableExecutionModule} from "contracts/interfaces/IComposableExecution.sol";
 import {
     ComposableExecutionLib,
     InputParam,
@@ -14,11 +14,13 @@ import {
     ComposableExecution
 } from "contracts/composability/ComposableExecutionLib.sol";
 
+import "forge-std/console.sol";
+
 /**
  * @title Composable Execution Module: Executor and Fallback
  * @dev A module for ERC-7579 accounts that enables composable transactions execution
  */
-contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579FallbackBase {
+contract ComposableExecutionModule is IComposableExecutionModule, IExecutor, ERC7579FallbackBase {
 
     address public constant ENTRY_POINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address private immutable THIS_ADDRESS;
@@ -49,6 +51,26 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
                 sender == entryPoints[msg.sender] || 
                 sender == msg.sender, OnlyEntryPointOrAccount());
 
+        _executeComposable(executions, msg.sender, _executeExecutionCall);
+    }
+
+    /// @notice It doesn't require access control as it is expected to be called by the account itself via .execute()
+    /// @dev !!! Attention !!! This function should NEVER be installed to be used via fallback() as it doesn't implement access control
+    /// thus it will be callable by any address account.executeComposableCall => fallback() => this.executeComposableCall
+    function executeComposableCall(ComposableExecution[] calldata executions) external payable { 
+        _executeComposable(executions, msg.sender, _executeExecutionCall);
+    }
+
+    /// @notice It doesn't require access control as it is expected to be called by the account itself via .execute(mode = delegatecall)
+    function executeComposableDelegateCall(ComposableExecution[] calldata executions) external payable {
+        _executeComposable(executions, address(this), _executeExecutionDelegatecall);
+    }
+
+    function _executeComposable(
+        ComposableExecution[] calldata executions,
+        address account,
+        function(ComposableExecution calldata execution, bytes memory composedCalldata) internal returns(bytes[] memory) executeExecutionFunction
+    ) internal {
         // we can not use erc-7579 batch mode here because we may need to compose
         // the next call in the batch based on the execution result of the previous call
         uint256 length = executions.length;
@@ -60,35 +82,28 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
             if (execution.to != address(0)) {
                 aggregateValue += execution.value;
                 require(msg.value >= aggregateValue, InsufficientMsgValue());
-                if(address(this) == THIS_ADDRESS) {
-                    // Regular call
-                    returnData = IERC7579Account(msg.sender).executeFromExecutor{value: execution.value}({
-                        mode: ModeLib.encodeSimpleSingle(),
-                        executionCalldata: ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
-                    });
-                } else {
-                    // Delegate call
-                    returnData = new bytes[](1);
-                    returnData[0] = _execute(execution.to, execution.value, composedCalldata);
-                }
+                returnData = executeExecutionFunction(execution, composedCalldata);
             } else {
                 returnData = new bytes[](1);
                 returnData[0] = "";
             }
-            execution.outputParams.processOutputs(returnData[0], msg.sender);
+            execution.outputParams.processOutputs(returnData[0], account);
         }
-        // Return any excess msg.value to the Smart Account
-        assembly {
-            if gt(callvalue(), aggregateValue) {
-                let ptr := mload(0x40)
-                let excess := sub(callvalue(), aggregateValue)
-                let success := call(gas(), caller(), excess, 0, 0, ptr, returndatasize())
-                if iszero(success) {
-                    revert(ptr, returndatasize())
-                }
-                mstore(0x40, add(ptr, returndatasize()))
-            }
-        }
+        _refundExcessValue(aggregateValue);
+    }
+
+    /// @dev function to be used as an argument for _executeComposable in case of regular call
+    function _executeExecutionCall(ComposableExecution calldata execution, bytes memory composedCalldata) internal returns (bytes[] memory) {
+        return IERC7579Account(msg.sender).executeFromExecutor{value: execution.value}({
+                    mode: ModeLib.encodeSimpleSingle(),
+                    executionCalldata: ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
+                });
+    }
+
+    /// @dev function to be used as an argument for _executeComposable in case of delegatecall
+    function _executeExecutionDelegatecall(ComposableExecution calldata execution, bytes memory composedCalldata) internal returns (bytes[] memory returnData) {
+        returnData = new bytes[](1);
+        returnData[0] = _execute(execution.to, execution.value, composedCalldata);
     }
 
     /// @dev sets the entry point for the account
@@ -125,6 +140,20 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
         return moduleTypeId == TYPE_EXECUTOR || moduleTypeId == TYPE_FALLBACK;
     }
 
+    function _refundExcessValue(uint256 aggregateValue) internal {
+        assembly {
+            if gt(callvalue(), aggregateValue) {
+                let ptr := mload(0x40)
+                let excess := sub(callvalue(), aggregateValue)
+                let success := call(gas(), caller(), excess, 0, 0, ptr, returndatasize())
+                if iszero(success) {
+                    revert(ptr, returndatasize())
+                }
+                mstore(0x40, add(ptr, returndatasize()))
+            }
+        }
+    }
+
     /// @notice Executes a call to a target address with specified value and data.
     /// @notice calls to an EOA should be counted as successful.
     /// @param target The address to execute the call on.
@@ -135,7 +164,7 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
         /// @solidity memory-safe-assembly
         assembly {
             result := mload(0x40)
-            if iszero(call(gas(), target, value, callData, mload(callData), codesize(), 0x00)) {
+            if iszero(call(gas(), target, value, add(callData, 0x20), mload(callData), codesize(), 0x00)) {
                 // Bubble up the revert if the call reverts.
                 returndatacopy(result, 0x00, returndatasize())
                 revert(result, returndatasize())
@@ -144,6 +173,6 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
             let o := add(result, 0x20)
             returndatacopy(o, 0x00, returndatasize()) // Copy the returndata.
             mstore(0x40, add(o, returndatasize())) // Allocate the memory.
-        }
+        } 
     }
 }

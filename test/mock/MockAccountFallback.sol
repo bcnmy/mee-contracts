@@ -7,13 +7,13 @@ import {IValidator, IFallback, IExecutor} from "erc7579/interfaces/IERC7579Modul
 import {IStatelessValidator} from "node_modules/@rhinestone/module-bases/src/interfaces/IStatelessValidator.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {ERC2771Lib} from "./lib/ERC2771Lib.sol";
-import {ComposableExecutionBase} from "contracts/composability/ComposableExecutionBase.sol";
 import {ExecutionLib} from "erc7579/lib/ExecutionLib.sol";
 import {ModeLib, ModeCode as ExecutionMode, CallType, ExecType, CALLTYPE_SINGLE} from "erc7579/lib/ModeLib.sol";
+import "contracts/interfaces/IComposableExecution.sol";
 
 import {console2} from "forge-std/console2.sol";
 
-contract MockAccountNonComposable is IAccount {
+contract MockAccountFallback is IAccount {
     event MockAccountValidateUserOp(PackedUserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds);
     event MockAccountExecute(address to, uint256 value, bytes data);
     event MockAccountReceive(uint256 value);
