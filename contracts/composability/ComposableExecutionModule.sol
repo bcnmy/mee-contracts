@@ -91,9 +91,14 @@ contract ComposableExecutionModule is IComposableExecution, IExecutor, ERC7579Fa
     }
 
     /// @dev called when the module is installed
+    /// @dev expected behavior: reverts if tried to initialize the module for the same account more than once
+    /// inner require checks if some account just sends same data for both fallback and executor
     function onInstall(bytes calldata data) external override {
-        require(entryPoints[msg.sender] == address(0), AlreadyInitialized(msg.sender));
         if (data.length >= 20) {
+            if (entryPoints[msg.sender] != address(0)) {
+                require(entryPoints[msg.sender] == address(bytes20(data[0:20])), AlreadyInitialized(msg.sender));
+                return;
+            }
             entryPoints[msg.sender] = address(bytes20(data[0:20]));
         }
     }
