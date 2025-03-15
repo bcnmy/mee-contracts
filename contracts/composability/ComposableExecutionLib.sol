@@ -11,7 +11,7 @@ enum InputParamFetcherType {
 }
 
 enum OutputParamFetcherType {
-    EXEC_RESULT, // The retuirn of the execution call
+    EXEC_RESULT, // The return of the execution call
     STATIC_CALL // Call to some other function
 }
 
@@ -53,13 +53,13 @@ struct ComposableExecution {
 
 error ConstraintNotMet(ConstraintType constraintType);
 error Output_StaticCallFailed();
+error InvalidParameterEncoding();
+error InvalidOutputParamFetcherType();
+error ExecutionFailed();
+error InvalidConstraintType();
 
 // Library for composable execution handling
 library ComposableExecutionLib {
-    error InvalidParameterEncoding();
-    error InvalidOutputParamFetcherType();
-    error ExecutionFailed();
-    error InvalidConstraintType();
 
     // Process the input parameters and return the composed calldata
     function processInputs(InputParam[] calldata inputParams, bytes4 functionSig)
