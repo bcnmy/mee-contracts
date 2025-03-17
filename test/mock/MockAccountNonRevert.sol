@@ -8,7 +8,7 @@ import {IStatelessValidator} from "node_modules/@rhinestone/module-bases/src/int
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {ERC2771Lib} from "./lib/ERC2771Lib.sol";
 import {ComposableExecutionBase} from "contracts/composability/ComposableExecutionBase.sol";
-import {ComposableExecution} from "contracts/composability/ComposableExecutionLib.sol";
+import {ComposableExecution} from "contracts/types/ComposabilityDataTypes.sol";
 
 import {console2} from "forge-std/console2.sol";
 

@@ -7,12 +7,8 @@ import {ModeLib} from "erc7579/lib/ModeLib.sol";
 import {ExecutionLib} from "erc7579/lib/ExecutionLib.sol";
 import {ERC7579FallbackBase} from "@rhinestone/module-bases/src/ERC7579FallbackBase.sol";
 import {IComposableExecutionModule} from "contracts/interfaces/IComposableExecution.sol";
-import {
-    ComposableExecutionLib,
-    InputParam,
-    OutputParam,
-    ComposableExecution
-} from "contracts/composability/ComposableExecutionLib.sol";
+import {ComposableExecutionLib} from "contracts/composability/ComposableExecutionLib.sol";
+import {InputParam, OutputParam, ComposableExecution} from "contracts/types/ComposabilityDataTypes.sol";
 
 /**
  * @title Composable Execution Module: Executor and Fallback

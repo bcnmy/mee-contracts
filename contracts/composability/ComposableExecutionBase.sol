@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {
-    InputParam,
-    OutputParam,
-    ComposableExecution,
-    ComposableExecutionLib
-} from "contracts/composability/ComposableExecutionLib.sol";
+import {ComposableExecutionLib} from "contracts/composability/ComposableExecutionLib.sol";
+import {InputParam, OutputParam, ComposableExecution} from "contracts/types/ComposabilityDataTypes.sol";
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
 
 abstract contract ComposableExecutionBase is IComposableExecution {

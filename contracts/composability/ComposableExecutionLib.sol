@@ -1,65 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import "./Storage.sol";
-
-// Parameter type for composition
-enum InputParamFetcherType {
-    RAW_BYTES, // Already encoded bytes
-    STATIC_CALL // Perform a static call
-
-}
-
-enum OutputParamFetcherType {
-    EXEC_RESULT, // The return of the execution call
-    STATIC_CALL // Call to some other function
-}
-
-// Constraint type for parameter validation
-enum ConstraintType {
-    EQ, // Equal to
-    GTE, // Greater than or equal to
-    LTE, // Less than or equal to
-    IN // In range
-}
-
-// Constraint for parameter validation
-struct Constraint {
-    ConstraintType constraintType;
-    bytes referenceData;
-}
-
-// Structure to define parameter composition
-struct InputParam {
-    InputParamFetcherType fetcherType; // How to fetch the parameter
-    bytes paramData;
-    Constraint[] constraints;
-}
-
-// Structure to define return value handling
-struct OutputParam {
-    OutputParamFetcherType fetcherType; // How to fetch the parameter
-    bytes paramData;
-}
-
-// Structure to define a composable execution
-struct ComposableExecution {
-    address to;
-    uint256 value;
-    bytes4 functionSig;
-    InputParam[] inputParams;
-    OutputParam[] outputParams;
-}
-
-error ConstraintNotMet(ConstraintType constraintType);
-error Output_StaticCallFailed();
-error InvalidParameterEncoding();
-error InvalidOutputParamFetcherType();
-error ExecutionFailed();
-error InvalidConstraintType();
-
+import {Storage} from "./Storage.sol";
+import {InputParam, OutputParam, Constraint, ConstraintType, InputParamFetcherType, OutputParamFetcherType} from "../types/ComposabilityDataTypes.sol";
 // Library for composable execution handling
 library ComposableExecutionLib {
+
+    error ConstraintNotMet(ConstraintType constraintType);
+    error Output_StaticCallFailed();
+    error InvalidParameterEncoding();
+    error InvalidOutputParamFetcherType();
+    error ExecutionFailed();
+    error InvalidConstraintType();
 
     // Process the input parameters and return the composed calldata
     function processInputs(InputParam[] calldata inputParams, bytes4 functionSig)
@@ -102,6 +54,7 @@ library ComposableExecutionLib {
         }
     }
 
+    // Process the output parameters
     function processOutputs(OutputParam[] calldata outputParams, bytes memory returnData, address account) internal {
         uint256 length = outputParams.length;
         for (uint256 i; i < length; i++) {
@@ -109,6 +62,7 @@ library ComposableExecutionLib {
         }
     }
 
+    // Process a single output parameter and write to storage
     function processOutput(OutputParam calldata param, bytes memory returnData, address account) internal {
         // only static types are supported for now as return values
         // can also process all the static return values which are before the first dynamic return value in the returnData
@@ -151,6 +105,7 @@ library ComposableExecutionLib {
         }
     }
 
+    /// @dev Validate the constraints => compare the value with the reference data
     function _validateConstraints(bytes memory rawValue, Constraint[] calldata constraints)
         private
         pure
@@ -178,6 +133,7 @@ library ComposableExecutionLib {
         }
     }
 
+    /// @dev Parse the return data and write to the appropriate storage contract
     function _parseReturnDataAndWriteToStorage(uint256 returnValues, bytes memory returnData, address targetStorageContract, bytes32 targetStorageSlot, address account) internal {
         for (uint256 i; i < returnValues; i++) {
             bytes32 value;
