@@ -2,14 +2,12 @@
 pragma solidity ^0.8.27;
 
 import {ComposableExecutionLib} from "contracts/composability/ComposableExecutionLib.sol";
-import {InputParam, OutputParam, ComposableExecution} from "contracts/types/ComposabilityDataTypes.sol";
+import {InputParam, OutputParam, ComposableExecution, Constraint, ConstraintType, InputParamFetcherType, OutputParamFetcherType} from "contracts/types/ComposabilityDataTypes.sol";
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
 
 abstract contract ComposableExecutionBase is IComposableExecution {
     using ComposableExecutionLib for InputParam[];
     using ComposableExecutionLib for OutputParam[];
-
-    error InsufficientMsgValue();
 
     /// @dev Feel free to override it to introduce additional access control or other checks
     function executeComposable(ComposableExecution[] calldata executions) external payable virtual;
@@ -20,14 +18,11 @@ abstract contract ComposableExecutionBase is IComposableExecution {
     /// Then, processes the output parameters
     function _executeComposable(ComposableExecution[] calldata executions) internal {
         uint256 length = executions.length;
-        uint256 aggregateValue;
         for (uint256 i; i < length; i++) {
             ComposableExecution calldata execution = executions[i];
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
             bytes memory returnData;
             if (execution.to != address(0)) {
-                aggregateValue += execution.value;
-                require(msg.value >= aggregateValue, InsufficientMsgValue());
                 returnData = _executeAction(execution.to, execution.value, composedCalldata);
             } else {
                 returnData = new bytes(0);

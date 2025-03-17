@@ -8,7 +8,7 @@ import {ExecutionLib} from "erc7579/lib/ExecutionLib.sol";
 import {ERC7579FallbackBase} from "@rhinestone/module-bases/src/ERC7579FallbackBase.sol";
 import {IComposableExecutionModule} from "contracts/interfaces/IComposableExecution.sol";
 import {ComposableExecutionLib} from "contracts/composability/ComposableExecutionLib.sol";
-import {InputParam, OutputParam, ComposableExecution} from "contracts/types/ComposabilityDataTypes.sol";
+import {InputParam, OutputParam, ComposableExecution, Constraint, ConstraintType, InputParamFetcherType, OutputParamFetcherType} from "contracts/types/ComposabilityDataTypes.sol";
 
 /**
  * @title Composable Execution Module: Executor and Fallback
@@ -23,7 +23,6 @@ contract ComposableExecutionModule is IComposableExecutionModule, IExecutor, ERC
     using ComposableExecutionLib for OutputParam[];
 
     error OnlyEntryPointOrAccount();
-    error InsufficientMsgValue();
     error ZeroAddressNotAllowed();
     /// @notice Mapping of smart account addresses to the EP address
     mapping(address => address) private entryPoints;
@@ -72,14 +71,11 @@ contract ComposableExecutionModule is IComposableExecutionModule, IExecutor, ERC
         // we can not use erc-7579 batch mode here because we may need to compose
         // the next call in the batch based on the execution result of the previous call
         uint256 length = executions.length;
-        uint256 aggregateValue;
         for (uint256 i; i < length; i++) {
             ComposableExecution calldata execution = executions[i];
             bytes memory composedCalldata = execution.inputParams.processInputs(execution.functionSig);
             bytes[] memory returnData; 
             if (execution.to != address(0)) {
-                aggregateValue += execution.value;
-                require(msg.value >= aggregateValue, InsufficientMsgValue());
                 returnData = executeExecutionFunction(execution, composedCalldata);
             } else {
                 returnData = new bytes[](1);
@@ -87,12 +83,11 @@ contract ComposableExecutionModule is IComposableExecutionModule, IExecutor, ERC
             }
             execution.outputParams.processOutputs(returnData[0], account);
         }
-        _refundExcessValue(aggregateValue);
     }
 
     /// @dev function to be used as an argument for _executeComposable in case of regular call
     function _executeExecutionCall(ComposableExecution calldata execution, bytes memory composedCalldata) internal returns (bytes[] memory) {
-        return IERC7579Account(msg.sender).executeFromExecutor{value: execution.value}({
+        return IERC7579Account(msg.sender).executeFromExecutor({
                     mode: ModeLib.encodeSimpleSingle(),
                     executionCalldata: ExecutionLib.encodeSingle(execution.to, execution.value, composedCalldata)
                 });
@@ -141,20 +136,6 @@ contract ComposableExecutionModule is IComposableExecutionModule, IExecutor, ERC
     /// @dev Reports that this module is an executor and a fallback module
     function isModuleType(uint256 moduleTypeId) external pure override returns (bool) {
         return moduleTypeId == TYPE_EXECUTOR || moduleTypeId == TYPE_FALLBACK;
-    }
-
-    function _refundExcessValue(uint256 aggregateValue) internal {
-        assembly {
-            if gt(callvalue(), aggregateValue) {
-                let ptr := mload(0x40)
-                let excess := sub(callvalue(), aggregateValue)
-                let success := call(gas(), caller(), excess, 0, 0, ptr, returndatasize())
-                if iszero(success) {
-                    revert(ptr, returndatasize())
-                }
-                mstore(0x40, add(ptr, returndatasize()))
-            }
-        }
     }
 
     /// @notice Executes a call to a target address with specified value and data.
