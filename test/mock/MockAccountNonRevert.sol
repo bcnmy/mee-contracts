@@ -3,34 +3,30 @@ pragma solidity ^0.8.23;
 
 import {IAccount} from "account-abstraction/interfaces/IAccount.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
-import {IValidator, IFallback, IExecutor} from "erc7579/interfaces/IERC7579Module.sol";
+import {IValidator, IFallback} from "erc7579/interfaces/IERC7579Module.sol";
 import {IStatelessValidator} from "node_modules/@rhinestone/module-bases/src/interfaces/IStatelessValidator.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {ERC2771Lib} from "./lib/ERC2771Lib.sol";
 import {ComposableExecutionBase} from "contracts/composability/ComposableExecutionBase.sol";
-import {ExecutionLib} from "erc7579/lib/ExecutionLib.sol";
-import {ModeLib, ModeCode as ExecutionMode, CallType, ExecType, CALLTYPE_SINGLE} from "erc7579/lib/ModeLib.sol";
+import {ComposableExecution} from "contracts/composability/ComposableExecutionLib.sol";
 
 import {console2} from "forge-std/console2.sol";
 
-contract MockAccountNonComposable is IAccount {
+address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
+
+contract MockAccountNonRevert is ComposableExecutionBase, IAccount {
     event MockAccountValidateUserOp(PackedUserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds);
     event MockAccountExecute(address to, uint256 value, bytes data);
     event MockAccountReceive(uint256 value);
     event MockAccountFallback(bytes callData, uint256 value);
 
-    error OnlyExecutor();
-    error FallbackFailed(bytes result);
+    error OnlyEntryPointOrSelf();
+
     IValidator public validator;
     IFallback public handler;
-    IExecutor public executor;
 
-    using ExecutionLib for bytes;
-    using ModeLib for ExecutionMode;
-
-    constructor(address _validator, address _executor, address _handler) {
+    constructor(address _validator, address _handler) {
         validator = IValidator(_validator);
-        executor = IExecutor(_executor);
         handler = IFallback(_handler);
     }
 
@@ -69,43 +65,17 @@ contract MockAccountNonComposable is IAccount {
         (success, result) = to.call{value: value}(data);
     }
 
-    function executeFromExecutor(ExecutionMode mode, bytes calldata executionCalldata)
-        external
-        payable
-        returns (bytes[] memory returnData)
-    {
-        require(msg.sender == address(executor), OnlyExecutor());
-
-        (CallType callType, ExecType execType,,) = mode.decode();
-        if (callType == CALLTYPE_SINGLE) {
-            returnData = new bytes[](1);
-            // support for single execution only
-            (address target, uint256 value, bytes calldata callData) = executionCalldata.decodeSingle();
-            returnData[0] = _execute(target, value, callData);
-        } else {
-            revert("Unsupported call type");
-        }
+    function executeComposable(ComposableExecution[] calldata executions) external payable override {
+        require(msg.sender == ENTRY_POINT_V07 || msg.sender == address(this), OnlyEntryPointOrSelf());
+        _executeComposable(executions);
     }
 
-    function _execute(address target, uint256 value, bytes calldata callData)
+    function _executeAction(address to, uint256 value, bytes memory data)
         internal
-        virtual
-        returns (bytes memory result)
+        override
+        returns (bytes memory returnData)
     {
-        /// @solidity memory-safe-assembly
-        assembly {
-            result := mload(0x40)
-            calldatacopy(result, callData.offset, callData.length)
-            if iszero(call(gas(), target, value, result, callData.length, codesize(), 0x00)) {
-                // Bubble up the revert if the call reverts.
-                returndatacopy(result, 0x00, returndatasize())
-                revert(result, returndatasize())
-            }
-            mstore(result, returndatasize()) // Store the length.
-            let o := add(result, 0x20)
-            returndatacopy(o, 0x00, returndatasize()) // Copy the returndata.
-            mstore(0x40, add(o, returndatasize())) // Allocate the memory.
-        }
+        (, returnData) = to.call{value: value}(data);
     }
 
     receive() external payable {
@@ -116,7 +86,7 @@ contract MockAccountNonComposable is IAccount {
         (bool success, bytes memory result) =
             address(handler).call{value: msg.value}(ERC2771Lib.get2771CallData(callData));
         if (!success) {
-            revert FallbackFailed(result);
+            revert(string(result));
         }
         emit MockAccountFallback(callData, msg.value);
     }
