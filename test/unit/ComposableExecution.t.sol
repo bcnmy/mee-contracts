@@ -8,6 +8,7 @@ import {Storage} from "contracts/composability/Storage.sol";
 import {IComposableExecution} from "contracts/interfaces/IComposableExecution.sol";
 import "contracts/composability/ComposableExecutionLib.sol";
 import "test/mock/DummyContract.sol";
+import "contracts/types/ComposabilityDataTypes.sol";
 
 contract ComposableExecutionTest is ComposabilityTestBase {
 
@@ -226,9 +227,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         });
         bytes memory expectedRevertData; 
         if (address(account) == address(mockAccountFallback)) {
-            expectedRevertData = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.GTE));
+            expectedRevertData = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.GTE));
         } else {
-            expectedRevertData = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.GTE);
+            expectedRevertData = abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.GTE);
         }
         vm.expectRevert(expectedRevertData);
         IComposableExecution(address(account)).executeComposable(failingExecutions);
@@ -285,9 +286,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         });
         bytes memory expectedRevertReason; 
         if (address(account) == address(mockAccountFallback)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.LTE));
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.LTE));
         } else {
-            expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.LTE);
+            expectedRevertReason = abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.LTE);
         }
         vm.expectRevert(expectedRevertReason);
         IComposableExecution(address(account)).executeComposable(failingExecutions);
@@ -353,9 +354,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         });
         bytes memory expectedRevertReason; 
         if (address(account) == address(mockAccountFallback)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.IN));
         } else {
-            expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN);
+            expectedRevertReason = abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.IN);
         }
         vm.expectRevert(expectedRevertReason);
         IComposableExecution(address(account)).executeComposable(failingExecutionsA);
@@ -371,9 +372,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         });
         
         if (address(account) == address(mockAccountFallback)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.IN));
         } else {
-            expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN);
+            expectedRevertReason = abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.IN);
         }
         vm.expectRevert(expectedRevertReason);
         IComposableExecution(address(account)).executeComposable(failingExecutionsB);
@@ -430,9 +431,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         });
         bytes memory expectedRevertReason; 
         if (address(account) == address(mockAccountFallback)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.EQ));
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.EQ));
         } else {
-            expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.EQ);
+            expectedRevertReason = abi.encodeWithSelector(ComposableExecutionLib.ConstraintNotMet.selector, ConstraintType.EQ);
         }
         vm.expectRevert(expectedRevertReason);
         IComposableExecution(address(account)).executeComposable(failingExecutions);
@@ -1072,9 +1073,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         bytes memory expectedRevertReason; 
         if (address(account) == address(mockAccountFallback)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodePacked(ExecutionFailed.selector));
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodePacked(ComposableExecutionLib.ExecutionFailed.selector));
         } else {
-            expectedRevertReason = abi.encodePacked(ExecutionFailed.selector);
+            expectedRevertReason = abi.encodePacked(ComposableExecutionLib.ExecutionFailed.selector);
         }
         vm.expectRevert(expectedRevertReason);
         IComposableExecution(address(account)).executeComposable(executions);

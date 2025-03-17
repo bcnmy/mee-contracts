@@ -7,12 +7,8 @@ import {ModeLib} from "erc7579/lib/ModeLib.sol";
 import {ExecutionLib} from "erc7579/lib/ExecutionLib.sol";
 import {ERC7579FallbackBase} from "@rhinestone/module-bases/src/ERC7579FallbackBase.sol";
 import {IComposableExecutionModule} from "contracts/interfaces/IComposableExecution.sol";
-import {
-    ComposableExecutionLib,
-    InputParam,
-    OutputParam,
-    ComposableExecution
-} from "contracts/composability/ComposableExecutionLib.sol";
+import {ComposableExecutionLib} from "contracts/composability/ComposableExecutionLib.sol";
+import {InputParam, OutputParam, ComposableExecution} from "contracts/types/ComposabilityDataTypes.sol";
 
 /**
  * @title Composable Execution Module: Executor and Fallback
@@ -64,6 +60,10 @@ contract ComposableExecutionModule is IComposableExecutionModule, IExecutor, ERC
         _executeComposable(executions, address(this), _executeExecutionDelegatecall);
     }
 
+    /// @dev internal function to execute the composable execution flow
+    /// @param executions - the composable executions to execute
+    /// @param account - the account to execute the composable executions on
+    /// @param executeExecutionFunction - the function to execute the composable executions
     function _executeComposable(
         ComposableExecution[] calldata executions,
         address account,
