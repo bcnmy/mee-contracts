@@ -50,6 +50,7 @@ contract ComposableExecutionModule is IComposableExecutionModule, IExecutor, ERC
     /// @notice It doesn't require access control as it is expected to be called by the account itself via .execute()
     /// @dev !!! Attention !!! This function should NEVER be installed to be used via fallback() as it doesn't implement access control
     /// thus it will be callable by any address account.executeComposableCall => fallback() => this.executeComposableCall
+    /// @dev should be called by the account itself via .execute()
     function executeComposableCall(ComposableExecution[] calldata executions) external payable { 
         _executeComposable(executions, msg.sender, _executeExecutionCall);
     }
