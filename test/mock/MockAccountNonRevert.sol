@@ -14,13 +14,12 @@ import {console2} from "forge-std/console2.sol";
 
 address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
-contract MockAccount is ComposableExecutionBase, IAccount {
+contract MockAccountNonRevert is ComposableExecutionBase, IAccount {
     event MockAccountValidateUserOp(PackedUserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds);
     event MockAccountExecute(address to, uint256 value, bytes data);
     event MockAccountReceive(uint256 value);
     event MockAccountFallback(bytes callData, uint256 value);
 
-    error ExecutionFailed();
     error OnlyEntryPointOrSelf();
 
     IValidator public validator;
@@ -76,11 +75,7 @@ contract MockAccount is ComposableExecutionBase, IAccount {
         override
         returns (bytes memory returnData)
     {
-        bool success;
-        (success, returnData) = to.call{value: value}(data);
-        if (!success) {
-            revert ExecutionFailed();
-        }
+        (, returnData) = to.call{value: value}(data);
     }
 
     receive() external payable {

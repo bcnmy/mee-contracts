@@ -8,9 +8,7 @@ import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol
  * @title Simple wrapper around EntryPoint
  * @dev Used to ensure only proper Node PMs are used
  */
-
 contract MEEEntryPoint {
-
     error InvalidPMCodeHash(bytes32 pmCodeHashOnChain);
 
     IEntryPoint public immutable entryPoint;
@@ -45,5 +43,4 @@ contract MEEEntryPoint {
         }
         entryPoint.handleOps(userOps, beneficiary);
     }
-
 }
