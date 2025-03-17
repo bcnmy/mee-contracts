@@ -60,6 +60,10 @@ contract ComposableExecutionModule is IComposableExecutionModule, IExecutor, ERC
         _executeComposable(executions, address(this), _executeExecutionDelegatecall);
     }
 
+    /// @dev internal function to execute the composable execution flow
+    /// @param executions - the composable executions to execute
+    /// @param account - the account to execute the composable executions on
+    /// @param executeExecutionFunction - the function to execute the composable executions
     function _executeComposable(
         ComposableExecution[] calldata executions,
         address account,

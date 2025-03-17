@@ -11,9 +11,13 @@ abstract contract ComposableExecutionBase is IComposableExecution {
 
     error InsufficientMsgValue();
 
-    // Feel free to override it to introduce additional access control or other checks
+    /// @dev Feel free to override it to introduce additional access control or other checks
     function executeComposable(ComposableExecution[] calldata executions) external payable virtual;
 
+    /// @dev internal function to execute the composable execution flow
+    /// First, processes the input parameters and returns the composed calldata
+    /// Then, executes the action
+    /// Then, processes the output parameters
     function _executeComposable(ComposableExecution[] calldata executions) internal {
         uint256 length = executions.length;
         uint256 aggregateValue;
@@ -32,8 +36,8 @@ abstract contract ComposableExecutionBase is IComposableExecution {
         }
     }
 
-    // Override this in the account
-    // using account's native execution approach
+    /// @dev Override this in the account
+    /// using account's native execution approach
     function _executeAction(address to, uint256 value, bytes memory data)
         internal
         virtual
