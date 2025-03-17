@@ -2,26 +2,37 @@
 pragma solidity ^0.8.23;
 
 import "./Base.t.sol";
-import {MockAccountNonComposable} from "./mock/MockAccountNonComposable.sol";
+import {MockAccountFallback} from "./mock/MockAccountFallback.sol";
 import {MockAccountNonRevert} from "./mock/MockAccountNonRevert.sol";
 import {ComposableExecutionModule} from "contracts/composability/ComposableExecutionModule.sol";
-
+import {MockAccountDelegateCaller} from "./mock/MockAccountDelegateCaller.sol";
+import {MockAccountCaller} from "./mock/MockAccountCaller.sol";
 contract ComposabilityTestBase is BaseTest {
     ComposableExecutionModule internal composabilityHandler;
-    MockAccountNonComposable internal mockAccountNonComposable;
-    MockAccount internal mockAccount;
+    MockAccountFallback internal mockAccountFallback;
+    MockAccountDelegateCaller internal mockAccountDelegateCaller;
+    MockAccountCaller internal mockAccountCaller;
     MockAccountNonRevert internal mockAccountNonRevert;
+    MockAccount internal mockAccount;
 
     function setUp() public virtual override {
         super.setUp();
         composabilityHandler = new ComposableExecutionModule();
-        mockAccountNonComposable = new MockAccountNonComposable({
+        mockAccountFallback = new MockAccountFallback({
             _validator: address(0),
             _executor: address(composabilityHandler),
             _handler: address(composabilityHandler)
         });
+        mockAccountCaller = new MockAccountCaller({
+            _validator: address(0),
+            _executor: address(composabilityHandler),
+            _handler: address(composabilityHandler)
+        });
+        mockAccountDelegateCaller = new MockAccountDelegateCaller({
+            _composableModule: address(composabilityHandler)
+        });
 
-        vm.prank(address(mockAccountNonComposable));
+        vm.prank(address(mockAccountFallback));
         composabilityHandler.onInstall(abi.encodePacked(ENTRYPOINT_V07_ADDRESS));
 
         mockAccount = deployMockAccount({validator: address(0), handler: address(0xa11ce)});

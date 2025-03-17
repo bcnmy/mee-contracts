@@ -32,110 +32,150 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
     function test_inputStaticCall_OutputExecResult_Success() public {
         // via composability module
-        _inputStaticCallOutputExecResult(address(mockAccountNonComposable), address(composabilityHandler));
+        _inputStaticCallOutputExecResult(address(mockAccountFallback), address(composabilityHandler));
 
         // via native executeComposable
         _inputStaticCallOutputExecResult(address(mockAccount), address(mockAccount));
+
+        // via regular call
+        _inputStaticCallOutputExecResult(address(mockAccountCaller),  address(composabilityHandler));
+
+        // via delegatecall
+        _inputStaticCallOutputExecResult(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_inputRawBytes_Success() public {
         // via composability module
-        _inputRawBytes(address(mockAccountNonComposable), address(composabilityHandler));
+        _inputRawBytes(address(mockAccountFallback), address(composabilityHandler));
 
         // via native executeComposable
         _inputRawBytes(address(mockAccount), address(mockAccount));
+
+        // via regular call
+        _inputRawBytes(address(mockAccountCaller), address(composabilityHandler));
+
+        // via delegatecall
+        _inputRawBytes(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_outputStaticCall_Success() public {
         // via composability module
-        _outputStaticCall(address(mockAccountNonComposable), address(composabilityHandler));
+        _outputStaticCall(address(mockAccountFallback), address(composabilityHandler));
 
         // via native executeComposable
         _outputStaticCall(address(mockAccount), address(mockAccount));
+
+        // via regular call
+        _outputStaticCall(address(mockAccountCaller), address(composabilityHandler));
+
+        // via delegatecall
+        _outputStaticCall(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     // test actual composability => call executeComposable with multiple executions
     function test_useOutputAsInput_Success() public {
         // via composability module
-        _useOutputAsInput(address(mockAccountNonComposable), address(composabilityHandler));
+        _useOutputAsInput(address(mockAccountFallback), address(composabilityHandler));
 
         // via native executeComposable
         _useOutputAsInput(address(mockAccount), address(mockAccount));
+
+        // via regular call
+        _useOutputAsInput(address(mockAccountCaller), address(composabilityHandler));
+
+        // via delegatecall
+        _useOutputAsInput(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_outputExecResultAddress_Success() public {
         // via composability module
-        _outputExecResultAddress(address(mockAccountNonComposable), address(composabilityHandler));
+        _outputExecResultAddress(address(mockAccountFallback), address(composabilityHandler));
 
         // via native executeComposable
         _outputExecResultAddress(address(mockAccount), address(mockAccount));
+
+        // via regular call
+        _outputExecResultAddress(address(mockAccountCaller), address(composabilityHandler));
+
+        // via delegatecall
+        _outputExecResultAddress(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_inputs_With_Gte_Constraints() public {
         _inputParamUsingGteConstraints(address(mockAccount), address(mockAccount));     
-        _inputParamUsingGteConstraints(address(mockAccountNonComposable), address(composabilityHandler));
+        _inputParamUsingGteConstraints(address(mockAccountFallback), address(composabilityHandler));
+        _inputParamUsingGteConstraints(address(mockAccountCaller), address(composabilityHandler));
+        _inputParamUsingGteConstraints(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_inputs_With_Lte_Constraints() public {
         _inputParamUsingLteConstraints(address(mockAccount), address(mockAccount));
-        _inputParamUsingLteConstraints(address(mockAccountNonComposable), address(composabilityHandler));
+        _inputParamUsingLteConstraints(address(mockAccountFallback), address(composabilityHandler));
+        _inputParamUsingLteConstraints(address(mockAccountCaller), address(composabilityHandler));
+        _inputParamUsingLteConstraints(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_inputs_With_In_Constraints() public {
         _inputParamUsingInConstraints(address(mockAccount), address(mockAccount));
-        _inputParamUsingInConstraints(address(mockAccountNonComposable), address(composabilityHandler));
+        _inputParamUsingInConstraints(address(mockAccountFallback), address(composabilityHandler));
+        _inputParamUsingInConstraints(address(mockAccountCaller), address(composabilityHandler));
+        _inputParamUsingInConstraints(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_inputs_With_Eq_Constraints() public {
         _inputParamUsingEqConstraints(address(mockAccount), address(mockAccount));
-        _inputParamUsingEqConstraints(address(mockAccountNonComposable), address(composabilityHandler));
+        _inputParamUsingEqConstraints(address(mockAccountFallback), address(composabilityHandler));
+        _inputParamUsingEqConstraints(address(mockAccountCaller), address(composabilityHandler));
+        _inputParamUsingEqConstraints(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_outputExecResultBool_Success() public {
-        // via composability module
-        _outputExecResultBool(address(mockAccountNonComposable), address(composabilityHandler));
-
-        // via native executeComposable
+        _outputExecResultBool(address(mockAccountFallback), address(composabilityHandler));
         _outputExecResultBool(address(mockAccount), address(mockAccount));
+        _outputExecResultBool(address(mockAccountCaller), address(composabilityHandler));
+        _outputExecResultBool(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_outputExecResultMultipleValues_Success() public {
-        // via composability module
-        _outputExecResultMultipleValues(address(mockAccountNonComposable), address(composabilityHandler));
-
-        // via native executeComposable
+        _outputExecResultMultipleValues(address(mockAccountFallback), address(composabilityHandler));
         _outputExecResultMultipleValues(address(mockAccount), address(mockAccount));
+        _outputExecResultMultipleValues(address(mockAccountCaller), address(composabilityHandler));
+        _outputExecResultMultipleValues(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_outputStaticCallMultipleValues_Success() public {
-        // via composability module
-        _outputStaticCallMultipleValues(address(mockAccountNonComposable), address(composabilityHandler));
-
-        // via native executeComposable
+        _outputStaticCallMultipleValues(address(mockAccountFallback), address(composabilityHandler));
         _outputStaticCallMultipleValues(address(mockAccount), address(mockAccount));
+        _outputStaticCallMultipleValues(address(mockAccountCaller), address(composabilityHandler));
+        _outputStaticCallMultipleValues(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_inputStaticCallMultipleValues_Success() public {
-        // via composability module
-        _inputStaticCallMultipleValues(address(mockAccountNonComposable), address(composabilityHandler));
-
-        // via native executeComposable
+        _inputStaticCallMultipleValues(address(mockAccountFallback), address(composabilityHandler));
         _inputStaticCallMultipleValues(address(mockAccount), address(mockAccount));
+        _inputStaticCallMultipleValues(address(mockAccountCaller), address(composabilityHandler));
+        _inputStaticCallMultipleValues(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_inputDynamicBytesArrayAsRawBytes_Success() public {
-        _inputDynamicBytesArrayAsRawBytes(address(mockAccountNonComposable), address(composabilityHandler));
+        _inputDynamicBytesArrayAsRawBytes(address(mockAccountFallback), address(composabilityHandler));
         _inputDynamicBytesArrayAsRawBytes(address(mockAccount), address(mockAccount));
+        _inputDynamicBytesArrayAsRawBytes(address(mockAccountCaller), address(composabilityHandler));
+        _inputDynamicBytesArrayAsRawBytes(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_structInjection_Success() public {
-        _structInjection(address(mockAccountNonComposable), address(composabilityHandler));
+        _structInjection(address(mockAccountFallback), address(composabilityHandler));
         _structInjection(address(mockAccount), address(mockAccount));
+        _structInjection(address(mockAccountCaller), address(composabilityHandler));
+        _structInjection(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
 
     function test_read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized() public {
-        _read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized(address(mockAccountNonComposable), address(composabilityHandler));        
+        _read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized(address(mockAccountFallback), address(composabilityHandler));        
         _read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized(address(mockAccount), address(mockAccount));
+        _read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized(address(mockAccountCaller), address(composabilityHandler));
+        _read_From_Storage_Reverts_if_the_expected_slot_is_not_initialized(address(mockAccountDelegateCaller), address(mockAccountDelegateCaller));
     }
     
     // if the account does not revert on unsuccessful execution,
@@ -185,8 +225,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             outputParams: outputParams
         });
         bytes memory expectedRevertData; 
-        if (address(account) == address(mockAccountNonComposable)) {
-            expectedRevertData = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.GTE));
+        if (address(account) == address(mockAccountFallback)) {
+            expectedRevertData = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.GTE));
         } else {
             expectedRevertData = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.GTE);
         }
@@ -244,8 +284,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             outputParams: outputParams
         });
         bytes memory expectedRevertReason; 
-        if (address(account) == address(mockAccountNonComposable)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.LTE));
+        if (address(account) == address(mockAccountFallback)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.LTE));
         } else {
             expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.LTE);
         }
@@ -312,8 +352,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             outputParams: outputParams
         });
         bytes memory expectedRevertReason; 
-        if (address(account) == address(mockAccountNonComposable)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
+        if (address(account) == address(mockAccountFallback)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
         } else {
             expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN);
         }
@@ -330,8 +370,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             outputParams: outputParams
         });
         
-        if (address(account) == address(mockAccountNonComposable)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
+        if (address(account) == address(mockAccountFallback)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN));
         } else {
             expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.IN);
         }
@@ -389,8 +429,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             outputParams: outputParams
         });
         bytes memory expectedRevertReason; 
-        if (address(account) == address(mockAccountNonComposable)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.EQ));
+        if (address(account) == address(mockAccountFallback)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.EQ));
         } else {
             expectedRevertReason = abi.encodeWithSelector(ConstraintNotMet.selector, ConstraintType.EQ);
         }
@@ -463,7 +503,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
             inputParams: inputParamsB,
             outputParams: outputParamsB
         });
-        // Call function B through mockAccountNonComposable=>handler
+        // Call function B through mockAccountFallback=>handler
         IComposableExecution(address(account)).executeComposable(executionsB);
 
         // Verify the result (84 = 42 * 2) was stored correctly
@@ -491,7 +531,7 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         uint256 valueToSendExecution;
         uint256 valueToSendToComposableModule;
-        if (address(account) == address(mockAccountNonComposable)) {
+        if (address(account) == address(mockAccountFallback)) {
             valueToSendExecution = 1e15;
             valueToSendToComposableModule = 2 * valueToSendExecution;
         }
@@ -507,9 +547,9 @@ contract ComposableExecutionTest is ComposabilityTestBase {
 
         vm.expectEmit(address(dummyContract));
         emit Uint256Emitted(1);
-        if (address(account) == address(mockAccountNonComposable)) {
+        if (address(account) == address(mockAccountFallback)) {
             emit Received(valueToSendExecution);
-            vm.expectEmit(address(mockAccountNonComposable));
+            vm.expectEmit(address(mockAccountFallback));
             emit MockAccountReceive(valueToSendExecution);
         }
         IComposableExecution(address(account)).executeComposable{value: valueToSendToComposableModule}(executions);
@@ -1031,8 +1071,8 @@ contract ComposableExecutionTest is ComposabilityTestBase {
         });
 
         bytes memory expectedRevertReason; 
-        if (address(account) == address(mockAccountNonComposable)) {
-            expectedRevertReason = abi.encodeWithSelector(MockAccountNonComposable.FallbackFailed.selector, abi.encodePacked(ExecutionFailed.selector));
+        if (address(account) == address(mockAccountFallback)) {
+            expectedRevertReason = abi.encodeWithSelector(MockAccountFallback.FallbackFailed.selector, abi.encodePacked(ExecutionFailed.selector));
         } else {
             expectedRevertReason = abi.encodePacked(ExecutionFailed.selector);
         }

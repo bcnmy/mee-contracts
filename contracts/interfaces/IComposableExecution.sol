@@ -6,3 +6,8 @@ import {InputParam, OutputParam, ComposableExecution} from "contracts/composabil
 interface IComposableExecution {
     function executeComposable(ComposableExecution[] calldata executions) external payable;
 }
+
+interface IComposableExecutionModule is IComposableExecution {
+    function executeComposableCall(ComposableExecution[] calldata executions) external payable;
+    function executeComposableDelegateCall(ComposableExecution[] calldata executions) external payable;
+}
