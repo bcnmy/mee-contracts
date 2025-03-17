@@ -37,5 +37,12 @@ contract ComposabilityTestBase is BaseTest {
 
         mockAccount = deployMockAccount({validator: address(0), handler: address(0xa11ce)});
         mockAccountNonRevert = new MockAccountNonRevert({_validator: address(0), _handler: address(0xa11ce)});
+
+        // fund accounts
+        vm.deal(address(mockAccountFallback), 100 ether);
+        vm.deal(address(mockAccountDelegateCaller), 100 ether);
+        vm.deal(address(mockAccountCaller), 100 ether);
+        vm.deal(address(mockAccountNonRevert), 100 ether);
+        vm.deal(address(mockAccount), 100 ether);
     }
 }

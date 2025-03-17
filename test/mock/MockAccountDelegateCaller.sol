@@ -12,7 +12,7 @@ contract MockAccountDelegateCaller {
         composableModule = _composableModule;
     }
 
-    function executeComposable(ComposableExecution[] calldata executions) external payable {
+    function executeComposable(ComposableExecution[] calldata executions) external {
         // delegatecall to the composableModule
         (bool success, bytes memory returnData) = composableModule.delegatecall(abi.encodeWithSelector(IComposableExecutionModule.executeComposableDelegateCall.selector, executions));
         emit MockAccountDelegateCall(returnData);
