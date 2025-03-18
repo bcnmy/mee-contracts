@@ -8,8 +8,7 @@ import "account-abstraction/core/Helpers.sol";
 import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
 import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
-
-import "forge-std/console2.sol";
+import {NODE_PM_MODE_USER, NODE_PM_MODE_NODE, NODE_PM_MODE_KEEP} from "contracts/types/Constants.sol";
 
 /**
  * @title Node Paymaster
@@ -17,6 +16,9 @@ import "forge-std/console2.sol";
  * It is used to sponsor userOps. Introduced for gas efficient MEE flow.
  */
 contract NodePaymaster is BasePaymaster {
+
+    error InvalidNodePMMode(bytes4 mode);
+
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
 
@@ -57,18 +59,32 @@ contract NodePaymaster is BasePaymaster {
         require(_checkMeeNodeMasterSig(userOp.signature, userOpHash), OnlySponsorOwnStuff()); 
 
         bytes4 mode = bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+4]);
-        uint256 impliedCost = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+4:]));        
-        
-        uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
-        require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());
-        context = abi.encode(
-            mode == NODE_PM_MODE_SPONSORED ? owner() : userOp.sender, 
-            userOp.unpackMaxFeePerGas(), 
-            userOp.preVerificationGas + userOp.unpackVerificationGasLimit() + userOp.unpackCallGasLimit() + userOp.unpackPaymasterVerificationGasLimit() + postOpGasLimit,
-            userOpHash, 
-            impliedCost,
-            postOpGasLimit
-        );
+        address refundReceiver;
+        if (mode == NODE_PM_MODE_USER) {
+            refundReceiver = userOp.sender;
+        } else if (mode == NODE_PM_MODE_NODE) {
+            refundReceiver = owner();
+        } else if (mode == NODE_PM_MODE_KEEP) {
+            refundReceiver = address(0);
+        } else {
+            revert InvalidNodePMMode(mode);
+        }
+
+        if (refundReceiver == address(0)) {
+            context = abi.encode(userOpHash);
+        } else {
+            uint256 impliedCost = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+4:]));
+            uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
+            require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());
+            context = abi.encode(
+                userOpHash,
+                refundReceiver,
+                userOp.unpackMaxFeePerGas(), 
+                userOp.preVerificationGas + userOp.unpackVerificationGasLimit() + userOp.unpackCallGasLimit() + userOp.unpackPaymasterVerificationGasLimit() + postOpGasLimit,
+                impliedCost,
+                postOpGasLimit
+            );
+        }
     }
 
     /**
@@ -88,34 +104,38 @@ contract NodePaymaster is BasePaymaster {
         virtual
         override
     {  
-        address refundReceiver;
-        uint256 maxFeePerGas;
-        uint256 maxGasLimit;
         bytes32 userOpHash;
-        uint256 impliedCost;
-        uint256 postOpGasLimit;
-
         assembly {
-            refundReceiver := calldataload(context.offset)
-            maxFeePerGas := calldataload(add(context.offset, 0x20))
-            maxGasLimit := calldataload(add(context.offset, 0x40))
-            userOpHash := calldataload(add(context.offset, 0x60))
-            impliedCost := calldataload(add(context.offset, 0x80))
-            postOpGasLimit := calldataload(add(context.offset, 0xa0))
+            userOpHash := calldataload(context.offset)
         }
 
         executedUserOps[userOpHash] = true;
 
-        uint256 refund = _calculateRefund({
-            maxFeePerGas: maxFeePerGas,
-            actualGasUsed: actualGasCost / actualUserOpFeePerGas,
-            actualUserOpFeePerGas: actualUserOpFeePerGas,
-            maxGasLimit: maxGasLimit,
-            postOpGasLimit: postOpGasLimit,
-            impliedCost: impliedCost
-        });
-        if (refund > 0) {
-            entryPoint.withdrawTo(payable(sender), refund);
+        if (context.length == 0xc0) {
+            address refundReceiver;
+            uint256 maxFeePerGas;
+            uint256 maxGasLimit;
+            uint256 impliedCost;
+            uint256 postOpGasLimit;
+
+            assembly {
+                refundReceiver := calldataload(add(context.offset, 0x20))
+                maxFeePerGas := calldataload(add(context.offset, 0x40))
+                maxGasLimit := calldataload(add(context.offset, 0x60))
+                impliedCost := calldataload(add(context.offset, 0x80))
+                postOpGasLimit := calldataload(add(context.offset, 0xa0))
+            }
+            uint256 refund = _calculateRefund({
+                maxFeePerGas: maxFeePerGas,
+                actualGasUsed: actualGasCost / actualUserOpFeePerGas,
+                actualUserOpFeePerGas: actualUserOpFeePerGas,
+                maxGasLimit: maxGasLimit,
+                postOpGasLimit: postOpGasLimit,
+                impliedCost: impliedCost
+            });
+            if (refund > 0) {
+                entryPoint.withdrawTo(payable(refundReceiver), refund);
+            }
         }
     }
 

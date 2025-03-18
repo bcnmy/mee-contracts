@@ -292,7 +292,7 @@ contract K1MEEValidatorTest is BaseTest {
             userOp: userOp, 
             pmValidationGasLimit: 40_000, 
             pmPostOpGasLimit: 50_000, 
-            premiumPercentage: 17_00000, 
+            impliedCostPercentageOfMaxGasCost: 75, 
             wallet: userOpSigner, 
             sigType: bytes4(0)
         });

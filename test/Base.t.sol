@@ -50,7 +50,7 @@ contract BaseTest is Test {
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0xa875c4cfc19f33e13d34a4ce1bc44309e0debf63034f37cd16b416d552fbdb87;
+    bytes32 constant NODE_PM_CODE_HASH = 0x8c793aa9afa95f89a098335b9aa75581afed3f05027e6b7645e849a0cca8ced4;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
@@ -181,15 +181,20 @@ contract BaseTest is Test {
         PackedUserOperation memory userOp,
         uint128 pmValidationGasLimit,
         uint128 pmPostOpGasLimit,
-        uint256 premiumPercentage,
+        uint256 impliedCostPercentageOfMaxGasCost,
         Vm.Wallet memory wallet,
         bytes4 sigType
     ) internal view returns (PackedUserOperation memory) {
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
-        userOp.paymasterAndData = makePMAndDataForOwnPM(
-            address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage
-        );
+        uint256 maxGasCost = maxGasLimit * unpackMaxFeePerGasMemory(userOp);
+        userOp.paymasterAndData = makePMAndDataForOwnPM({
+            nodePM: address(NODE_PAYMASTER),
+            pmValidationGasLimit: pmValidationGasLimit,
+            pmPostOpGasLimit: pmPostOpGasLimit,
+            impliedCost: maxGasCost * impliedCostPercentageOfMaxGasCost / 100,
+            pmMode: NODE_PM_MODE_USER
+        });
         userOp.signature = signUserOp(wallet, userOp);
         if (sigType != bytes4(0)) {
             userOp.signature = abi.encodePacked(sigType, userOp.signature);
@@ -532,14 +537,15 @@ contract BaseTest is Test {
         address nodePM,
         uint128 pmValidationGasLimit,
         uint128 pmPostOpGasLimit,
-        uint256 maxGasLimit,
-        uint256 premiumPercentage
+        uint256 impliedCost,
+        bytes4 pmMode
     ) internal view returns (bytes memory) {
         return abi.encodePacked(
             nodePM,
             pmValidationGasLimit, // pm validation gas limit
             pmPostOpGasLimit, // pm post-op gas limit
-            premiumPercentage
+            pmMode,
+            impliedCost
         );
     }
 }
