@@ -10,14 +10,13 @@ import "account-abstraction/core/Helpers.sol";
  * @dev Library to validate the signature for MEE Simple mode
  *      In this mode, Fusion is not involved and just the superTx hash is signed
  */
-
 library SimpleValidatorLib {
     /**
      * This function parses the given userOpSignature into a Supertransaction signature
      *
      * Once parsed, the function will check for two conditions:
      *      1. is the root supertransaction hash signed by the account owner's EOA
-     *      2. is the userOp actually a part of the given supertransaction 
+     *      2. is the userOp actually a part of the given supertransaction
      *      by checking the leaf based on this userOpHash is a part of the merkle tree represented by root hash = superTxHash
      *
      * If both conditions are met - outside contract can be sure that the expected signer has indeed
@@ -38,12 +37,12 @@ library SimpleValidatorLib {
         bytes32[] calldata proof;
         bytes calldata secp256k1Signature;
 
-         assembly {
+        assembly {
             superTxHash := calldataload(signatureData.offset)
             lowerBoundTimestamp := calldataload(add(signatureData.offset, 0x20))
             upperBoundTimestamp := calldataload(add(signatureData.offset, 0x40))
-            let u:= calldataload(add(signatureData.offset, 0x60))
-            let s:= add(signatureData.offset, u)
+            let u := calldataload(add(signatureData.offset, 0x60))
+            let s := add(signatureData.offset, u)
             proof.offset := add(s, 0x20)
             proof.length := calldataload(s)
             u := mul(proof.length, 0x20)
@@ -52,7 +51,7 @@ library SimpleValidatorLib {
             secp256k1Signature.length := calldataload(s)
         }
 
-        bytes32 leaf  = MEEUserOpHashLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
+        bytes32 leaf = MEEUserOpHashLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
         if (!EcdsaLib.isValidSignature(expectedSigner, superTxHash, secp256k1Signature)) {
             return SIG_VALIDATION_FAILED;
         }
@@ -64,7 +63,6 @@ library SimpleValidatorLib {
         return _packValidationData(false, upperBoundTimestamp, lowerBoundTimestamp);
     }
 
-
     /**
      * @notice Validates the signature against the expected signer (owner)
      * @param owner Signer expected to be recovered
@@ -73,7 +71,7 @@ library SimpleValidatorLib {
      */
     function validateSignatureForOwner(address owner, bytes32 dataHash, bytes calldata signatureData)
         internal
-        view 
+        view
         returns (bool)
     {
         bytes32 superTxHash;
@@ -91,7 +89,7 @@ library SimpleValidatorLib {
             secp256k1Signature.offset := add(s, 0x20)
             secp256k1Signature.length := calldataload(s)
         }
-        
+
         if (!EcdsaLib.isValidSignature(owner, superTxHash, secp256k1Signature)) {
             return false;
         }
