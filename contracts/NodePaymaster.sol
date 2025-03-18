@@ -16,7 +16,6 @@ import "forge-std/console2.sol";
  * @notice A paymaster every MEE Node should deploy.
  * It is used to sponsor userOps. Introduced for gas efficient MEE flow.
  */
-
 contract NodePaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
@@ -24,7 +23,7 @@ contract NodePaymaster is BasePaymaster {
     // TODO: adjust it 
     // PM.postOp() consumes around 44k. We add a buffer for EP penalty calc
     // and chains with non-standard gas pricing
-    uint256 private constant POST_OP_GAS = 49_999; 
+    uint256 private constant POST_OP_GAS = 49_999;
     mapping(bytes32 => bool) private executedUserOps;
 
     error EmptyMessageValue();
@@ -33,10 +32,8 @@ contract NodePaymaster is BasePaymaster {
     error Disabled();
     error OnlySponsorOwnStuff();
     error PostOpGasLimitTooLow();
-    constructor(
-        IEntryPoint _entryPoint,
-        address _meeNodeAddress
-    ) payable BasePaymaster(_entryPoint) {
+
+    constructor(IEntryPoint _entryPoint, address _meeNodeAddress) payable BasePaymaster(_entryPoint) {
         _transferOwnership(_meeNodeAddress);
     }
 
@@ -97,7 +94,7 @@ contract NodePaymaster is BasePaymaster {
         bytes32 userOpHash;
         uint256 impliedCost;
         uint256 postOpGasLimit;
-        
+
         assembly {
             refundReceiver := calldataload(context.offset)
             maxFeePerGas := calldataload(add(context.offset, 0x20))
@@ -110,9 +107,9 @@ contract NodePaymaster is BasePaymaster {
         executedUserOps[userOpHash] = true;
 
         uint256 refund = _calculateRefund({
-            maxFeePerGas: maxFeePerGas, 
-            actualGasUsed: actualGasCost/actualUserOpFeePerGas, 
-            actualUserOpFeePerGas: actualUserOpFeePerGas, 
+            maxFeePerGas: maxFeePerGas,
+            actualGasUsed: actualGasCost / actualUserOpFeePerGas,
+            actualUserOpFeePerGas: actualUserOpFeePerGas,
             maxGasLimit: maxGasLimit,
             postOpGasLimit: postOpGasLimit,
             impliedCost: impliedCost
@@ -139,9 +136,8 @@ contract NodePaymaster is BasePaymaster {
         uint256 postOpGasLimit,
         uint256 impliedCost
     ) internal view returns (uint256 refund) {
-
         //account for postOpGas
-        actualGasUsed = actualGasUsed + postOpGasLimit;  
+        actualGasUsed = actualGasUsed + postOpGasLimit;
 
         // If there's unused gas, add penalty
         // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
@@ -156,7 +152,7 @@ contract NodePaymaster is BasePaymaster {
      * @dev check if the userOp was executed
      * @param userOpHash the hash of the userOp
      * @return executed true if the userOp was executed, false otherwise
-     */ 
+     */
     function wasUserOpExecuted(bytes32 userOpHash) public view returns (bool) {
         return executedUserOps[userOpHash];
     }
