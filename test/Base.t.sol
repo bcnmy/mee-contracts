@@ -160,12 +160,12 @@ contract BaseTest is Test {
         return abi.encodePacked(r, s, v);
     }
 
-    function addNodeMasterSig(PackedUserOperation memory userOp, Vm.Wallet memory nodeMaster) internal view returns (PackedUserOperation memory) {
-         bytes32 opHash = MessageHashUtils.toEthSignedMessageHash(keccak256(abi.encodePacked(
+    function addNodeMasterSig(PackedUserOperation memory userOp, Vm.Wallet memory nodeMaster, address approvedEOA) internal view returns (PackedUserOperation memory) {
+         bytes32 hashToSign = MessageHashUtils.toEthSignedMessageHash(keccak256(abi.encodePacked(
             _getUserOpHash(userOp),
-            MEE_NODE_EXECUTOR_EOA
+            approvedEOA
         )));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(nodeMaster.privateKey, opHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(nodeMaster.privateKey, hashToSign);
         bytes memory nodeMasterSig = abi.encodePacked(r, s, v);
         userOp.signature = abi.encodePacked(userOp.signature, nodeMasterSig);
         return userOp;
@@ -252,7 +252,7 @@ contract BaseTest is Test {
                     )
             );            
             superTxUserOps[i].signature = signature;
-            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE);
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
@@ -351,7 +351,7 @@ contract BaseTest is Test {
             );
 
             superTxUserOps[i].signature = signature;
-            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE);
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
@@ -449,7 +449,7 @@ contract BaseTest is Test {
                 upperBoundTimestamp
             );
             superTxUserOps[i].signature = signature;
-            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE);
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }

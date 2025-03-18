@@ -71,9 +71,10 @@ contract PMPerNodeTest is BaseTest {
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
         userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
+        // account owner does not need to re-sign the userOp as mock account does not check the signature
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
-        userOps[0] = addNodeMasterSig(userOp, MEE_NODE);
+        userOps[0] = addNodeMasterSig(userOp, MEE_NODE, MEE_NODE_EXECUTOR_EOA);  // here the actual userOpHash is signed by the Node
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
 
@@ -89,6 +90,32 @@ contract PMPerNodeTest is BaseTest {
         assertFinancialStuffStrict(entries, premiumPercentage, nodePMDepositBefore, maxGasLimit*unpackMaxFeePerGasMemory(userOp), 0.05e18); // 5% difference
 
         return (userOps);
+    }
+
+    function test_reverts_if_sent_by_non_approved_EOA() public {
+        PackedUserOperation[] memory userOps = test_pm_per_node_single();
+
+        userOps[0].nonce++;
+        userOps[0] = addNodeMasterSig(userOps[0], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+
+
+        vm.startPrank(address(0xdeadbeef));
+        vm.expectRevert(abi.encodeWithSignature("FailedOpWithRevert(uint256,string,bytes)", 0, "AA33 reverted", abi.encodeWithSignature("OnlySponsorOwnStuff()")));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
+    }
+
+    // test reverts if userOp hash was not signed
+    function test_reverts_if_userOp_hash_was_not_signed() public {
+        PackedUserOperation[] memory userOps = test_pm_per_node_single();
+        userOps[0].nonce++;
+        
+        // Do not re-sign with MEE Node EOA, so the userOp hash is not signed by the Node
+
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA); // should revert despite of the correct tx.origin
+        vm.expectRevert(abi.encodeWithSignature("FailedOpWithRevert(uint256,string,bytes)", 0, "AA33 reverted", abi.encodeWithSignature("OnlySponsorOwnStuff()")));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
     }
 
     // fuzz tests with different gas values =>
@@ -127,7 +154,7 @@ contract PMPerNodeTest is BaseTest {
         uint256 maxGasLimit = preVerificationGasLimit + verificationGasLimit + callGasLimit + pmValidationGasLimit + pmPostOpGasLimit;
         
         userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
-        userOps[0] = addNodeMasterSig(userOp, MEE_NODE);
+        userOps[0] = addNodeMasterSig(userOp, MEE_NODE, MEE_NODE_EXECUTOR_EOA);
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
