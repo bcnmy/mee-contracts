@@ -26,7 +26,6 @@ import {
     DecodedErc20PermitSigShort,
     PermitValidatorLib
 } from "contracts/lib/fusion/PermitValidatorLib.sol";
-import {ComposableExecutionModule} from "contracts/composability/ComposableExecutionModule.sol";
 
 contract BaseTest is Test {
     struct TestTemps {

@@ -7,14 +7,12 @@ import {IValidator, IFallback} from "erc7579/interfaces/IERC7579Module.sol";
 import {IStatelessValidator} from "node_modules/@rhinestone/module-bases/src/interfaces/IStatelessValidator.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {ERC2771Lib} from "./lib/ERC2771Lib.sol";
-import {ComposableExecutionBase} from "contracts/composability/ComposableExecutionBase.sol";
-import {ComposableExecution} from "contracts/types/ComposabilityDataTypes.sol";
 
 import {console2} from "forge-std/console2.sol";
 
 address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
-contract MockAccount is ComposableExecutionBase, IAccount {
+contract MockAccount is  IAccount {
     event MockAccountValidateUserOp(PackedUserOperation userOp, bytes32 userOpHash, uint256 missingAccountFunds);
     event MockAccountExecute(address to, uint256 value, bytes data);
     event MockAccountReceive(uint256 value);
@@ -66,22 +64,6 @@ contract MockAccount is ComposableExecutionBase, IAccount {
         (success, result) = to.call{value: value}(data);
     }
 
-    function executeComposable(ComposableExecution[] calldata executions) external override {
-        require(msg.sender == ENTRY_POINT_V07 || msg.sender == address(this), OnlyEntryPointOrSelf());
-        _executeComposable(executions);
-    }
-
-    function _executeAction(address to, uint256 value, bytes memory data)
-        internal
-        override
-        returns (bytes memory returnData)
-    {
-        bool success;
-        (success, returnData) = to.call{value: value}(data);
-        if (!success) {
-            revert ExecutionFailed();
-        }
-    }
 
     receive() external payable {
         emit MockAccountReceive(msg.value);
