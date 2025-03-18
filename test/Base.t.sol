@@ -46,7 +46,7 @@ contract BaseTest is Test {
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0x7e18943fa216a4963592af36720eb3d55fb05d74e710250e0ebc3c2451625430;
+    bytes32 constant NODE_PM_CODE_HASH = 0x9534fdb75095c505f2c2497d55630315fbda4109e88d785a57d7869638eaf56e;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
@@ -161,10 +161,13 @@ contract BaseTest is Test {
     }
 
     function addNodeMasterSig(PackedUserOperation memory userOp, Vm.Wallet memory nodeMaster) internal view returns (PackedUserOperation memory) {
-        bytes32 opHash = MessageHashUtils.toEthSignedMessageHash(_getUserOpHash(userOp));
+         bytes32 opHash = MessageHashUtils.toEthSignedMessageHash(keccak256(abi.encodePacked(
+            _getUserOpHash(userOp),
+            MEE_NODE_EXECUTOR_EOA
+        )));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(nodeMaster.privateKey, opHash);
         bytes memory nodeMasterSig = abi.encodePacked(r, s, v);
-        userOp.signature = abi.encodePacked(nodeMasterSig, userOp.signature);
+        userOp.signature = abi.encodePacked(userOp.signature, nodeMasterSig);
         return userOp;
     }
 
@@ -431,8 +434,8 @@ contract BaseTest is Test {
         Merkle tree = new Merkle();
         bytes32 root = tree.getRoot(leaves);
 
-        //console2.log("super tx root");
-        //console2.logBytes32(root);
+        console2.log("super tx root");
+        console2.logBytes32(root);
 
         for (uint256 i = 0; i < userOps.length; i++) {
             superTxUserOps[i] = userOps[i].deepCopy();

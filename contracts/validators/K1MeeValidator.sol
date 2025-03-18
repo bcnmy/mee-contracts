@@ -14,6 +14,7 @@ import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
 import {SimpleValidatorLib} from "contracts/lib/fusion/SimpleValidatorLib.sol";
 import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
 import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
+
 /**
  * @title K1MeeValidator
  * @dev   An ERC-7579 validator (module type 1) and stateless validator (module type 7) for the MEE stack.
@@ -40,8 +41,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
                             CONSTANTS & STORAGE
     //////////////////////////////////////////////////////////////////////////*/
 
-    uint256 private constant SIG_TYPE_OFFSET = 65;
-    uint256 private constant ENCODED_DATA_OFFSET = 69;
+    uint256 private constant ENCODED_DATA_OFFSET = 4;
     
     /// @notice Mapping of smart account addresses to their respective owner addresses
     mapping(address => address) public smartAccountOwners;
@@ -165,11 +165,11 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
             // if sig is short then we are sure it is a non-MEE flow
             return NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
         } else {
-            bytes4 sigType = bytes4(userOp.signature[SIG_TYPE_OFFSET:ENCODED_DATA_OFFSET]);
+            bytes4 sigType = bytes4(userOp.signature[0:ENCODED_DATA_OFFSET]);
             if (sigType == SIG_TYPE_SIMPLE) {
                 return SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else if (sigType == SIG_TYPE_ON_CHAIN) {
-                return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
+                return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length - 65], owner);
             } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
                 return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else {

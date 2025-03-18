@@ -66,7 +66,7 @@ contract PMPerNodeTest is BaseTest {
             }
         );
 
-        uint128 pmValidationGasLimit = 28_000;
+        uint128 pmValidationGasLimit = 30_000;
         uint128 pmPostOpGasLimit = 50_000; //min to pass is 44k. we set 50k for non-standard stuff
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp) + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
@@ -77,7 +77,7 @@ contract PMPerNodeTest is BaseTest {
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
 
-        vm.startPrank(MEE_NODE_EXECUTOR_EOA);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
@@ -105,7 +105,7 @@ contract PMPerNodeTest is BaseTest {
         verificationGasLimit = uint128(bound(verificationGasLimit, 50e3, 5e6));
         callGasLimit = uint128(bound(callGasLimit, 100e3, 5e6));
         premiumPercentage = bound(premiumPercentage, 0, 200e5);
-        pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 28e3, 5e6));
+        pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 30e3, 5e6));
         pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 50e3, 5e6));
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
@@ -130,7 +130,7 @@ contract PMPerNodeTest is BaseTest {
         userOps[0] = addNodeMasterSig(userOp, MEE_NODE);
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
-        vm.startPrank(MEE_NODE_EXECUTOR_EOA);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();

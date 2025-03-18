@@ -9,6 +9,8 @@ import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
 import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
 
+import "forge-std/console2.sol";
+
 /**
  * @title Node Paymaster
  * @notice A paymaster every MEE Node should deploy.
@@ -18,7 +20,6 @@ import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
 contract NodePaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
-    using EcdsaLib for address;
 
     // 100% with 5 decimals precision
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000;
@@ -169,9 +170,17 @@ contract NodePaymaster is BasePaymaster {
         return executedUserOps[userOpHash];
     }
 
-    // TODO: Check if the assembly calldata slicing is cheaper
+    /// @notice Checks if the hash was signed by the MEE Node (owner())
     function _checkMeeNodeMasterSig(bytes calldata userOpSigData, bytes32 userOpHash) internal view returns (bool) {
-        bytes calldata nodeMasterSig = userOpSigData[:65];
-        return owner().isValidSignature(userOpHash, nodeMasterSig);
+        bytes calldata nodeMasterSig;
+        assembly {
+            nodeMasterSig.offset := sub(add(userOpSigData.offset, userOpSigData.length), 65)
+            nodeMasterSig.length := 65
+        }
+        return EcdsaLib.isValidSignature({
+            expectedSigner: owner(),
+            hash: keccak256(abi.encodePacked(userOpHash, tx.origin)),
+            signature: nodeMasterSig
+        });
     }
 }

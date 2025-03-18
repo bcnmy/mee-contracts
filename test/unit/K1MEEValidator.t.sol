@@ -60,7 +60,7 @@ contract K1MEEValidatorTest is BaseTest {
 
         userOps = makeSimpleSuperTx(userOps, wallet);
 
-        vm.startPrank(MEE_NODE_EXECUTOR_EOA);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
         
@@ -120,7 +120,7 @@ contract K1MEEValidatorTest is BaseTest {
             amount: amountToTransfer*userOps.length 
         });
 
-        vm.startPrank(MEE_NODE_EXECUTOR_EOA);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
@@ -181,14 +181,14 @@ contract K1MEEValidatorTest is BaseTest {
         // so this is just some serialized txn signed by mockAccount owner + the super tx hash appended to calldata
         // enough for testing purposes
         // TODO: For fuzz test over # of leaves, we need to generate the serialized txn right here with the proper root hash
-        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800002546ebbc42c960937dadc932bbc42ba10dbeb8489e0c50ab628fbd9b3120aff9c001a0f94f5bf89c1c50b0bdeba783bb2c665ec738e581d8839d372ecf8c046084ba30a074b5de920a8b8d21d59d50440a84b133e581a140748740e7b163d5802c164887";
+        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800004042d234ae146b4013dcfb8221a305d280383b75bfa41464bea40788bf9c7787c080a041b2474759e956f07912f4d208975aba5dde7ea9730cb1f93973ce97babeac11a037c02bbe48830990ea20827ee657a20956b4ec5ac79b6d03af6ecd874bcf3e1f";
         userOps = makeOnChainTxnSuperTx(
             userOps,
             wallet,
             serializedTx
         );
 
-        vm.startPrank(MEE_NODE_EXECUTOR_EOA);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
@@ -277,7 +277,7 @@ contract K1MEEValidatorTest is BaseTest {
 
         userOp = makeMEEUserOp({
             userOp: userOp, 
-            pmValidationGasLimit: 35_000, 
+            pmValidationGasLimit: 40_000, 
             pmPostOpGasLimit: 50_000, 
             premiumPercentage: 17_00000, 
             wallet: userOpSigner, 
