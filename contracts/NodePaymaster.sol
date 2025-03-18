@@ -21,8 +21,7 @@ contract NodePaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
 
-    // 100% with 5 decimals precision
-    uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000;
+    // TODO: adjust it 
     // PM.postOp() consumes around 44k. We add a buffer for EP penalty calc
     // and chains with non-standard gas pricing
     uint256 private constant POST_OP_GAS = 49_999; 
@@ -59,15 +58,18 @@ contract NodePaymaster is BasePaymaster {
         returns (bytes memory context, uint256 validationData)
     {   
         require(_checkMeeNodeMasterSig(userOp.signature, userOpHash), OnlySponsorOwnStuff()); 
-        uint256 premiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
+
+        bytes4 mode = bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+4]);
+        uint256 impliedCost = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+4:]));        
+        
         uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
         require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());
         context = abi.encode(
-            userOp.sender, 
+            mode == NODE_PM_MODE_SPONSORED ? owner() : userOp.sender, 
             userOp.unpackMaxFeePerGas(), 
             userOp.preVerificationGas + userOp.unpackVerificationGasLimit() + userOp.unpackCallGasLimit() + userOp.unpackPaymasterVerificationGasLimit() + postOpGasLimit,
             userOpHash, 
-            premiumPercentage,
+            impliedCost,
             postOpGasLimit
         );
     }
@@ -89,19 +91,19 @@ contract NodePaymaster is BasePaymaster {
         virtual
         override
     {  
-        address sender;
+        address refundReceiver;
         uint256 maxFeePerGas;
         uint256 maxGasLimit;
         bytes32 userOpHash;
-        uint256 premiumPercentage;
+        uint256 impliedCost;
         uint256 postOpGasLimit;
         
         assembly {
-            sender := calldataload(context.offset)
+            refundReceiver := calldataload(context.offset)
             maxFeePerGas := calldataload(add(context.offset, 0x20))
             maxGasLimit := calldataload(add(context.offset, 0x40))
             userOpHash := calldataload(add(context.offset, 0x60))
-            premiumPercentage := calldataload(add(context.offset, 0x80))
+            impliedCost := calldataload(add(context.offset, 0x80))
             postOpGasLimit := calldataload(add(context.offset, 0xa0))
         }
 
@@ -113,7 +115,7 @@ contract NodePaymaster is BasePaymaster {
             actualUserOpFeePerGas: actualUserOpFeePerGas, 
             maxGasLimit: maxGasLimit,
             postOpGasLimit: postOpGasLimit,
-            premiumPercentage: premiumPercentage
+            impliedCost: impliedCost
         });
         if (refund > 0) {
             entryPoint.withdrawTo(payable(sender), refund);
@@ -135,7 +137,7 @@ contract NodePaymaster is BasePaymaster {
         uint256 actualUserOpFeePerGas,
         uint256 maxGasLimit,
         uint256 postOpGasLimit,
-        uint256 premiumPercentage
+        uint256 impliedCost
     ) internal view returns (uint256 refund) {
 
         //account for postOpGas
@@ -147,18 +149,7 @@ contract NodePaymaster is BasePaymaster {
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
         actualGasUsed += (maxGasLimit - actualGasUsed)/10;
         
-        // account for MEE Node premium
-        uint256 costWithPremium = (actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)) / PREMIUM_CALCULATION_BASE;
-
-        // as MEE_NODE charges user with the premium
-        uint256 maxCostWithPremium = maxGasLimit * maxFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage) / PREMIUM_CALCULATION_BASE;
-
-        // We do not check for the case, when costWithPremium > maxCost
-        // maxCost charged by the MEE Node should include the premium
-        // if this is done, costWithPremium can never be > maxCost
-        if (costWithPremium < maxCostWithPremium) {
-            refund = maxCostWithPremium - costWithPremium;
-        }
+        refund = impliedCost - actualGasUsed * actualUserOpFeePerGas;
     }
 
     /**
