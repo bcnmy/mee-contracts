@@ -4,7 +4,10 @@
 
 ## Documentation
 
-https://book.getfoundry.sh/
+- [MEE docs](https://docs.biconomy.io/explained/mee)
+- [Fusion docs](https://docs.biconomy.io/explained/eoa#fusion-module)
+- [Fusion concept](https://ethresear.ch/t/fusion-module-7702-alternative-with-no-protocol-changes/20949)
+
 
 ## Usage
 
@@ -18,42 +21,4 @@ $ forge build
 
 ```shell
 $ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
 ```

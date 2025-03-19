@@ -1,8 +1,9 @@
 {
-  "name": "@polycode/mee-contracts",
-  "version": "1.0.0",
-  "description": "**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**",
+  "name": "@biconomy/mee-contracts",
+  "version": "1.0.1",
+  "description": "Biconomy MEE contracts",
   "main": "index.js",
+  "type": "module",
   "directories": {
     "lib": "lib",
     "test": "test"
@@ -10,13 +11,19 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Biconomy",
+  "license": "MIT",
   "dependencies": {
     "account-abstraction": "https://github.com/eth-infinitism/account-abstraction#v0.7.0",
     "erc7739-validator-base": "https://github.com/erc7579/erc7739Validator#v1.0.0",
+    "@erc7579/enumerablemap4337": "github:erc7579/enumerablemap",
+    "erc7579-implementation": "github:erc7579/erc7579-implementation",
     "solady": "github:vectorized/solady#v0.0.271",
-    "openzeppelin-contracts": "@openzeppelin/contracts#v5.1.0"
-  },
-  "packageManager": "pnpm@9.14.1+sha512.7f1de9cffea40ff4594c48a94776112a0db325e81fb18a9400362ff7b7247f4fbd76c3011611c9f8ac58743c3dc526017894e07948de9b72052f874ee2edfdcd"
+    "openzeppelin-contracts": "@openzeppelin/contracts#v5.1.0",
+    "murky": "github:dmfxyz/murky",
+    "solidity-bytes-utils": "github:GNSPS/solidity-bytes-utils",
+    "solidity-rlp": "github:hamdiallam/Solidity-RLP",
+    "tsx": "^4.19.2",
+    "viem": "^2.22.17"
+  }
 }
