@@ -50,7 +50,7 @@ contract BaseTest is Test {
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0xac5c0eb8584be645511d82142729ddc518c7eeefb5b68b3541f09e28adf99bf9;
+    bytes32 constant NODE_PM_CODE_HASH = 0x2012993dc2b692eced856784b436574e4cc96a300c6e53b594803df981e68e44;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
@@ -192,8 +192,9 @@ contract BaseTest is Test {
             nodePM: address(NODE_PAYMASTER),
             pmValidationGasLimit: pmValidationGasLimit,
             pmPostOpGasLimit: pmPostOpGasLimit,
-            impliedCost: maxGasCost * impliedCostPercentageOfMaxGasCost / 100,
-            pmMode: NODE_PM_MODE_USER
+            pmMode: NODE_PM_MODE_USER,
+            premiumMode: NODE_PM_PREMIUM_PERCENT,
+            financialData: 17_00000 // percentage premium = 17% of maxGasCost
         });
         userOp.signature = signUserOp(wallet, userOp);
         if (sigType != bytes4(0)) {
@@ -537,15 +538,17 @@ contract BaseTest is Test {
         address nodePM,
         uint128 pmValidationGasLimit,
         uint128 pmPostOpGasLimit,
-        uint256 impliedCost,
-        bytes4 pmMode
+        bytes4 pmMode,
+        bytes4 premiumMode,
+        uint256 financialData
     ) internal view returns (bytes memory) {
         return abi.encodePacked(
             nodePM,
             pmValidationGasLimit, // pm validation gas limit
             pmPostOpGasLimit, // pm post-op gas limit
             pmMode,
-            impliedCost
+            premiumMode,
+            uint192(financialData)
         );
     }
 }
