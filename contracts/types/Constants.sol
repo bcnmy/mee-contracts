@@ -13,6 +13,5 @@ bytes4 constant EIP1271_FAILED = 0xffffffff;
 
 uint256 constant MODULE_TYPE_STATELESS_VALIDATOR = 7;
 
-bytes4 constant NODE_PM_MODE_USER = 0x170de000;
-bytes4 constant NODE_PM_MODE_NODE = 0x170de001;
-bytes4 constant NODE_PM_MODE_KEEP = 0x170de002;
+bytes4 constant NODE_PM_MODE_USER = 0x170de000; // refund goes to the user
+bytes4 constant NODE_PM_MODE_SPONSOR = 0x170de001; // refund goes to the dApp

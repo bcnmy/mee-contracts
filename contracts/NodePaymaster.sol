@@ -58,6 +58,10 @@ contract NodePaymaster is BasePaymaster {
     {   
         require(_checkMeeNodeMasterSig(userOp.signature, userOpHash), OnlySponsorOwnStuff()); 
 
+        // TODO: REBUILD IT
+        // MODE_SPONSORED MEANS WE HAVE TO REFUND TO THE DAPP EOA WHICH SHOULD BE PROVIDED IN THE PM DATA
+
+
         bytes4 mode = bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+4]);
         address refundReceiver;
         if (mode == NODE_PM_MODE_USER) {
