@@ -51,8 +51,6 @@ contract BaseTest is Test {
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
     using LibRLP for LibRLP.List;
- 
-    bytes32 constant NODE_PM_CODE_HASH = 0xcc7fa34ada300deb6cebba319bafdfb2f11b2e5bc669b2a7dd5ea096b9fad25b;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
@@ -71,17 +69,20 @@ contract BaseTest is Test {
 
     function setUp() public virtual {
         setupEntrypoint();
-        deployMEEEntryPoint();
+        
         MEE_NODE = createAndFundWallet("MEE_NODE", 1_000 ether);
         MEE_NODE_ADDRESS = MEE_NODE.addr;
-
+        
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        
+        deployMEEEntryPoint(address(NODE_PAYMASTER).codehash);
+
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
     }
 
-    function deployMEEEntryPoint() internal {
-        MEE_ENTRYPOINT = new MEEEntryPoint(ENTRYPOINT, NODE_PM_CODE_HASH);
+    function deployMEEEntryPoint(bytes32 nodePmCodeHash) internal {
+        MEE_ENTRYPOINT = new MEEEntryPoint(ENTRYPOINT, nodePmCodeHash);
     }
 
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
