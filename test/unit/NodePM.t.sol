@@ -51,6 +51,7 @@ contract PMPerNodeTest is BaseTest {
     function test_pm_per_node_single() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
         uint256 premiumPercentage = 17_00000;
+        uint256 maxDiffPercentage = 0.05e18; // 5% difference
         
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
         bytes memory callData =
@@ -89,6 +90,8 @@ contract PMPerNodeTest is BaseTest {
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
 
+        uint256 refundReceiverBalanceBefore = userOps[0].sender.balance;
+
         // TODO: CHANGE BACK TO MEE EP
         //MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
@@ -99,7 +102,15 @@ contract PMPerNodeTest is BaseTest {
         assertEq(mockTarget.value(), valueToSet);
 
         // When verification gas limits are tight, the difference is really small
-        assertFinancialStuffStrict(entries, premiumPercentage, nodePMDepositBefore, maxGasCost, 0.05e18); // 5% difference
+        uint256 expectedRefund = assertFinancialStuffStrict({
+            entries: entries, 
+            meeNodePremiumPercentage: premiumPercentage, 
+            nodePMDepositBefore: nodePMDepositBefore, 
+            maxGasCost: maxGasCost, 
+            maxDiffPercentage: maxDiffPercentage
+        }); 
+
+        assertApproxEqRel(userOps[0].sender.balance, refundReceiverBalanceBefore + expectedRefund, maxDiffPercentage);
 
         return (userOps);
     }
@@ -226,11 +237,11 @@ contract PMPerNodeTest is BaseTest {
         uint256 meeNodePremiumPercentage,
         uint256 nodePMDepositBefore,
         uint256 maxGasCost
-    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodePremium) {
+    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodePremium, uint256 expectedRefund) {
         (,, uint256 actualGasCost, ) =
             abi.decode(entries[entries.length - 1].data, (uint256, bool, uint256, uint256));
 
-        uint256 expectedRefund = applyPremium(maxGasCost, meeNodePremiumPercentage) - applyPremium(actualGasCost, meeNodePremiumPercentage);
+        expectedRefund = applyPremium(maxGasCost, meeNodePremiumPercentage) - applyPremium(actualGasCost, meeNodePremiumPercentage);
         // we apply premium to the maxGasCost, because maxGasCost is wat is always sent by the userOp.sender to MEE Node in a payment userOp
         uint256 expectedRefundNoPremium = applyPremium(maxGasCost, meeNodePremiumPercentage) - actualGasCost;
 
@@ -255,11 +266,12 @@ contract PMPerNodeTest is BaseTest {
         uint256 nodePMDepositBefore,
         uint256 maxGasCost,
         uint256 maxDiffPercentage
-    ) public {
-        (uint256 meeNodeEarnings, uint256 expectedNodePremium) =
+    ) public returns (uint256) {
+        (uint256 meeNodeEarnings, uint256 expectedNodePremium, uint256 expectedRefund) =
             assertFinancialStuff(entries, meeNodePremiumPercentage, nodePMDepositBefore, maxGasCost);
         // assert that MEE_NODE extra earnings are not too big
         assertApproxEqRel(meeNodeEarnings, expectedNodePremium, maxDiffPercentage);
+        return expectedRefund;
     }
 
     function applyPremium(uint256 amount, uint256 premiumPercentage) internal pure returns (uint256) {
