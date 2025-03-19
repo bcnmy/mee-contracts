@@ -26,6 +26,7 @@ import {
     DecodedErc20PermitSigShort,
     PermitValidatorLib
 } from "contracts/lib/fusion/PermitValidatorLib.sol";
+import {LibRLP} from "solady/utils/LibRLP.sol";
 
 contract BaseTest is Test {
     struct TestTemps {
@@ -49,8 +50,9 @@ contract BaseTest is Test {
 
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
-
-    bytes32 constant NODE_PM_CODE_HASH = 0x2a7c145e0a50abb8a56179d021d06405f08e4af94a10eab0bc4aeddd420c98d5;
+    using LibRLP for LibRLP.List;
+ 
+    bytes32 constant NODE_PM_CODE_HASH = 0xcc7fa34ada300deb6cebba319bafdfb2f11b2e5bc669b2a7dd5ea096b9fad25b;
 
     address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
@@ -435,7 +437,7 @@ contract BaseTest is Test {
     function makeOnChainTxnSuperTx(
         PackedUserOperation[] memory userOps,
         Vm.Wallet memory superTxSigner,
-        bytes memory serializedTx
+        bytes memory callData
     ) internal returns (PackedUserOperation[] memory) {
         PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
         uint48 lowerBoundTimestamp = uint48(block.timestamp);
@@ -446,8 +448,9 @@ contract BaseTest is Test {
         Merkle tree = new Merkle();
         bytes32 root = tree.getRoot(leaves);
 
-        console2.log("super tx root");
-        console2.logBytes32(root);
+        callData = abi.encodePacked(callData, root);
+
+        bytes memory serializedTx = getSerializedTxn(callData, address(0xa11cebeefb0bdecaf0), superTxSigner);
 
         for (uint256 i = 0; i < userOps.length; i++) {
             superTxUserOps[i] = userOps[i].deepCopy();
@@ -469,8 +472,9 @@ contract BaseTest is Test {
     function makeOnChainTxnSuperTxSignatures(
         bytes32 baseHash,
         uint256 total,
-        bytes memory serializedTx,
-        address smartAccount
+        bytes memory callData,
+        address smartAccount,
+        Vm.Wallet memory superTxSigner
     ) internal returns (bytes[] memory) {
         bytes[] memory meeSigs = new bytes[](total);
         require(total > 0, "total must be greater than 0");
@@ -487,9 +491,9 @@ contract BaseTest is Test {
 
         Merkle tree = new Merkle();
         bytes32 root = tree.getRoot(leaves);
+        callData = abi.encodePacked(callData, root);
 
-        //console2.log("super tx root");
-        //console2.logBytes32(root);
+        bytes memory serializedTx = getSerializedTxn(callData, address(0xa11cebeefb0bdecaf0), superTxSigner);
 
         for (uint256 i = 0; i < total; i++) {
             bytes32[] memory proof = tree.getProof(leaves, i);
@@ -550,5 +554,32 @@ contract BaseTest is Test {
             premiumMode,
             uint192(financialData)
         );
+    }
+
+    // ============ TXN SERIALIZATION UTILS ============
+
+    function getSerializedTxn(
+        bytes memory txnData, // calldata + root
+        address to,
+        Vm.Wallet memory signer
+    ) internal view returns (bytes memory) {
+        LibRLP.List memory accessList = LibRLP.p();
+
+        LibRLP.List memory serializedTxList = 
+            LibRLP.p(block.chainid). // chainId
+                p(0). // nonce
+                    p(uint256(1)). // maxPriorityFeePerGas
+                        p(uint256(20)). // maxFeePerGas
+                            p(uint256(50000)). // gasLimit
+                                p(to). // to
+                                    p(uint256(0)). // value
+                                        p(txnData). // txn data
+                                            p(accessList); // empty access list
+
+        bytes32 uTxHash = keccak256(abi.encodePacked(hex"02", serializedTxList.encode()));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.privateKey, uTxHash);
+
+        serializedTxList = serializedTxList.p(v == 28 ? true : false).p(uint256(r)).p(uint256(s)); // add v, r, s to the list
+        return abi.encodePacked(hex"02", serializedTxList.encode()); // add tx type to the list
     }
 }

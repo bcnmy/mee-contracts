@@ -122,7 +122,7 @@ contract PMPerNodeTest is BaseTest {
         userOps[0] = addNodeMasterSig(userOps[0], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
 
         vm.startPrank(address(0xdeadbeef));
-        vm.expectRevert(abi.encodeWithSignature("FailedOpWithRevert(uint256,string,bytes)", 0, "AA33 reverted", abi.encodeWithSignature("OnlySponsorOwnStuff()")));
+        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
     }
@@ -135,7 +135,7 @@ contract PMPerNodeTest is BaseTest {
         // Do not re-sign with MEE Node EOA, so the userOp hash is not signed by the Node
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA); // should revert despite of the correct tx.origin
-        vm.expectRevert(abi.encodeWithSignature("FailedOpWithRevert(uint256,string,bytes)", 0, "AA33 reverted", abi.encodeWithSignature("OnlySponsorOwnStuff()")));
+        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
     }
@@ -218,6 +218,14 @@ contract PMPerNodeTest is BaseTest {
         NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
         vm.stopPrank();
         assertEq(receiver.balance, 1 ether, "Balance should not be changed");
+    }
+
+    function test_premium_suppots_fractions(uint256 meeNodePremium, uint256 approxGasCost) public {
+        meeNodePremium = bound(meeNodePremium, 1e3, 200e5);
+        approxGasCost = bound(approxGasCost, 50_000, 5e6);
+        uint256 approxGasCostWithPremium =
+            approxGasCost * (PREMIUM_CALCULATION_BASE + meeNodePremium) / PREMIUM_CALCULATION_BASE;
+        assertGt(approxGasCostWithPremium, approxGasCost, "premium should support fractions of %");
     }
 
     // test executed userOps are logged properly

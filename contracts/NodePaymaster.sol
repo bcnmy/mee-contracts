@@ -82,15 +82,15 @@ contract NodePaymaster is BasePaymaster {
         override
         returns (bytes memory, uint256)
     {   
-        require(_checkMeeNodeMasterSig(userOp.signature, userOpHash), OnlySponsorOwnStuff()); 
+        bytes memory context = abi.encodePacked(userOpHash);
+
+        if(!_checkMeeNodeMasterSig(userOp.signature, userOpHash))
+            return (context, 1);
 
         // TODO : Optimize it
-
         bytes4 refundMode = bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+4]);
         bytes4 premiumMode = bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+4:PAYMASTER_DATA_OFFSET+8]);
         address refundReceiver;
-
-        bytes memory context = abi.encodePacked(userOpHash);
 
         if (refundMode == NODE_PM_MODE_KEEP) { // NO REFUND
             return (context, 0);
