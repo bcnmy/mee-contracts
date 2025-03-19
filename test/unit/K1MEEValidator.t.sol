@@ -61,7 +61,7 @@ contract K1MEEValidatorTest is BaseTest {
 
         userOps = makeSimpleSuperTx(userOps, wallet);
 
-        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
@@ -124,7 +124,7 @@ contract K1MEEValidatorTest is BaseTest {
             amount: amountToTransfer * userOps.length
         });
 
-        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
@@ -160,7 +160,6 @@ contract K1MEEValidatorTest is BaseTest {
 
     // test txn mode
     // Fuzz for txn mode after solidity txn serialization is done
-
     function test_superTxFlow_txn_mode_ValidateUserOp_success() public {
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
@@ -188,11 +187,14 @@ contract K1MEEValidatorTest is BaseTest {
         // so this is just some serialized txn signed by mockAccount owner + the super tx hash appended to calldata
         // enough for testing purposes
         // TODO: For fuzz test over # of leaves, we need to generate the serialized txn right here with the proper root hash
-        bytes memory serializedTx =
-            hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec58000009baefff4ddcd60b2bab8827d1811b6422ca3de2d953ccd24f1d8f40b23e0924c001a0f1000828dfb98314b9597c62070c5c4ddef8a391c54963f8a57fd6b5e87c1acea068599f3d36fc1a0ac425aba3996088d820e6f6366daf3af410b04b5d28b3e830";
-        userOps = makeOnChainTxnSuperTx(userOps, wallet, serializedTx);
+        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800004042d234ae146b4013dcfb8221a305d280383b75bfa41464bea40788bf9c7787c080a041b2474759e956f07912f4d208975aba5dde7ea9730cb1f93973ce97babeac11a037c02bbe48830990ea20827ee657a20956b4ec5ac79b6d03af6ecd874bcf3e1f";
+        userOps = makeOnChainTxnSuperTx(
+            userOps,
+            wallet,
+            serializedTx
+        );
 
-        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
@@ -226,17 +228,23 @@ contract K1MEEValidatorTest is BaseTest {
     function test_nonMEEFlow_ValidateUserOp_success() public {
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
-        PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
+
+        vm.deal(address(mockAccount), 100 ether);
+        
+        PackedUserOperation memory userOp = buildUserOpWithCalldata({
+            account: address(mockAccount), 
             callData: abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData),
-            account: address(mockAccount),
-            userOpSigner: wallet
+            wallet: wallet, 
+            preVerificationGasLimit: 3e5, 
+            verificationGasLimit: 500e3, 
+            callGasLimit: 3e6
         });
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         userOps[0] = userOp;
 
-        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA);
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertEq(mockTarget.counter(), counterBefore + 1);
@@ -281,11 +289,11 @@ contract K1MEEValidatorTest is BaseTest {
         });
 
         userOp = makeMEEUserOp({
-            userOp: userOp,
-            pmValidationGasLimit: 22_000,
-            pmPostOpGasLimit: 50_000,
-            premiumPercentage: 17_00000,
-            wallet: userOpSigner,
+            userOp: userOp, 
+            pmValidationGasLimit: 40_000, 
+            pmPostOpGasLimit: 50_000, 
+            premiumPercentage: 17_00000, 
+            wallet: userOpSigner, 
             sigType: bytes4(0)
         });
 

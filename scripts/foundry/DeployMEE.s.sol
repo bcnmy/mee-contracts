@@ -6,29 +6,11 @@ import {K1MeeValidator} from "contracts/validators/K1MeeValidator.sol";
 import {DeterministicDeployerLib} from "./utils/DeterministicDeployerLib.sol";
 import {NodePaymaster} from "contracts/NodePaymaster.sol";
 
-type ResolverUID is bytes32;
-
-struct ModuleRecord {
-    ResolverUID resolverUID; // The unique identifier of the resolver.
-    address sender; // The address of the sender who deployed the contract
-    bytes metadata; // Additional data related to the contract deployment
-}
-
-interface IRegistryModuleManager {
-    function registerModule(
-        ResolverUID resolverUID,
-        address moduleAddress,
-        bytes calldata metadata,
-        bytes calldata resolverContext
-    ) external;
-
-    function findModule(address moduleAddress) external view returns (ModuleRecord memory);
-}
-
 contract DeployMEE is Script {
 
     address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     address constant MODULE_REGISTRY_ADDRESS = 0x000000000069E2a187AEFFb852bF3cCdC95151B2;
+    address constant ATTESTER_ADDRESS = 0xF9ff902Cdde729b47A4cDB55EF16DF3683a04EAB; // Biconomy Attester
 
     address constant MEE_NODE_ADDRESS = 0x4b19129EA58431A06D01054f69AcAe5de50633b6;
 
@@ -42,13 +24,11 @@ contract DeployMEE is Script {
     }
 
     function run(bool check) external {
-
         if (check) {
             _checkMEEAddresses();
         } else {
             _deployMEE();
         }
-
     }
 
     function _checkMEEAddresses() internal {
@@ -122,7 +102,7 @@ contract DeployMEE is Script {
     }
 
     function _deployMEE() internal {
-        // Node Paymaster contract
+        // =================== Node Paymaster contract ===================
         bytes memory bytecode = vm.getCode("scripts/bash-deploy/artifacts/NodePaymaster/NodePaymaster.json");
         bytes memory args = abi.encode(ENTRY_POINT_V07, MEE_NODE_ADDRESS);
         address expectedNodePaymaster = DeterministicDeployerLib.computeAddress(bytecode, args, NODE_PM_BICO_SALT);
@@ -144,7 +124,7 @@ contract DeployMEE is Script {
             nodePMCodeHash := extcodehash(nodePaymaster)
         }
 
-        // MEE Entry Point
+        // =================== MEE Entry Point ===================
         bytecode = vm.getCode("scripts/bash-deploy/artifacts/MEEEntryPoint/MEEEntryPoint.json");
         args = abi.encode(ENTRY_POINT_V07, nodePMCodeHash);
 
@@ -159,7 +139,7 @@ contract DeployMEE is Script {
             console2.log("MEE Entry Point deployed at: ", meeEntryPoint);
         }
 
-        // K1 MEE Validator
+        // =================== K1 MEE Validator ===================
         bytecode = vm.getCode("scripts/bash-deploy/artifacts/K1MeeValidator/K1MeeValidator.json");
         address expectedMEEK1Validator = DeterministicDeployerLib.computeAddress(bytecode, MEE_K1_VALIDATOR_SALT);
         assembly {
@@ -172,9 +152,11 @@ contract DeployMEE is Script {
             console2.log("MEE K1 Validator deployed at: ", meeK1Validator);
         }
         
-        registerModule(expectedMEEK1Validator);
+        if (registerModule(expectedMEEK1Validator)) {
+            attestModule(expectedMEEK1Validator);
+        }
 
-        // ETH Forwarder contract
+        // =================== ETH Forwarder contract ===================
         bytecode = vm.getCode("scripts/bash-deploy/artifacts/EtherForwarder/EtherForwarder.json");
         address expectedEtherForwarder = DeterministicDeployerLib.computeAddress(bytecode, ETH_FORWARDER_SALT);
         assembly {
@@ -189,7 +171,7 @@ contract DeployMEE is Script {
 
     }
 
-    function registerModule(address moduleAddress) internal {
+    function registerModule(address moduleAddress) internal returns (bool) {
         IRegistryModuleManager registry = IRegistryModuleManager(MODULE_REGISTRY_ADDRESS);
 
         uint256 codeSize;
@@ -198,14 +180,16 @@ contract DeployMEE is Script {
         }
         if (codeSize == 0) {
             console2.log("Module registry not deployed => module not registered on registry");
-            return;
+            return false;
         }
         ResolverUID resolverUID = ResolverUID.wrap(0xdbca873b13c783c0c9c6ddfc4280e505580bf6cc3dac83f8a0f7b44acaafca4f);
         ModuleRecord memory moduleRecord = registry.findModule(moduleAddress);
 
         bool isRegistered = ResolverUID.unwrap(moduleRecord.resolverUID) != bytes32(0x0000000000000000000000000000000000000000000000000000000000000000);
+        bool res;
         if (isRegistered) {
             console2.log("Module already registered on registry");
+            return true;
         } else {
             vm.startBroadcast();
             try registry.registerModule(
@@ -215,11 +199,107 @@ contract DeployMEE is Script {
                 hex""
             ) {
                 console2.log("Module registered on registry");
+                res = true;
             } catch (bytes memory reason) {
                 console2.log("Module not registered on registry: registration failed");
                 console2.logBytes(reason);
+                res = false;
             }
             vm.stopBroadcast();
         }
+        return res;
     }
+
+    function attestModule(address moduleAddress) internal {
+        IRegistryModuleManager registry = IRegistryModuleManager(MODULE_REGISTRY_ADDRESS);
+        
+        ModuleType[] memory moduleTypes = new ModuleType[](1);
+        moduleTypes[0] = ModuleType.wrap(uint256(1)); // validator
+
+        AttestationRequest memory meeK1ValidatorAttestationRequest = AttestationRequest({
+            moduleAddress: moduleAddress,
+            expirationTime: uint48(block.timestamp + 3650 days),
+            data: bytes(""),
+            moduleTypes: moduleTypes
+        });
+
+        bytes memory cd = abi.encodeWithSelector(
+            // attest(bytes32, AttestationRequest) (0x945e3641) 
+            bytes4(0x945e3641),
+            bytes32(0x93d46fcca4ef7d66a413c7bde08bb1ff14bacbd04c4069bb24cd7c21729d7bf1), //schema UID <= need to be added by Rhinestone to the registry
+            meeK1ValidatorAttestationRequest
+        );
+        //console.logBytes(cd);
+
+        vm.startBroadcast();
+
+        IAttester attester = IAttester(ATTESTER_ADDRESS);
+
+        try attester.adminExecute(Execution({
+            target: MODULE_REGISTRY_ADDRESS,
+            value: 0,
+            callData: cd
+        })) {
+            console2.log("Attestation successful, re-checking");
+            address[] memory attesters = new address[](1);
+            attesters[0] = ATTESTER_ADDRESS;
+            for (uint256 i; i < moduleTypes.length; i++) {
+                ModuleType moduleType = moduleTypes[i];
+                console2.log("Checking attestations for module %s with type %s", moduleAddress, ModuleType.unwrap(moduleType));
+                try registry.check(moduleAddress, moduleType, attesters, 1) {
+                    console2.log("Attestation successful, check passed");
+                } catch (bytes memory reason) {
+                    console2.log("Check failed");
+                    console2.logBytes(reason);
+                }
+            }
+        } catch (bytes memory reason) {
+            console2.log("Attestation failed");
+            console2.logBytes(reason);
+        }
+
+        vm.stopBroadcast();
+    }
+}
+
+/// ================================
+
+type ResolverUID is bytes32;
+
+struct ModuleRecord {
+    ResolverUID resolverUID; // The unique identifier of the resolver.
+    address sender; // The address of the sender who deployed the contract
+    bytes metadata; // Additional data related to the contract deployment
+}
+
+struct Execution {
+    address target;
+    uint256 value;
+    bytes callData;
+}
+
+type ModuleType is uint256;
+
+struct AttestationRequest {
+    address moduleAddress;
+    uint48 expirationTime;
+    bytes data;
+    ModuleType[] moduleTypes;
+}
+
+interface IRegistryModuleManager {
+    function registerModule(
+        ResolverUID resolverUID,
+        address moduleAddress,
+        bytes calldata metadata,
+        bytes calldata resolverContext
+    ) external;
+
+    function findModule(address moduleAddress) external view returns (ModuleRecord memory);
+
+    function check(address module, ModuleType moduleType, address[] calldata attesters, uint256 threshold) external view;
+}
+
+interface IAttester {
+    function adminExecute(Execution memory execution) external;
 }
