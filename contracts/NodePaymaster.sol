@@ -55,7 +55,8 @@ contract NodePaymaster is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {   
-        require(_checkMeeNodeMasterSig(userOp.signature, userOpHash), OnlySponsorOwnStuff()); 
+        if(!_checkMeeNodeMasterSig(userOp.signature, userOpHash))
+            validationData = 1; // SIG_VERIFICATION_FAILED = true
         uint256 premiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
         uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
         require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());

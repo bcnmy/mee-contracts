@@ -99,7 +99,7 @@ contract PMPerNodeTest is BaseTest {
 
 
         vm.startPrank(address(0xdeadbeef));
-        vm.expectRevert(abi.encodeWithSignature("FailedOpWithRevert(uint256,string,bytes)", 0, "AA33 reverted", abi.encodeWithSignature("OnlySponsorOwnStuff()")));
+        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
     }
@@ -112,7 +112,7 @@ contract PMPerNodeTest is BaseTest {
         // Do not re-sign with MEE Node EOA, so the userOp hash is not signed by the Node
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA); // should revert despite of the correct tx.origin
-        vm.expectRevert(abi.encodeWithSignature("FailedOpWithRevert(uint256,string,bytes)", 0, "AA33 reverted", abi.encodeWithSignature("OnlySponsorOwnStuff()")));
+        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
     }
@@ -203,23 +203,6 @@ contract PMPerNodeTest is BaseTest {
         uint256 approxGasCostWithPremium =
             approxGasCost * (PREMIUM_CALCULATION_BASE + meeNodePremium) / PREMIUM_CALCULATION_BASE;
         assertGt(approxGasCostWithPremium, approxGasCost, "premium should support fractions of %");
-    }
-
-    // Test it reverts for non-MEE Node superTxns
-    function test_non_mee_node_superTxns_revert() public {
-        PackedUserOperation[] memory userOps = test_pm_per_node_single();
-        userOps[0].nonce = ENTRYPOINT.getNonce(userOps[0].sender, 0);
-        //no need to re-sign the userOp as mock account does not check the signature
-        bytes memory revertReason = abi.encodeWithSignature(
-            "FailedOpWithRevert(uint256,string,bytes)",
-            0,
-            "AA33 reverted",
-            abi.encodeWithSignature("OnlySponsorOwnStuff()")
-        );
-        vm.startPrank(address(0xdeadbeef));
-        vm.expectRevert(revertReason);
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
-        vm.stopPrank();
     }
 
     // test executed userOps are logged properly
