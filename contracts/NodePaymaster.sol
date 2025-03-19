@@ -7,6 +7,9 @@ import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPoint
 import "account-abstraction/core/Helpers.sol";
 import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
+import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
+
+import "forge-std/console2.sol";
 
 /**
  * @title Node Paymaster
@@ -51,8 +54,9 @@ contract NodePaymaster is BasePaymaster {
         virtual
         override
         returns (bytes memory context, uint256 validationData)
-    {
-        require(tx.origin == owner(), OnlySponsorOwnStuff());
+    {   
+        if(!_checkMeeNodeMasterSig(userOp.signature, userOpHash))
+            validationData = 1; // SIG_VERIFICATION_FAILED = true
         uint256 premiumPercentage = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:]));
         uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
         require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());
@@ -165,5 +169,19 @@ contract NodePaymaster is BasePaymaster {
      */
     function wasUserOpExecuted(bytes32 userOpHash) public view returns (bool) {
         return executedUserOps[userOpHash];
+    }
+
+    /// @notice Checks if the hash was signed by the MEE Node (owner())
+    function _checkMeeNodeMasterSig(bytes calldata userOpSigData, bytes32 userOpHash) internal view returns (bool) {
+        bytes calldata nodeMasterSig;
+        assembly {
+            nodeMasterSig.offset := sub(add(userOpSigData.offset, userOpSigData.length), 65)
+            nodeMasterSig.length := 65
+        }
+        return EcdsaLib.isValidSignature({
+            expectedSigner: owner(),
+            hash: keccak256(abi.encodePacked(userOpHash, tx.origin)),
+            signature: nodeMasterSig
+        });
     }
 }

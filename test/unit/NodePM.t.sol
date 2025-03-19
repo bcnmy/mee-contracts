@@ -47,7 +47,7 @@ contract PMPerNodeTest is BaseTest {
     // a) expect only proved nodes to be in the network with no intent to overcharge users
     // b) will slash malicious nodes as intentional increase of the limits can be easily detected
 
-    function test_pm_per_node() public returns (PackedUserOperation[] memory) {
+    function test_pm_per_node_single() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
         uint256 premiumPercentage = 17_00000;
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
@@ -62,20 +62,20 @@ contract PMPerNodeTest is BaseTest {
             callGasLimit: 3e6
         });
 
-        uint128 pmValidationGasLimit = 24_000;
+        uint128 pmValidationGasLimit = 30_000;
         uint128 pmPostOpGasLimit = 50_000; //min to pass is 44k. we set 50k for non-standard stuff
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
-        userOp.paymasterAndData = makePMAndDataForOwnPM(
-            address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage
-        );
+        userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
+        // account owner does not need to re-sign the userOp as mock account does not check the signature
+
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
-        userOps[0] = userOp;
+        userOps[0] = addNodeMasterSig(userOp, MEE_NODE, MEE_NODE_EXECUTOR_EOA);  // here the actual userOpHash is signed by the Node
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
 
-        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
@@ -89,6 +89,32 @@ contract PMPerNodeTest is BaseTest {
         ); // 5% difference
 
         return (userOps);
+    }
+
+    function test_reverts_if_sent_by_non_approved_EOA() public {
+        PackedUserOperation[] memory userOps = test_pm_per_node_single();
+
+        userOps[0].nonce++;
+        userOps[0] = addNodeMasterSig(userOps[0], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+
+
+        vm.startPrank(address(0xdeadbeef));
+        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
+    }
+
+    // test reverts if userOp hash was not signed
+    function test_reverts_if_userOp_hash_was_not_signed() public {
+        PackedUserOperation[] memory userOps = test_pm_per_node_single();
+        userOps[0].nonce++;
+        
+        // Do not re-sign with MEE Node EOA, so the userOp hash is not signed by the Node
+
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA); // should revert despite of the correct tx.origin
+        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
+        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
     }
 
     // fuzz tests with different gas values =>
@@ -105,7 +131,7 @@ contract PMPerNodeTest is BaseTest {
         verificationGasLimit = uint128(bound(verificationGasLimit, 50e3, 5e6));
         callGasLimit = uint128(bound(callGasLimit, 100e3, 5e6));
         premiumPercentage = bound(premiumPercentage, 0, 200e5);
-        pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 24e3, 5e6));
+        pmValidationGasLimit = uint128(bound(pmValidationGasLimit, 30e3, 5e6));
         pmPostOpGasLimit = uint128(bound(pmPostOpGasLimit, 50e3, 5e6));
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
@@ -123,16 +149,13 @@ contract PMPerNodeTest is BaseTest {
             callGasLimit: callGasLimit
         });
 
-        uint256 maxGasLimit =
-            preVerificationGasLimit + verificationGasLimit + callGasLimit + pmValidationGasLimit + pmPostOpGasLimit;
-
-        userOp.paymasterAndData = makePMAndDataForOwnPM(
-            address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage
-        );
-        userOps[0] = userOp;
+        uint256 maxGasLimit = preVerificationGasLimit + verificationGasLimit + callGasLimit + pmValidationGasLimit + pmPostOpGasLimit;
+        
+        userOp.paymasterAndData = makePMAndDataForOwnPM(address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage);
+        userOps[0] = addNodeMasterSig(userOp, MEE_NODE, MEE_NODE_EXECUTOR_EOA);
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
-        vm.startPrank(MEE_NODE_ADDRESS, MEE_NODE_ADDRESS);
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
@@ -182,26 +205,9 @@ contract PMPerNodeTest is BaseTest {
         assertGt(approxGasCostWithPremium, approxGasCost, "premium should support fractions of %");
     }
 
-    // Test it reverts for non-MEE Node superTxns
-    function test_non_mee_node_superTxns_revert() public {
-        PackedUserOperation[] memory userOps = test_pm_per_node();
-        userOps[0].nonce = ENTRYPOINT.getNonce(userOps[0].sender, 0);
-        //no need to re-sign the userOp as mock account does not check the signature
-        bytes memory revertReason = abi.encodeWithSignature(
-            "FailedOpWithRevert(uint256,string,bytes)",
-            0,
-            "AA33 reverted",
-            abi.encodeWithSignature("OnlySponsorOwnStuff()")
-        );
-        vm.startPrank(address(0xdeadbeef));
-        vm.expectRevert(revertReason);
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
-        vm.stopPrank();
-    }
-
     // test executed userOps are logged properly
     function test_executed_userOps_logged_properly() public {
-        PackedUserOperation[] memory userOps = test_pm_per_node();
+        PackedUserOperation[] memory userOps = test_pm_per_node_single();
         bytes32 userOpHash = ENTRYPOINT.getUserOpHash(userOps[0]);
         assertEq(NODE_PAYMASTER.wasUserOpExecuted(userOpHash), true);
     }
