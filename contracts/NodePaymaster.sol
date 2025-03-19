@@ -7,8 +7,8 @@ import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPoint
 import "account-abstraction/core/Helpers.sol";
 import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
-import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
-import {NODE_PM_MODE_USER, NODE_PM_MODE_NODE, NODE_PM_MODE_KEEP} from "contracts/types/Constants.sol";
+import {EcdsaLib} from "./lib/util/EcdsaLib.sol";
+import {NODE_PM_MODE_USER, NODE_PM_MODE_DAPP, NODE_PM_MODE_KEEP} from "./types/Constants.sol";
 
 /**
  * @title Node Paymaster
@@ -44,6 +44,14 @@ contract NodePaymaster is BasePaymaster {
      * Verifies that the handleOps is called by the MEE Node, so it sponsors only for superTxns by owner MEE Node
      * @dev The use of tx.origin makes the NodePaymaster incompatible with the general ERC4337 mempool.
      * This is intentional, and the NodePaymaster is restricted to the MEE node owner anyway.
+     * 
+     * PaymasterAndData is encoded as follows:
+     * 20 bytes: Paymaster address
+     * 32 bytes: pm gas values
+     * 4 bytes: mode
+     * 32 bytes: impliedCost
+     * 20 bytes: refundReceiver (only for DAPP mode)
+     * 
      * @param userOp the userOp to validate
      * @param userOpHash the hash of the userOp
      * @param maxCost the max cost of the userOp
@@ -58,16 +66,14 @@ contract NodePaymaster is BasePaymaster {
     {   
         require(_checkMeeNodeMasterSig(userOp.signature, userOpHash), OnlySponsorOwnStuff()); 
 
-        // TODO: REBUILD IT
-        // MODE_SPONSORED MEANS WE HAVE TO REFUND TO THE DAPP EOA WHICH SHOULD BE PROVIDED IN THE PM DATA
-
+        // TODO : Optimize it
 
         bytes4 mode = bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+4]);
         address refundReceiver;
         if (mode == NODE_PM_MODE_USER) {
             refundReceiver = userOp.sender;
-        } else if (mode == NODE_PM_MODE_NODE) {
-            refundReceiver = owner();
+        } else if (mode == NODE_PM_MODE_DAPP) {
+            refundReceiver = address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+36:]));
         } else if (mode == NODE_PM_MODE_KEEP) {
             refundReceiver = address(0);
         } else {
@@ -77,7 +83,7 @@ contract NodePaymaster is BasePaymaster {
         if (refundReceiver == address(0)) {
             context = abi.encode(userOpHash);
         } else {
-            uint256 impliedCost = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+4:]));
+            uint256 impliedCost = uint256(bytes32(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+4:PAYMASTER_DATA_OFFSET+36]));
             uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
             require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());
             context = abi.encode(

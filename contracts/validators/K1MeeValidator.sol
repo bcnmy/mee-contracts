@@ -17,11 +17,11 @@ import {
     SIG_TYPE_MEE_FLOW
 } from "contracts/types/Constants.sol";
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
-import {PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
-import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
-import {SimpleValidatorLib} from "contracts/lib/fusion/SimpleValidatorLib.sol";
-import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
-import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
+import {PermitValidatorLib} from "../lib/fusion/PermitValidatorLib.sol";
+import {TxValidatorLib} from "../lib/fusion/TxValidatorLib.sol";
+import {SimpleValidatorLib} from "../lib/fusion/SimpleValidatorLib.sol";
+import {NoMeeFlowLib} from "../lib/fusion/NoMeeFlowLib.sol";
+import {EcdsaLib} from "../lib/util/EcdsaLib.sol";
 
 /**
  * @title K1MeeValidator
