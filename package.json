@@ -16,7 +16,7 @@
   "dependencies": {
     "account-abstraction": "https://github.com/eth-infinitism/account-abstraction#v0.7.0",
     "erc7739-validator-base": "https://github.com/erc7579/erc7739Validator#v1.0.0",
-    "@erc7579/enumerablemap4337": "github:erc7579/enumerablemap",
+    "enumerablemap4337": "github:erc7579/enumerablemap",
     "solady": "github:vectorized/solady#v0.0.271",
     "openzeppelin-contracts": "@openzeppelin/contracts#v5.1.0",
     "murky": "github:dmfxyz/murky",
