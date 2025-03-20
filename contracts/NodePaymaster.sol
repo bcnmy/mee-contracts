@@ -27,7 +27,7 @@ contract NodePaymaster is BasePaymaster {
     // TODO: adjust it 
     // PM.postOp() consumes around 44k. We add a buffer for EP penalty calc
     // and chains with non-standard gas pricing
-    uint256 private constant POST_OP_GAS = 49_999;
+    uint256 private constant POST_OP_GAS = 35_000;
     
     // 100% with 5 decimals precision
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000;
@@ -227,14 +227,13 @@ contract NodePaymaster is BasePaymaster {
         uint256 postOpGasLimit,
         uint256 premiumData
     ) internal view returns (uint256 refund) {
-        //account for postOpGas
-        actualGasUsed = actualGasUsed + postOpGasLimit;
+        // account for postOpGas
+        // If MEE Node sets postOpGasLimit too high, it can overcharge the superTxn sponsor
+        // because actualGasUsed will be too high. 
+        actualGasUsed = actualGasUsed + postOpGasLimit;        
 
-        // If there's unused gas, add penalty
-        // We treat (maxGasLimit - actualGasUsed) as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
-        // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
-        // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
-        actualGasUsed += (maxGasLimit - actualGasUsed) / 10;
+        // we do not need to account for the penalty here because it goes to the beneficiary
+        // which is the MEE Node itself, so we do not have to charge user for the penalty
 
         uint256 premiumPercentage = premiumData;
 
