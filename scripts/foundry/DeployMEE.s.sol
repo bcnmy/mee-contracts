@@ -19,6 +19,8 @@ contract DeployMEE is Script {
     bytes32 constant MEE_K1_VALIDATOR_SALT = 0x000000000000000000000000000000000000000071f7e488ac1c920333dec4c8; // => 0x000000002b5Ba85adc15B1640E3b523FF34A61e9; 
     bytes32 constant ETH_FORWARDER_SALT = 0x00000000000000000000000000000000000000008f1af550db65a6032eca72b3; // => 0x0000000088ca766994Ce7F0aa842aB98c63244fA
 
+    ModuleType[] moduleTypesToAttest;
+
     function setUp() public {
      
     }
@@ -210,17 +212,42 @@ contract DeployMEE is Script {
         return res;
     }
 
-    function attestModule(address moduleAddress) internal {
+    function attestModule(address moduleAddress) internal returns (bool) {
         IRegistryModuleManager registry = IRegistryModuleManager(MODULE_REGISTRY_ADDRESS);
+
+        address[] memory attesters = new address[](1);
+        attesters[0] = ATTESTER_ADDRESS;
         
         ModuleType[] memory moduleTypes = new ModuleType[](1);
         moduleTypes[0] = ModuleType.wrap(uint256(1)); // validator
+
+        // check if module is already attested
+        uint256 needToAttest = 0;
+        for (uint256 i; i < moduleTypes.length; i++) {
+            ModuleType moduleType = moduleTypes[i];
+            try registry.check(moduleAddress, moduleType, attesters, 1) {
+                console2.log("Attestation as type %s successful, check passed", ModuleType.unwrap(moduleType));
+            } catch (bytes memory reason) {
+                console2.log("Module not attested as type %s, attesting...", ModuleType.unwrap(moduleType));
+                needToAttest++;
+                moduleTypesToAttest.push(moduleType);
+            }
+        }
+
+        if (needToAttest == 0) {
+            console2.log("Module already attested, skipping attestation");
+            return true;
+        }
+
+        if (moduleTypesToAttest.length != needToAttest) {
+            revert("Module types to attest mismatch");
+        }
 
         AttestationRequest memory meeK1ValidatorAttestationRequest = AttestationRequest({
             moduleAddress: moduleAddress,
             expirationTime: uint48(block.timestamp + 3650 days),
             data: bytes(""),
-            moduleTypes: moduleTypes
+            moduleTypes: moduleTypesToAttest
         });
 
         bytes memory cd = abi.encodeWithSelector(
@@ -241,10 +268,8 @@ contract DeployMEE is Script {
             callData: cd
         })) {
             console2.log("Attestation successful, re-checking");
-            address[] memory attesters = new address[](1);
-            attesters[0] = ATTESTER_ADDRESS;
-            for (uint256 i; i < moduleTypes.length; i++) {
-                ModuleType moduleType = moduleTypes[i];
+            for (uint256 i; i < moduleTypesToAttest.length; i++) {
+                ModuleType moduleType = moduleTypesToAttest[i];
                 console2.log("Checking attestations for module %s with type %s", moduleAddress, ModuleType.unwrap(moduleType));
                 try registry.check(moduleAddress, moduleType, attesters, 1) {
                     console2.log("Attestation successful, check passed");
