@@ -88,7 +88,6 @@ contract BaseTest is Test {
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
         vm.prank(nodePmDeployer);
         NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
-        //console2.logBytes32(address(NODE_PAYMASTER).codehash);
 
         assertEq(NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS, "Owner should be properly set");
 

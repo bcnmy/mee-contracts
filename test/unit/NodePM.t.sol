@@ -40,8 +40,8 @@ contract PMPerNodeTest is BaseTest {
     // 4. EP refunds the actual gas cost to the Node as it is used as a `beneficiary` in the handleOps call
     // Both of those amounts are deducted from the Node PM's deposit at ENTRYPOINT.
 
-    // There is a knowm issue that a malicious MEE Node can intentionally set verificationGasLimit and pmVerificationGasLimit
-    // not tight to overcharge the userOp.sender by makeing the refund smaller.
+    // There is a known issue that a malicious MEE Node can intentionally set verificationGasLimit and pmVerificationGasLimit
+    // not tight to overcharge the userOp.sender by making the refund smaller.
     // See the details in the NodePaymaster.sol = _calculateRefund() method inline comments.
     // This will be fixed in the future by EP0.8 returning proper penalty for the unused gas.
     // For now we:
@@ -61,11 +61,11 @@ contract PMPerNodeTest is BaseTest {
             callData: callData,
             wallet: wallet,
             preVerificationGasLimit: 3e5,
-            verificationGasLimit: 50e3,
+            verificationGasLimit: 35e3,
             callGasLimit: 3e6
         });
 
-        uint128 pmValidationGasLimit = 42_000;
+        uint128 pmValidationGasLimit = 25_000;
         uint128 pmPostOpGasLimit = 50_000; //min to pass is 44k. we set 50k for non-standard stuff
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
@@ -250,14 +250,15 @@ contract PMPerNodeTest is BaseTest {
             abi.decode(entries[entries.length - 1].data, (uint256, bool, uint256, uint256));
 
         expectedRefund = applyPremium(maxGasCost, meeNodePremiumPercentage) - applyPremium(actualGasCost, meeNodePremiumPercentage);
-        // we apply premium to the maxGasCost, because maxGasCost is wat is always sent by the userOp.sender to MEE Node in a payment userOp
+        // we apply premium to the maxGasCost, because maxGasCost+premium is what is always sent by the superTxn sponsor to the MEE Node in a payment userOp
         uint256 expectedRefundNoPremium = applyPremium(maxGasCost, meeNodePremiumPercentage) - actualGasCost;
+       // uint256 expectedRefundNoPremium = maxGasCost - actualGasCost; 
 
         // OG EP takes gas cost from the PM's deposit and sends it to the beneficiary, in this case MEE_NODE
         // in the postOp this PM refunds the unused gas cost to the userOp.sender
         // so the remaining deposit should be like this
         uint256 expectedNodeDepositAfter = nodePMDepositBefore - expectedRefund - actualGasCost;
-        uint256 expectedNodeDepositAfterNoPremium = nodePMDepositBefore - expectedRefundNoPremium - actualGasCost;
+        uint256 expectedNodeDepositAfterNoPremium = nodePMDepositBefore - actualGasCost - expectedRefundNoPremium;
         expectedNodePremium = getPremium(actualGasCost, meeNodePremiumPercentage);
 
         meeNodeEarnings = getDeposit(address(NODE_PAYMASTER)) - expectedNodeDepositAfterNoPremium;

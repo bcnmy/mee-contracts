@@ -10,8 +10,6 @@ import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol
 import {EcdsaLib} from "./lib/util/EcdsaLib.sol";
 import {NODE_PM_MODE_USER, NODE_PM_MODE_DAPP, NODE_PM_MODE_KEEP, NODE_PM_PREMIUM_IMPLIED, NODE_PM_PREMIUM_PERCENT, NODE_PM_PREMIUM_FIXED} from "./types/Constants.sol";
 
-import "forge-std/console2.sol";
-
 /**
  * @title Node Paymaster
  * @notice A paymaster every MEE Node should deploy.
@@ -179,10 +177,6 @@ contract NodePaymaster is BasePaymaster {
             uint192 premiumData;
             (refundReceiver, premiumData) = _getRefundReceiverAndFinancialData(context); 
 
-
-            //console2.log("premiumData", premiumData);
-            //console2.log("refundReceiver", refundReceiver);
-
             bytes4 premiumMode;
             uint256 maxFeePerGas;
             uint256 maxGasLimit;
@@ -194,11 +188,6 @@ contract NodePaymaster is BasePaymaster {
                 maxGasLimit := calldataload(add(context.offset, 0x70))
                 postOpGasLimit := calldataload(add(context.offset, 0x90))
             }
-
-            //console2.logBytes4(premiumMode);
-            //console2.log(maxFeePerGas);
-            //console2.log(maxGasLimit);
-            //console2.log(postOpGasLimit);
 
             refund = _calculateRefund({
                 maxFeePerGas: maxFeePerGas,
@@ -242,7 +231,7 @@ contract NodePaymaster is BasePaymaster {
         actualGasUsed = actualGasUsed + postOpGasLimit;
 
         // If there's unused gas, add penalty
-        // We treat maxGasLimit - actualGasUsed as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
+        // We treat (maxGasLimit - actualGasUsed) as unusedGas and it is true if preVerificationGas, verificationGasLimit and pmVerificationGasLimit are tight enough.
         // If they are not tight, we overcharge, as verification part of maxGasLimit is > verification part of actualGasUsed, but we are ok with that, at least we do not lose funds.
         // Details: https://docs.google.com/document/d/1WhJcMx8F6DYkNuoQd75_-ggdv5TrUflRKt4fMW0LCaE/edit?tab=t.0 
         actualGasUsed += (maxGasLimit - actualGasUsed) / 10;
