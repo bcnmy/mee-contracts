@@ -69,8 +69,8 @@ contract PMPerNodeTest is BaseTest {
             callGasLimit: 100e3
         });
 
-        uint128 pmValidationGasLimit = 25_000;
-        uint128 pmPostOpGasLimit = 36_001; //min to pass is 44k. we set 50k for non-standard stuff
+        uint128 pmValidationGasLimit = 20_000;
+        uint128 pmPostOpGasLimit = 14_000;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
@@ -240,13 +240,6 @@ contract PMPerNodeTest is BaseTest {
         uint256 approxGasCostWithPremium =
             approxGasCost * (PREMIUM_CALCULATION_BASE + meeNodePremium) / PREMIUM_CALCULATION_BASE;
         assertGt(approxGasCostWithPremium, approxGasCost, "premium should support fractions of %");
-    }
-
-    // test executed userOps are logged properly
-    function test_executed_userOps_logged_properly() public {
-        PackedUserOperation[] memory userOps = test_pm_per_node_single();
-        bytes32 userOpHash = ENTRYPOINT.getUserOpHash(userOps[0]);
-        assertEq(NODE_PAYMASTER.wasUserOpExecuted(userOpHash), true);
     }
 
     // if the userOp.sender is malicious and spends too much gas, nodePM.postOp

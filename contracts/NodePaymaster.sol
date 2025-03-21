@@ -24,15 +24,8 @@ contract NodePaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using UserOperationLib for bytes32;
 
-    // TODO: adjust it 
-    // PM.postOp() consumes around 44k. We add a buffer for EP penalty calc
-    // and chains with non-standard gas pricing
-    uint256 private constant POST_OP_GAS = 35_000;
-    
     // 100% with 5 decimals precision
     uint256 private constant PREMIUM_CALCULATION_BASE = 100_00000;
-    
-    mapping(bytes32 => bool) private executedUserOps;
 
     error EmptyMessageValue();
     error InsufficientBalance();
@@ -43,15 +36,6 @@ contract NodePaymaster is BasePaymaster {
 
     constructor(IEntryPoint _entryPoint, address _meeNodeAddress) payable BasePaymaster(_entryPoint) {
         _transferOwnership(_meeNodeAddress);
-    }
-
-    /**
-     * @dev check if the userOp was executed
-     * @param userOpHash the hash of the userOp
-     * @return executed true if the userOp was executed, false otherwise
-     */
-    function wasUserOpExecuted(bytes32 userOpHash) public view returns (bool) {
-        return executedUserOps[userOpHash];
     }
 
     /**
@@ -80,10 +64,8 @@ contract NodePaymaster is BasePaymaster {
         override
         returns (bytes memory, uint256)
     {   
-        bytes memory context = abi.encodePacked(userOpHash);
-
         if(!_checkMeeNodeMasterSig(userOp.signature, userOpHash))
-            return (context, 1);
+            return ("", 1);
 
         // TODO : Optimize it
         bytes4 refundMode = bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+4]);
@@ -91,7 +73,7 @@ contract NodePaymaster is BasePaymaster {
         address refundReceiver;
 
         if (refundMode == NODE_PM_MODE_KEEP) { // NO REFUND
-            return (context, 0);
+            return ("", 0);
         } else {
             if (refundMode == NODE_PM_MODE_USER) {
                 refundReceiver = userOp.sender;
@@ -102,8 +84,7 @@ contract NodePaymaster is BasePaymaster {
             }
         }
 
-        context = abi.encodePacked(
-            context,
+        bytes memory context = abi.encodePacked(
             refundReceiver,
             uint192(bytes24(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+8:PAYMASTER_DATA_OFFSET+32])) // financial data : implied cost, or premium percentage or fixed premium  = 24 bytes (uint192)
         );
@@ -113,7 +94,6 @@ contract NodePaymaster is BasePaymaster {
         } else if (premiumMode == NODE_PM_PREMIUM_PERCENT || premiumMode == NODE_PM_PREMIUM_FIXED) {
             // attach gas data to calc refund
             uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
-            require(postOpGasLimit > POST_OP_GAS, PostOpGasLimitTooLow());
             context = abi.encodePacked(
                 context,
                 bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+4:PAYMASTER_DATA_OFFSET+8]), // premium mode
@@ -156,24 +136,17 @@ contract NodePaymaster is BasePaymaster {
         internal
         virtual
         override
-    {  
-        bytes32 userOpHash;
-        assembly {
-            userOpHash := calldataload(context.offset)
-        }
-        executedUserOps[userOpHash] = true;
-        // that's it for the keep mode
-        
+    {   
         uint256 refund;
         address refundReceiver;
 
         // One of the refund scenarios
-        if (context.length == 0x4c) { // 76 bytes => Implied cost mode.
+        if (context.length == 0x2c) { // 44 bytes => Implied cost mode.
             // calc simple refund
             uint192 impliedCost;
             (refundReceiver, impliedCost) = _getRefundReceiverAndFinancialData(context);
             refund = actualGasCost - impliedCost;
-        } else if (context.length == 0xb0) { // 176 bytes => % premium or fixed premium mode.
+        } else if (context.length == 0x90) { // 144 bytes => % premium or fixed premium mode.
             uint192 premiumData;
             (refundReceiver, premiumData) = _getRefundReceiverAndFinancialData(context); 
 
@@ -183,10 +156,10 @@ contract NodePaymaster is BasePaymaster {
             uint256 postOpGasLimit;
 
             assembly {
-                premiumMode := calldataload(add(context.offset, 0x4c))
-                maxFeePerGas := calldataload(add(context.offset, 0x50))
-                maxGasLimit := calldataload(add(context.offset, 0x70))
-                postOpGasLimit := calldataload(add(context.offset, 0x90))
+                premiumMode := calldataload(add(context.offset, 0x2c))
+                maxFeePerGas := calldataload(add(context.offset, 0x30))
+                maxGasLimit := calldataload(add(context.offset, 0x50))
+                postOpGasLimit := calldataload(add(context.offset, 0x70))
             }
 
             refund = _calculateRefund({
@@ -207,7 +180,7 @@ contract NodePaymaster is BasePaymaster {
     }
 
     function _getRefundReceiverAndFinancialData(bytes calldata context) internal view returns (address, uint192) {
-        return (address(bytes20(context[0x20:0x34])), uint192(bytes24(context[0x34:0x4c])));
+        return (address(bytes20(context[:0x14])), uint192(bytes24(context[0x14:0x2c])));
     }
 
     /**
@@ -266,5 +239,9 @@ contract NodePaymaster is BasePaymaster {
             hash: keccak256(abi.encodePacked(userOpHash, tx.origin)),
             signature: nodeMasterSig
         });
+    }
+
+    receive() external payable {
+        entryPoint.depositTo{value: msg.value}(address(this));
     }
 }
