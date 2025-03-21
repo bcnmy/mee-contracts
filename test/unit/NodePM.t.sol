@@ -40,6 +40,10 @@ contract PMPerNodeTest is BaseTest {
     // 4. EP refunds the actual gas cost to the Node as it is used as a `beneficiary` in the handleOps call
     // Both of those amounts are deducted from the Node PM's deposit at ENTRYPOINT.
 
+
+    // TODO: FIX THIS
+    // ALSO Describe an issue with gasPrice , see getUserOpGasPrice() in EntryPoint.sol
+
     // There is a known issue that a malicious MEE Node can intentionally set verificationGasLimit and pmVerificationGasLimit
     // not tight to overcharge the userOp.sender by making the refund smaller.
     // See the details in the NodePaymaster.sol = _calculateRefund() method inline comments.
@@ -190,7 +194,7 @@ contract PMPerNodeTest is BaseTest {
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         assertEq(mockTarget.value(), valueToSet);
-        
+         
         assertFinancialStuff({
             entries: entries, 
             meeNodePremiumPercentage: premiumPercentage, 
