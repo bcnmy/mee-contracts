@@ -163,17 +163,17 @@ library TxValidatorLib {
         RLPDecoder.RLPItem[] memory parsedRlpEncodedTxItems = parsedRlpEncodedTx.toList();
         TxParams memory params = extractParams(txType, parsedRlpEncodedTxItems);
 
-        return TxData(
-            txType,
-            _adjustV(params.v),
-            params.r,
-            params.s,
-            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
-            extractAppendedHash(params.callData),
-            extractProof(self, proofItemsCount),
-            lowerBoundTimestamp,
-            upperBoundTimestamp
-        );
+        return TxData({
+            txType: txType,
+            v: _adjustV(params.v),
+            r: params.r,
+            s: params.s,
+            utxHash: calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
+            superTxHash: extractAppendedHash(params.callData),
+            proof: extractProof(self, proofItemsCount),
+            lowerBoundTimestamp: lowerBoundTimestamp,
+            upperBoundTimestamp: upperBoundTimestamp
+        });
     }
 
     function decodeTxShort(bytes calldata self) internal pure returns (TxDataShort memory) {
@@ -185,15 +185,15 @@ library TxValidatorLib {
         RLPDecoder.RLPItem[] memory parsedRlpEncodedTxItems = parsedRlpEncodedTx.toList();
         TxParams memory params = extractParams(txType, parsedRlpEncodedTxItems);
 
-        return TxDataShort(
-            txType,
-            _adjustV(params.v),
-            params.r,
-            params.s,
-            calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
-            extractAppendedHash(params.callData),
-            extractProofShort(self, proofItemsCount)
-        );
+        return TxDataShort({
+            txType: txType,
+            v: _adjustV(params.v),
+            r: params.r,
+            s: params.s,
+            utxHash: calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
+            superTxHash: extractAppendedHash(params.callData),
+            proof: extractProofShort(self, proofItemsCount)
+        });
     }
 
     function extractParams(uint8 txType, RLPDecoder.RLPItem[] memory items)
