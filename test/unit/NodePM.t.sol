@@ -56,7 +56,7 @@ contract PMPerNodeTest is BaseTest {
     function test_pm_per_node_single() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
         uint256 premiumPercentage = 17_00000;
-        uint256 maxDiffPercentage = 0.10e18; // 5% difference
+        uint256 maxDiffPercentage = 0.10e18; // 10% difference
         
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
         bytes memory callData =
@@ -70,8 +70,8 @@ contract PMPerNodeTest is BaseTest {
             callGasLimit: 100e3
         });
 
-        uint128 pmValidationGasLimit = 20_000;
-        uint128 pmPostOpGasLimit = 20_000; // 14_000 is enough in the wild, here we add for emitting events in the wrapper
+        uint128 pmValidationGasLimit = 18_000;
+        uint128 pmPostOpGasLimit = 19_000; // 12_000 is enough in the wild, here we add for emitting events in the wrapper
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
@@ -268,13 +268,13 @@ contract PMPerNodeTest is BaseTest {
             abi.decode(entries[entries.length - 1].data, (uint256, bool, uint256, uint256));
         
         // parse postOpGasEvent
-        (uint256 gasSpentPrePostOp, uint256 gasSpentInPostOp, uint256 actualGasPrice) =
+        (uint256 gasCostPrePostOp, uint256 gasSpentInPostOp, uint256 actualGasPrice) =
             abi.decode(entries[entries.length - 2].data, (uint256, uint256, uint256));
         
         uint256 maxGasCost = maxGasLimit * maxFeePerGas;
 
         // nodePM does not charge for the penalty however because it still goes to the node EOA
-        uint256 actualGasCost = (gasSpentPrePostOp + gasSpentInPostOp) * actualGasPrice;
+        uint256 actualGasCost = gasCostPrePostOp + gasSpentInPostOp * actualGasPrice;
         
         // NodePm doesn't charge for the penalty
         expectedRefund = applyPremium(maxGasCost, meeNodePremiumPercentage) - applyPremium(actualGasCost, meeNodePremiumPercentage);

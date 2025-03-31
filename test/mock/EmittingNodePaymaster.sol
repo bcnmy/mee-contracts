@@ -6,7 +6,7 @@ import {NodePaymaster} from "../../contracts/NodePaymaster.sol";
 
 contract EmittingNodePaymaster is NodePaymaster {
 
-    event postOpGasEvent(uint256 gasSpentPrePostOp, uint256 gasSpentInPostOp, uint256 gasPrice);
+    event postOpGasEvent(uint256 gasCostPrePostOp, uint256 gasSpentInPostOp, uint256 gasPrice);
     
     constructor(IEntryPoint _entryPoint, address _meeNodeAddress) NodePaymaster(_entryPoint, _meeNodeAddress) {}
 
@@ -14,6 +14,6 @@ contract EmittingNodePaymaster is NodePaymaster {
         uint256 preGas = gasleft();
         super._postOp(mode, context, actualGasCost, gasPrice);
         // emit event
-        emit postOpGasEvent(actualGasCost/gasPrice, preGas - gasleft(), gasPrice);
+        emit postOpGasEvent(actualGasCost, preGas - gasleft(), gasPrice);
     }
 }
