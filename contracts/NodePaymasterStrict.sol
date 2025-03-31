@@ -10,10 +10,10 @@ import {EcdsaLib} from "./lib/util/EcdsaLib.sol";
 /**
  * @title Node Paymaster
  * @notice A paymaster every MEE Node should deploy.
- * @dev Allows handleOps calls by any address allowed by owner().
+ * @dev Only allows handleOps calls by owner() (MEE Node master EOA)
  * It is used to sponsor userOps. Introduced for gas efficient MEE flow.
  */
-contract NodePaymaster is BaseNodePaymaster {
+contract NodePaymasterStrict is BaseNodePaymaster {
 
     constructor(
         IEntryPoint _entryPoint,
@@ -49,7 +49,7 @@ contract NodePaymaster is BaseNodePaymaster {
         override
         returns (bytes memory, uint256)
     {   
-        if(!_checkMeeNodeMasterSig(userOp.signature, userOpHash))
+        if (tx.origin != owner())
             return ("", 1);
 
         return super._validatePaymasterUserOp(userOp, userOpHash, maxCost);
