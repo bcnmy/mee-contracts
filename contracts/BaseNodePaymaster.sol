@@ -15,7 +15,7 @@ import {NODE_PM_MODE_USER, NODE_PM_MODE_DAPP, NODE_PM_MODE_KEEP, NODE_PM_PREMIUM
  * @notice Base PM functionality for MEE Node PMs.
  * It is used to sponsor userOps. Introduced for gas efficient MEE flow.
  */
-contract BaseNodePaymaster is BasePaymaster {
+abstract contract BaseNodePaymaster is BasePaymaster {
 
     error InvalidNodePMRefundMode(bytes4 mode);
     error InvalidNodePMPremiumMode(bytes4 mode);
@@ -57,10 +57,9 @@ contract BaseNodePaymaster is BasePaymaster {
      * @return context the context to be used in the postOp
      * @return validationData the validationData to be used in the postOp
      */
-    function _validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 /*userOpHash*/, uint256 maxCost)
+    function _validate(PackedUserOperation calldata userOp, bytes32 /*userOpHash*/, uint256 maxCost)
         internal
         virtual
-        override
         returns (bytes memory, uint256)
     {   
         // TODO : Optimize it

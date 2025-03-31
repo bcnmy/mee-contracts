@@ -11,8 +11,8 @@ import {MockAccount, ENTRY_POINT_V07} from "./mock/MockAccount.sol";
 import {MockTarget} from "./mock/MockTarget.sol";
 import {BaseNodePaymaster} from "../contracts/BaseNodePaymaster.sol";
 import {NodePaymaster} from "../contracts/NodePaymaster.sol";
-import {NodePaymasterStrict} from "../contracts/NodePaymasterStrict.sol";
 import {EmittingNodePaymaster} from "./mock/EmittingNodePaymaster.sol";
+import {MockNodePaymaster} from "./mock/MockNodePaymaster.sol";
 import {K1MeeValidator} from "../contracts/validators/K1MeeValidator.sol";
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {MEEUserOpHashLib} from "../contracts/lib/util/MEEUserOpHashLib.sol";
@@ -62,11 +62,9 @@ contract BaseTest is Test {
 
     IEntryPoint internal ENTRYPOINT;
     
-    EmittingNodePaymaster internal EMITTING_NODE_PAYMASTER;
-    NodePaymasterStrict internal STRICT_NODE_PAYMASTER;
     NodePaymaster internal NODE_PAYMASTER;
-    BaseNodePaymaster internal BASE_NODE_PAYMASTER;
-
+    EmittingNodePaymaster internal EMITTING_NODE_PAYMASTER;
+    MockNodePaymaster internal MOCK_NODE_PAYMASTER;
     K1MeeValidator internal k1MeeValidator;
     address internal MEE_NODE_ADDRESS;
     Vm.Wallet internal MEE_NODE;
@@ -89,16 +87,14 @@ contract BaseTest is Test {
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
         vm.prank(nodePmDeployer);
         
-        BASE_NODE_PAYMASTER = new BaseNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
         NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
-        STRICT_NODE_PAYMASTER = new NodePaymasterStrict(ENTRYPOINT, MEE_NODE_ADDRESS);
         EMITTING_NODE_PAYMASTER = new EmittingNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        MOCK_NODE_PAYMASTER = new MockNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
 
-        address payable[] memory nodePaymasters = new address payable[](4);
-        nodePaymasters[0] = payable(address(BASE_NODE_PAYMASTER));
-        nodePaymasters[1] = payable(address(NODE_PAYMASTER));
-        nodePaymasters[2] = payable(address(STRICT_NODE_PAYMASTER));
-        nodePaymasters[3] = payable(address(EMITTING_NODE_PAYMASTER));
+        address payable[] memory nodePaymasters = new address payable[](3);
+        nodePaymasters[0] = payable(address(NODE_PAYMASTER));
+        nodePaymasters[1] = payable(address(EMITTING_NODE_PAYMASTER));
+        nodePaymasters[2] = payable(address(MOCK_NODE_PAYMASTER));
 
         for (uint256 i = 0; i < nodePaymasters.length; i++) {
             assertEq(BaseNodePaymaster(nodePaymasters[i]).owner(), MEE_NODE_ADDRESS, "Owner should be properly set");

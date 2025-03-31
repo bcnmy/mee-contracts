@@ -49,10 +49,10 @@ contract NodePaymaster is BaseNodePaymaster {
         override
         returns (bytes memory, uint256)
     {   
-        if(!_checkMeeNodeMasterSig(userOp.signature, userOpHash))
-            return ("", 1);
-
-        return super._validatePaymasterUserOp(userOp, userOpHash, maxCost);
+        if( tx.origin == owner() || _checkMeeNodeMasterSig(userOp.signature, userOpHash)) {
+            return _validate(userOp, userOpHash, maxCost);
+        }
+        return ("", 1);
     }
 
     /// @notice Checks if the hash was signed by the MEE Node (owner())
