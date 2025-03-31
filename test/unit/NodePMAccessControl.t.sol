@@ -50,6 +50,8 @@ contract NodePMAccessControlTest is BaseTest {
     function test_passes_if_sent_by_owner() public {
         PackedUserOperation[] memory userOps = _prepareUserOps();
 
+        // no extra sig needed
+
         uint256 mockTargetValueBefore = mockTarget.value();
 
         vm.startPrank(NODE_PAYMASTER.owner(), NODE_PAYMASTER.owner()); 
@@ -67,7 +69,7 @@ contract NodePMAccessControlTest is BaseTest {
 
         uint256 mockTargetValueBefore = mockTarget.value();
 
-        vm.startPrank(address(0xdeadbeef)); // submitter is not an executor EIA signed above
+        vm.startPrank(address(0xdeadbeef)); // submitter is not an executor EOA signed above
 
         vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
@@ -83,7 +85,7 @@ contract NodePMAccessControlTest is BaseTest {
         PackedUserOperation[] memory userOps = _prepareUserOps();
         userOps[0] = addNodeMasterSig(userOps[0], MEE_NODE, MEE_NODE_EXECUTOR_EOA); 
  
-        userOps[0].preVerificationGas++; // change some data
+        userOps[0].preVerificationGas++; // change some data so the userOp hash changes
         // Do not re-sign with MEE Node EOA, so the userOp hash is not signed by the Node
 
         uint256 mockTargetValueBefore = mockTarget.value();
@@ -114,7 +116,7 @@ contract NodePMAccessControlTest is BaseTest {
         });
 
         uint128 pmValidationGasLimit = 25_000;
-        uint128 pmPostOpGasLimit = 20_000; // 12_000 is enough in the wild, here we add for emitting events in the wrapper
+        uint128 pmPostOpGasLimit = 20_000;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
@@ -124,9 +126,8 @@ contract NodePMAccessControlTest is BaseTest {
             pmPostOpGasLimit: pmPostOpGasLimit,
             pmMode: NODE_PM_MODE_USER,
             premiumMode: NODE_PM_PREMIUM_PERCENT,
-            financialData: premiumPercentage // percentage premium = 17% of maxGasCost
+            financialData: premiumPercentage 
         });
-        // account owner does not need to re-sign the userOp as mock account does not check the signature
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         userOps[0] = userOp;
