@@ -9,9 +9,11 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {MockAccount, ENTRY_POINT_V07} from "./mock/MockAccount.sol";
 import {MockTarget} from "./mock/MockTarget.sol";
+import {BaseNodePaymaster} from "../contracts/BaseNodePaymaster.sol";
 import {NodePaymaster} from "../contracts/NodePaymaster.sol";
+import {EmittingNodePaymaster} from "./mock/EmittingNodePaymaster.sol";
+import {MockNodePaymaster} from "./mock/MockNodePaymaster.sol";
 import {K1MeeValidator} from "../contracts/validators/K1MeeValidator.sol";
-import {MEEEntryPoint} from "../contracts/MEEEntryPoint.sol";
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {MEEUserOpHashLib} from "../contracts/lib/util/MEEUserOpHashLib.sol";
 import {Merkle} from "murky-trees/Merkle.sol";
@@ -27,7 +29,7 @@ import {
     PermitValidatorLib
 } from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {LibRLP} from "solady/utils/LibRLP.sol";
-import {EmittingNodePaymaster} from "./mock/EmittingNodePaymaster.sol";
+
 
 contract BaseTest is Test {
     struct TestTemps {
@@ -59,8 +61,10 @@ contract BaseTest is Test {
     address constant MEE_NODE_EXECUTOR_EOA = address(0xa11cebeefb0bdecaf0);
 
     IEntryPoint internal ENTRYPOINT;
-    MEEEntryPoint internal MEE_ENTRYPOINT;
-    EmittingNodePaymaster internal NODE_PAYMASTER;
+    
+    NodePaymaster internal NODE_PAYMASTER;
+    EmittingNodePaymaster internal EMITTING_NODE_PAYMASTER;
+    MockNodePaymaster internal MOCK_NODE_PAYMASTER;
     K1MeeValidator internal k1MeeValidator;
     address internal MEE_NODE_ADDRESS;
     Vm.Wallet internal MEE_NODE;
@@ -75,27 +79,31 @@ contract BaseTest is Test {
         MEE_NODE_ADDRESS = MEE_NODE.addr;
         
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
-        
-        deployMEEEntryPoint(address(NODE_PAYMASTER).codehash);
 
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
     }
 
-    function deployMEEEntryPoint(bytes32 nodePmCodeHash) internal {
-        MEE_ENTRYPOINT = new MEEEntryPoint(ENTRYPOINT, nodePmCodeHash);
-    }
-
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
         vm.prank(nodePmDeployer);
-        NODE_PAYMASTER = new EmittingNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        
+        NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        EMITTING_NODE_PAYMASTER = new EmittingNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        MOCK_NODE_PAYMASTER = new MockNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
 
-        assertEq(NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS, "Owner should be properly set");
+        address payable[] memory nodePaymasters = new address payable[](3);
+        nodePaymasters[0] = payable(address(NODE_PAYMASTER));
+        nodePaymasters[1] = payable(address(EMITTING_NODE_PAYMASTER));
+        nodePaymasters[2] = payable(address(MOCK_NODE_PAYMASTER));
 
-        vm.deal(address(NODE_PAYMASTER), 100 ether);
+        for (uint256 i = 0; i < nodePaymasters.length; i++) {
+            assertEq(BaseNodePaymaster(nodePaymasters[i]).owner(), MEE_NODE_ADDRESS, "Owner should be properly set");
 
-        vm.prank(address(NODE_PAYMASTER));
-        ENTRYPOINT.depositTo{value: 10 ether}(address(NODE_PAYMASTER));
+            vm.deal(nodePaymasters[i], 100 ether);
+
+            vm.prank(nodePaymasters[i]);
+            ENTRYPOINT.depositTo{value: 10 ether}(nodePaymasters[i]);
+        }
     }
 
     function deployMockAccount(address validator, address handler) internal returns (MockAccount) {
@@ -192,7 +200,7 @@ contract BaseTest is Test {
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
         uint256 maxGasCost = maxGasLimit * unpackMaxFeePerGasMemory(userOp);
         userOp.paymasterAndData = makePMAndDataForOwnPM({
-            nodePM: address(NODE_PAYMASTER),
+            nodePM: address(NODE_PAYMASTER), // no access control
             pmValidationGasLimit: pmValidationGasLimit,
             pmPostOpGasLimit: pmPostOpGasLimit,
             pmMode: NODE_PM_MODE_USER,

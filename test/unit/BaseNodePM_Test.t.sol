@@ -35,32 +35,33 @@ contract PMPerNodeTest is BaseTest {
     // by putting address of its NodePaymaster in the userOp.paymasterAndData field.
     // Native token flows here are as follows:
     // 1. Node paymaster has a deposit at ENTRYPOINT
-    // 2. UserOp.sender sends the sum of maxGasCost and premium for all the userOps
+    // 2. UserOp sponsor sends the sum of maxGasCost and premium for all the userOps
     //    within a superTxn to the node in a separate payment userOp.
-    // 3. Node PM refunds the unused gas cost to the userOp.sender (maxGasCost - actualGasCost)*premium
-    // 4. EP refunds the actual gas cost to the Node as it is used as a `beneficiary` in the handleOps call
+    // 3. Node PM refunds the unused gas cost to the userOp sponsor (maxGasCost - actualGasCost)*premium
+    // 4. EP refunds the actual gas cost to some Node EOA as it is used as a `beneficiary` in the handleOps call
     // Both of those amounts are deducted from the Node PM's deposit at ENTRYPOINT.
 
-
-    // TODO: FIX THIS
-    // ALSO Describe an issue with gasPrice , see getUserOpGasPrice() in EntryPoint.sol
-
-    // There is a known issue that a malicious MEE Node can intentionally set verificationGasLimit and pmVerificationGasLimit
-    // not tight to overcharge the userOp.sender by making the refund smaller.
-    // See the details in the NodePaymaster.sol = _calculateRefund() method inline comments.
-    // This will be fixed in the future by EP0.8 returning proper penalty for the unused gas.
+    // There are two known issues:
+    
+    // 1. Greedy node can increase postOpGasLimit to overcharge the userOp.sender by making the refund smaller.
     // For now we:
     // a) expect only proved nodes to be in the network with no intent to overcharge users
     // b) will slash malicious nodes as intentional increase of the limits can be easily detected
 
+    // 2. Node can set higher gas fees to increase actualGasPrice compared to the one that was used 
+    // to submit the handleOps call. This however will affect the maxGasCost reflected in the superTx quote
+    // that user/dapp will take into account when choosing a node for the superTxn. So the nodes with 
+    // non-reasonable gas fees will not be selected.
+
     function test_pm_per_node_single() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
         uint256 premiumPercentage = 17_00000;
-        uint256 maxDiffPercentage = 0.10e18; // 5% difference
+        uint256 maxDiffPercentage = 0.10e18; // 10% difference
         
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
         bytes memory callData =
             abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData);
+        
         PackedUserOperation memory userOp = buildUserOpWithCalldata({
             account: address(mockAccount),
             callData: callData,
@@ -70,13 +71,15 @@ contract PMPerNodeTest is BaseTest {
             callGasLimit: 100e3
         });
 
-        uint128 pmValidationGasLimit = 20_000;
-        uint128 pmPostOpGasLimit = 20_000; // 14_000 is enough in the wild, here we add for emitting events in the wrapper
+        uint128 pmValidationGasLimit = 15_000;
+        // ~ 12_000 is raw PM.postOp gas spent 
+        // here we add more for emitting events in the wrapper + refunds etc in EP
+        uint128 pmPostOpGasLimit = 37_000;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
         userOp.paymasterAndData = makePMAndDataForOwnPM({
-            nodePM: address(NODE_PAYMASTER),
+            nodePM: address(EMITTING_NODE_PAYMASTER),
             pmValidationGasLimit: pmValidationGasLimit,
             pmPostOpGasLimit: pmPostOpGasLimit,
             pmMode: NODE_PM_MODE_USER,
@@ -86,16 +89,16 @@ contract PMPerNodeTest is BaseTest {
         // account owner does not need to re-sign the userOp as mock account does not check the signature
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
-        userOps[0] = addNodeMasterSig(userOp, MEE_NODE, MEE_NODE_EXECUTOR_EOA);  // here the actual userOpHash is signed by the Node
+        userOps[0] = userOp;
 
-        uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
+        uint256 nodePMDepositBefore = getDeposit(address(EMITTING_NODE_PAYMASTER));
         uint256 refundReceiverBalanceBefore = userOps[0].sender.balance;
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
 
         uint256 gasLog = gasleft();
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         gasLog -= gasleft();
 
         vm.stopPrank();
@@ -104,7 +107,7 @@ contract PMPerNodeTest is BaseTest {
         assertEq(mockTarget.value(), valueToSet);
 
         // When verification gas limits are tight, the difference is really small
-        uint256 expectedRefund = assertFinancialStuffStrict({
+        assertFinancialStuffStrict({
             entries: entries, 
             meeNodePremiumPercentage: premiumPercentage, 
             nodePMDepositBefore: nodePMDepositBefore, 
@@ -112,37 +115,9 @@ contract PMPerNodeTest is BaseTest {
             maxFeePerGas: unpackMaxFeePerGasMemory(userOp),
             gasSpentByExecutorEOA: gasLog,
             maxDiffPercentage: maxDiffPercentage
-        }); 
-
-        // assert approximate refund received
-        assertApproxEqRel(userOps[0].sender.balance, refundReceiverBalanceBefore + expectedRefund, maxDiffPercentage);
+        });
 
         return (userOps);
-    }
-
-    function test_reverts_if_sent_by_non_approved_EOA() public {
-        PackedUserOperation[] memory userOps = test_pm_per_node_single();
-
-        userOps[0].nonce++;
-        userOps[0] = addNodeMasterSig(userOps[0], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
-
-        vm.startPrank(address(0xdeadbeef));
-        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
-        vm.stopPrank();
-    }
-
-    // test reverts if userOp hash was not signed
-    function test_reverts_if_userOp_hash_was_not_signed() public {
-        PackedUserOperation[] memory userOps = test_pm_per_node_single();
-        userOps[0].nonce++;
-        
-        // Do not re-sign with MEE Node EOA, so the userOp hash is not signed by the Node
-
-        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA); // should revert despite of the correct tx.origin
-        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
-        vm.stopPrank();
     }
 
     // fuzz tests with different gas values =>
@@ -180,21 +155,22 @@ contract PMPerNodeTest is BaseTest {
         uint256 maxGasLimit = preVerificationGasLimit + verificationGasLimit + callGasLimit + pmValidationGasLimit + pmPostOpGasLimit;
         
         userOp.paymasterAndData = makePMAndDataForOwnPM({
-            nodePM: address(NODE_PAYMASTER),
+            nodePM: address(EMITTING_NODE_PAYMASTER),
             pmValidationGasLimit: pmValidationGasLimit,
             pmPostOpGasLimit: pmPostOpGasLimit,
             pmMode: NODE_PM_MODE_USER,
             premiumMode: NODE_PM_PREMIUM_PERCENT,
             financialData: premiumPercentage // percentage premium = 17% of maxGasCost
         });
-        userOps[0] = addNodeMasterSig(userOp, MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+        //userOps[0] = addNodeMasterSig(userOp, MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+        userOps[0] = userOp;
 
-        uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
+        uint256 nodePMDepositBefore = getDeposit(address(EMITTING_NODE_PAYMASTER));
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
 
         uint256 gasLog = gasleft();
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         gasLog -= gasleft();
         
         vm.stopPrank();
@@ -212,37 +188,7 @@ contract PMPerNodeTest is BaseTest {
         }); 
     }
 
-    function test_bytecode_is_fixed_for_different_nodes() public {
-        address otherNodeAddress = address(0xdeafbeef);
-        vm.prank(otherNodeAddress);
-        EmittingNodePaymaster nodePM = new EmittingNodePaymaster(ENTRYPOINT, otherNodeAddress);
-        bytes32 OG_NODEPM_CODEHASH;
-        bytes32 codeHash;
-        assembly {
-            OG_NODEPM_CODEHASH := extcodehash(sload(NODE_PAYMASTER.slot))
-            codeHash := extcodehash(nodePM)
-        }
-        assertEq(codeHash, OG_NODEPM_CODEHASH, "NodePM bytecode should be fixed");
-    }
-
-    function test_MEE_Node_is_Owner() public {
-        address payable receiver = payable(address(0xdeadbeef));
-
-        vm.prank(MEE_NODE_ADDRESS);
-        NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
-        assertEq(receiver.balance, 1 ether, "MEE_NODE should be the owner of the NodePM");
-
-        // node pm is owned by MEE_NODE_ADDRESS
-        assertEq(NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS);
-
-        vm.startPrank(address(nodePmDeployer));
-        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", address(nodePmDeployer)));
-        NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
-        vm.stopPrank();
-        assertEq(receiver.balance, 1 ether, "Balance should not be changed");
-    }
-
-    function test_premium_suppots_fractions(uint256 meeNodePremium, uint256 approxGasCost) public {
+    function test_premium_supports_fractions(uint256 meeNodePremium, uint256 approxGasCost) public {
         meeNodePremium = bound(meeNodePremium, 1e3, 200e5);
         approxGasCost = bound(approxGasCost, 50_000, 5e6);
         uint256 approxGasCostWithPremium =
@@ -250,8 +196,24 @@ contract PMPerNodeTest is BaseTest {
         assertGt(approxGasCostWithPremium, approxGasCost, "premium should support fractions of %");
     }
 
-    // if the userOp.sender is malicious and spends too much gas, nodePM.postOp
-    // will revert on EP.withdrawTo as postOp is called with a gas limit
+    // ============ other tests ==============
+
+    function test_MEE_Node_is_Owner() public {
+        address payable receiver = payable(address(0xdeadbeef));
+
+        vm.prank(MEE_NODE_ADDRESS);
+        EMITTING_NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
+        assertEq(receiver.balance, 1 ether, "MEE_NODE should be the owner of the NodePM");
+
+        // node pm is owned by MEE_NODE_ADDRESS
+        assertEq(EMITTING_NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS);
+
+        vm.startPrank(address(nodePmDeployer));
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", address(nodePmDeployer)));
+        EMITTING_NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
+        vm.stopPrank();
+        assertEq(receiver.balance, 1 ether, "Balance should not be changed");
+    }
 
     // ============ HELPERS ==============
 
@@ -262,26 +224,27 @@ contract PMPerNodeTest is BaseTest {
         uint256 maxGasLimit,
         uint256 maxFeePerGas,
         uint256 gasSpentByExecutorEOA
-    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodeEarnings, uint256 expectedRefund) {
+    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodeEarnings) {
         // parse UserOperationEvent
-        (,, uint256 actualGasCostByEP, ) =
+        (,, uint256 actualGasCostFromEP, uint256 actualGasUsedFromEP) =
             abi.decode(entries[entries.length - 1].data, (uint256, bool, uint256, uint256));
         
         // parse postOpGasEvent
-        (uint256 gasSpentPrePostOp, uint256 gasSpentInPostOp, uint256 actualGasPrice) =
-            abi.decode(entries[entries.length - 2].data, (uint256, uint256, uint256));
+        (uint256 gasCostPrePostOp, uint256 gasSpentInPostOp) =
+            abi.decode(entries[entries.length - 2].data, (uint256, uint256));
+        
+        uint256 actualGasPrice = actualGasCostFromEP / actualGasUsedFromEP;
         
         uint256 maxGasCost = maxGasLimit * maxFeePerGas;
 
         // nodePM does not charge for the penalty however because it still goes to the node EOA
-        uint256 actualGasCost = (gasSpentPrePostOp + gasSpentInPostOp) * actualGasPrice;
+        uint256 actualGasCost = gasCostPrePostOp + gasSpentInPostOp * actualGasPrice;
         
         // NodePm doesn't charge for the penalty
-        expectedRefund = applyPremium(maxGasCost, meeNodePremiumPercentage) - applyPremium(actualGasCost, meeNodePremiumPercentage);
         expectedNodeEarnings = getPremium(actualGasCost, meeNodePremiumPercentage);
 
         // deposit decrease = refund to sponsor (if any) + gas cost refund to beneficiary (EXECUTOR_EOA) =>
-        uint256 actualRefund = (nodePMDepositBefore - getDeposit(address(NODE_PAYMASTER))) - actualGasCostByEP;
+        uint256 actualRefund = (nodePMDepositBefore - getDeposit(address(EMITTING_NODE_PAYMASTER))) - actualGasCostFromEP;
 
         // earnings are (how much node receives in a payment userOp) minus (refund) minus (actual gas cost paid by executor EOA)
         meeNodeEarnings = applyPremium(maxGasCost, meeNodePremiumPercentage) - actualRefund - gasSpentByExecutorEOA * actualGasPrice;
@@ -300,16 +263,12 @@ contract PMPerNodeTest is BaseTest {
         uint256 maxFeePerGas,
         uint256 gasSpentByExecutorEOA,
         uint256 maxDiffPercentage
-    ) public returns (uint256) {
-        (uint256 meeNodeEarnings, uint256 expectedNodeEarnings, uint256 expectedRefund) =
+    ) public {
+        (uint256 meeNodeEarnings, uint256 expectedNodeEarnings) =
             assertFinancialStuff(entries, meeNodePremiumPercentage, nodePMDepositBefore, maxGasLimit, maxFeePerGas, gasSpentByExecutorEOA);
-        
-        console2.log("expectedNodeEarnings", expectedNodeEarnings);
-        console2.log("meeNodeEarnings", meeNodeEarnings);
 
         // assert that MEE_NODE extra earnings are not too big
-        assertApproxEqRel(expectedNodeEarnings, meeNodeEarnings, maxDiffPercentage);
-        return expectedRefund;
+        assertApproxEqRel(expectedNodeEarnings, meeNodeEarnings, maxDiffPercentage, "MEE_NODE earnings are too big");
     }
 
     function applyPremium(uint256 amount, uint256 premiumPercentage) internal pure returns (uint256) {
