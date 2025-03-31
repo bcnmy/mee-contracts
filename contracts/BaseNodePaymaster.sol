@@ -156,7 +156,6 @@ contract BaseNodePaymaster is BasePaymaster {
             }
 
             refund = _calculateRefund({
-                //maxFeePerGas: maxFeePerGas,
                 actualGasUsed: actualGasCost / actualUserOpFeePerGas,
                 actualUserOpFeePerGas: actualUserOpFeePerGas,
                 maxGasCost: maxGasCost,

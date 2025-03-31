@@ -14,7 +14,6 @@ import {NodePaymaster} from "../contracts/NodePaymaster.sol";
 import {NodePaymasterStrict} from "../contracts/NodePaymasterStrict.sol";
 import {EmittingNodePaymaster} from "./mock/EmittingNodePaymaster.sol";
 import {K1MeeValidator} from "../contracts/validators/K1MeeValidator.sol";
-import {MEEEntryPoint} from "../contracts/MEEEntryPoint.sol";
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {MEEUserOpHashLib} from "../contracts/lib/util/MEEUserOpHashLib.sol";
 import {Merkle} from "murky-trees/Merkle.sol";
@@ -62,7 +61,6 @@ contract BaseTest is Test {
     address constant MEE_NODE_EXECUTOR_EOA = address(0xa11cebeefb0bdecaf0);
 
     IEntryPoint internal ENTRYPOINT;
-    MEEEntryPoint internal MEE_ENTRYPOINT;
     
     EmittingNodePaymaster internal EMITTING_NODE_PAYMASTER;
     NodePaymasterStrict internal STRICT_NODE_PAYMASTER;
@@ -83,15 +81,9 @@ contract BaseTest is Test {
         MEE_NODE_ADDRESS = MEE_NODE.addr;
         
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
-        
-        deployMEEEntryPoint(address(NODE_PAYMASTER).codehash);
 
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
-    }
-
-    function deployMEEEntryPoint(bytes32 nodePmCodeHash) internal {
-        MEE_ENTRYPOINT = new MEEEntryPoint(ENTRYPOINT, nodePmCodeHash);
     }
 
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
@@ -212,7 +204,7 @@ contract BaseTest is Test {
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
         uint256 maxGasCost = maxGasLimit * unpackMaxFeePerGasMemory(userOp);
         userOp.paymasterAndData = makePMAndDataForOwnPM({
-            nodePM: address(BASE_NODE_PAYMASTER), // no access control
+            nodePM: address(NODE_PAYMASTER), // no access control
             pmValidationGasLimit: pmValidationGasLimit,
             pmPostOpGasLimit: pmPostOpGasLimit,
             pmMode: NODE_PM_MODE_USER,
@@ -287,7 +279,7 @@ contract BaseTest is Test {
                 SIG_TYPE_SIMPLE, abi.encode(root, lowerBoundTimestamp, upperBoundTimestamp, proof, superTxHashSignature)
             );
             superTxUserOps[i].signature = signature;
-            //superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
@@ -386,7 +378,7 @@ contract BaseTest is Test {
             );
 
             superTxUserOps[i].signature = signature;
-            //superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
@@ -485,7 +477,7 @@ contract BaseTest is Test {
                 upperBoundTimestamp
             );
             superTxUserOps[i].signature = signature;
-            //superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }

@@ -62,7 +62,7 @@ contract K1MEEValidatorTest is BaseTest {
         userOps = makeSimpleSuperTx(userOps, wallet);
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertEq(mockTarget.counter(), counterBefore + numOfClones + 1);
@@ -125,7 +125,7 @@ contract K1MEEValidatorTest is BaseTest {
         });
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertEq(erc20.balanceOf(bob), amountToTransfer * numOfClones + 1e18);
@@ -194,7 +194,7 @@ contract K1MEEValidatorTest is BaseTest {
         );
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertEq(erc20.balanceOf(bob), amountToTransfer * (numOfClones + 1));
