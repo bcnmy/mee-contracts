@@ -109,6 +109,11 @@ abstract contract BaseNodePaymaster is BasePaymaster {
      *      opReverted  - user op reverted. still has to pay for gas.
      *      postOpReverted - user op succeeded, but caused postOp (in mode=opSucceeded) to revert.
      *                       Now this is the 2nd call, after user's op was deliberately reverted.
+     * @dev postOpGasLimit is very important parameter that Node SHOULD use to balance its economic interests
+            since penalty is not involved with refunds to sponsor here, 
+            postOpGasLimit should account for gas that is spend by AA-EP after benchmarking actualGasSpent
+            if it is too low (still enough for _postOp), nodePM will be underpaid
+            if it is too high, nodePM will be overcharging the superTxn sponsor as refund is going to be lower
      * @param context - the context value returned by validatePaymasterUserOp
      * context is encoded as follows:
      * 32 bytes: userOpHash 
@@ -133,13 +138,16 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         uint256 refund;
         address refundReceiver;
 
-        // One of the refund scenarios
-        if (context.length == 0x2c) { // 44 bytes => Implied cost mode.
+        // Prepare refund info if any
+        if (context.length == 0x00) { // 0 bytes => KEEP mode => NO REFUND
+            // do nothing
+        } else if (context.length == 0x2c) { // 44 bytes => REFUND: Implied cost mode.
             // calc simple refund
             uint192 impliedCost;
             (refundReceiver, impliedCost) = _getRefundReceiverAndFinancialData(context);
             refund = actualGasCost - impliedCost;
-        } else if (context.length == 0x70) { // 112 bytes => % premium or fixed premium mode.
+        } else if (context.length == 0x70) { // 112 bytes => REFUND: % premium or fixed premium mode.
+            // calc refund according to premium mode
             uint192 premiumData;
             (refundReceiver, premiumData) = _getRefundReceiverAndFinancialData(context); 
 
@@ -149,22 +157,30 @@ abstract contract BaseNodePaymaster is BasePaymaster {
 
             assembly {
                 premiumMode := calldataload(add(context.offset, 0x2c))
-                //maxFeePerGas := calldataload(add(context.offset, 0x30))
                 maxGasCost := calldataload(add(context.offset, 0x30))
                 postOpGasLimit := calldataload(add(context.offset, 0x50))
             }
 
-            refund = _calculateRefund({
-                actualGasUsed: actualGasCost / actualUserOpFeePerGas,
-                actualUserOpFeePerGas: actualUserOpFeePerGas,
-                maxGasCost: maxGasCost,
-                postOpGasLimit: postOpGasLimit,
-                premiumData: uint256(premiumData)
-            });
+            // account for postOpGas
+            actualGasCost += postOpGasLimit * actualUserOpFeePerGas;
+
+            // calculate refund based on premium mode
+            if (premiumMode == NODE_PM_PREMIUM_PERCENT) {
+                refund = _calculateRefundPercentage({
+                    actualGasCost: actualGasCost,
+                    maxGasCost: maxGasCost,
+                    premiumPercentage: uint256(premiumData)
+                });
+            } else if (premiumMode == NODE_PM_PREMIUM_FIXED) {
+                // when premium is fixed, payment by superTxn sponsor is maxGasCost + fixedPremium
+                // so we refund just the gas difference, while fixedPremium is going to the MEE Node
+                refund = maxGasCost - actualGasCost;
+            }
         } else {
             revert InvalidContext(context.length);
         }
-
+        
+        // send refund to the superTxn sponsor
         if (refund > 0) {
                 entryPoint.withdrawTo(payable(refundReceiver), refund);
         }
@@ -175,39 +191,25 @@ abstract contract BaseNodePaymaster is BasePaymaster {
     }
 
     /**
-     * @dev calculate the refund that will be sent to the userOp.sender
+     * @dev calculate the refund that will be sent to the userOp.sender when premium is %
      * It is required as userOp.sender has paid the maxCostWithPremium, but the actual cost was lower
-     * @param actualGasUsed the actual gas used
-     * @param actualUserOpFeePerGas the actual userOp fee per gas
+     * @param actualGasCost the actual gas cost
      * @param maxGasCost the max gas cost
      * @return refund the refund amount
      */
-    function _calculateRefund(
-        //uint256 maxFeePerGas,
-        uint256 actualGasUsed,
-        uint256 actualUserOpFeePerGas,
+    function _calculateRefundPercentage(
+        uint256 actualGasCost,
         uint256 maxGasCost,
-        uint256 postOpGasLimit,
-        uint256 premiumData
+        uint256 premiumPercentage
     ) internal pure returns (uint256 refund) {
-        // account for postOpGas
-        // If MEE Node sets postOpGasLimit too high, it can overcharge the superTxn sponsor
-        // because actualGasUsed will be too high. 
-        actualGasUsed = actualGasUsed + postOpGasLimit;        
-
         // we do not need to account for the penalty here because it goes to the beneficiary
         // which is the MEE Node itself, so we do not have to charge user for the penalty
 
-        uint256 premiumPercentage = premiumData;
-
         // account for MEE Node premium
-        uint256 costWithPremium = (
-            actualGasUsed * actualUserOpFeePerGas * (PREMIUM_CALCULATION_BASE + premiumPercentage)
-        ) / PREMIUM_CALCULATION_BASE;
+        uint256 costWithPremium = _applyPercentagePremium(actualGasCost, premiumPercentage);
 
         // as MEE_NODE charges user with the premium
-        uint256 maxCostWithPremium =
-            maxGasCost * (PREMIUM_CALCULATION_BASE + premiumPercentage) / PREMIUM_CALCULATION_BASE;
+        uint256 maxCostWithPremium = _applyPercentagePremium(maxGasCost, premiumPercentage);
 
         // We do not check for the case, when costWithPremium > maxCost
         // maxCost charged by the MEE Node should include the premium
@@ -215,6 +217,10 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         if (costWithPremium < maxCostWithPremium) {
             refund = maxCostWithPremium - costWithPremium;
         }
+    }
+
+    function _applyPercentagePremium(uint256 amount, uint256 premiumPercentage) internal pure returns (uint256) {
+        return amount * (PREMIUM_CALCULATION_BASE + premiumPercentage) / PREMIUM_CALCULATION_BASE;
     }
 
     receive() external payable {
