@@ -10,6 +10,7 @@ import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPoint
 import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulations.sol";
 import {NodePaymaster} from "contracts/NodePaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
+import {EmittingNodePaymaster} from "../mock/EmittingNodePaymaster.sol";
 import "contracts/types/Constants.sol";
 
 import "forge-std/console2.sol";
@@ -70,7 +71,7 @@ contract PMPerNodeTest is BaseTest {
         });
 
         uint128 pmValidationGasLimit = 20_000;
-        uint128 pmPostOpGasLimit = 14_000;
+        uint128 pmPostOpGasLimit = 20_000; // 14_000 is enough in the wild, here we add for emitting events in the wrapper
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
@@ -88,14 +89,15 @@ contract PMPerNodeTest is BaseTest {
         userOps[0] = addNodeMasterSig(userOp, MEE_NODE, MEE_NODE_EXECUTOR_EOA);  // here the actual userOpHash is signed by the Node
 
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
+        uint256 refundReceiverBalanceBefore = userOps[0].sender.balance;
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
 
-        uint256 refundReceiverBalanceBefore = userOps[0].sender.balance;
-
+        uint256 gasLog = gasleft();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
-        
+        gasLog -= gasleft();
+
         vm.stopPrank();
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
@@ -108,6 +110,7 @@ contract PMPerNodeTest is BaseTest {
             nodePMDepositBefore: nodePMDepositBefore, 
             maxGasLimit: maxGasLimit, 
             maxFeePerGas: unpackMaxFeePerGasMemory(userOp),
+            gasSpentByExecutorEOA: gasLog,
             maxDiffPercentage: maxDiffPercentage
         }); 
 
@@ -189,7 +192,11 @@ contract PMPerNodeTest is BaseTest {
         uint256 nodePMDepositBefore = getDeposit(address(NODE_PAYMASTER));
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
+
+        uint256 gasLog = gasleft();
         MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        gasLog -= gasleft();
+        
         vm.stopPrank();
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
@@ -200,14 +207,15 @@ contract PMPerNodeTest is BaseTest {
             meeNodePremiumPercentage: premiumPercentage, 
             nodePMDepositBefore: nodePMDepositBefore, 
             maxGasLimit: maxGasLimit, 
-            maxFeePerGas: unpackMaxFeePerGasMemory(userOp)
+            maxFeePerGas: unpackMaxFeePerGasMemory(userOp),
+            gasSpentByExecutorEOA: gasLog
         }); 
     }
 
     function test_bytecode_is_fixed_for_different_nodes() public {
         address otherNodeAddress = address(0xdeafbeef);
         vm.prank(otherNodeAddress);
-        NodePaymaster nodePM = new NodePaymaster(ENTRYPOINT, otherNodeAddress);
+        EmittingNodePaymaster nodePM = new EmittingNodePaymaster(ENTRYPOINT, otherNodeAddress);
         bytes32 OG_NODEPM_CODEHASH;
         bytes32 codeHash;
         assembly {
@@ -252,34 +260,35 @@ contract PMPerNodeTest is BaseTest {
         uint256 meeNodePremiumPercentage,
         uint256 nodePMDepositBefore,
         uint256 maxGasLimit,
-        uint256 maxFeePerGas
-    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodePremium, uint256 expectedRefund) {
-        (,, uint256 actualGasCost, uint256 actualGasUsed) =
+        uint256 maxFeePerGas,
+        uint256 gasSpentByExecutorEOA
+    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodeEarnings, uint256 expectedRefund) {
+        // parse UserOperationEvent
+        (,, uint256 actualGasCostByEP, ) =
             abi.decode(entries[entries.length - 1].data, (uint256, bool, uint256, uint256));
         
-        uint256 actualGasPrice = actualGasCost / actualGasUsed;
+        // parse postOpGasEvent
+        (uint256 gasSpentPrePostOp, uint256 gasSpentInPostOp, uint256 actualGasPrice) =
+            abi.decode(entries[entries.length - 2].data, (uint256, uint256, uint256));
+        
         uint256 maxGasCost = maxGasLimit * maxFeePerGas;
 
-        // actualGasCost returned by the EP always includes the penalty
         // nodePM does not charge for the penalty however because it still goes to the node EOA
-
-        // no proper way to estimate penalty here, so we do some approximation
-        uint256 approxPenalty = (maxGasLimit - actualGasUsed * 95/100) * actualGasPrice / 10;
+        uint256 actualGasCost = (gasSpentPrePostOp + gasSpentInPostOp) * actualGasPrice;
         
         // NodePm doesn't charge for the penalty
-        expectedRefund = applyPremium(maxGasCost, meeNodePremiumPercentage) - applyPremium(actualGasCost - approxPenalty, meeNodePremiumPercentage);
-        
-        // NodePm doesn't charge for the penalty so it expectes to receive less than actualGasCost returned by the EP
-        expectedNodePremium = getPremium(actualGasCost - approxPenalty, meeNodePremiumPercentage);
+        expectedRefund = applyPremium(maxGasCost, meeNodePremiumPercentage) - applyPremium(actualGasCost, meeNodePremiumPercentage);
+        expectedNodeEarnings = getPremium(actualGasCost, meeNodePremiumPercentage);
 
-        // earnings are (how much node receives in a payment userOp) minus (deposit decrease - penalty). 
-        // penalty went from deposit as well, but it went to `beneficiary` which is MEE_NODE itself. 
-        // so we subtract penalty from the deposit decrease
-        meeNodeEarnings = applyPremium(maxGasCost, meeNodePremiumPercentage) - ( nodePMDepositBefore - getDeposit(address(NODE_PAYMASTER)) - approxPenalty );
+        // deposit decrease = refund to sponsor (if any) + gas cost refund to beneficiary (EXECUTOR_EOA) =>
+        uint256 actualRefund = (nodePMDepositBefore - getDeposit(address(NODE_PAYMASTER))) - actualGasCostByEP;
+
+        // earnings are (how much node receives in a payment userOp) minus (refund) minus (actual gas cost paid by executor EOA)
+        meeNodeEarnings = applyPremium(maxGasCost, meeNodePremiumPercentage) - actualRefund - gasSpentByExecutorEOA * actualGasPrice;
 
         assertTrue(meeNodeEarnings > 0, "MEE_NODE should have earned something");
         assertTrue(
-            meeNodeEarnings >= expectedNodePremium, "MEE_NODE should have earned more or equal to expectedNodePremium"
+            meeNodeEarnings >= expectedNodeEarnings, "MEE_NODE should have earned more or equal to expectedNodeEarnings"
         );
     }
 
@@ -289,12 +298,17 @@ contract PMPerNodeTest is BaseTest {
         uint256 nodePMDepositBefore,
         uint256 maxGasLimit,
         uint256 maxFeePerGas,
+        uint256 gasSpentByExecutorEOA,
         uint256 maxDiffPercentage
     ) public returns (uint256) {
-        (uint256 meeNodeEarnings, uint256 expectedNodePremium, uint256 expectedRefund) =
-            assertFinancialStuff(entries, meeNodePremiumPercentage, nodePMDepositBefore, maxGasLimit, maxFeePerGas);
+        (uint256 meeNodeEarnings, uint256 expectedNodeEarnings, uint256 expectedRefund) =
+            assertFinancialStuff(entries, meeNodePremiumPercentage, nodePMDepositBefore, maxGasLimit, maxFeePerGas, gasSpentByExecutorEOA);
+        
+        console2.log("expectedNodeEarnings", expectedNodeEarnings);
+        console2.log("meeNodeEarnings", meeNodeEarnings);
+
         // assert that MEE_NODE extra earnings are not too big
-        assertApproxEqRel(expectedNodePremium, meeNodeEarnings, maxDiffPercentage);
+        assertApproxEqRel(expectedNodeEarnings, meeNodeEarnings, maxDiffPercentage);
         return expectedRefund;
     }
 

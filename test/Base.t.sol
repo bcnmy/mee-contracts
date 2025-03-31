@@ -27,6 +27,7 @@ import {
     PermitValidatorLib
 } from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {LibRLP} from "solady/utils/LibRLP.sol";
+import {EmittingNodePaymaster} from "./mock/EmittingNodePaymaster.sol";
 
 contract BaseTest is Test {
     struct TestTemps {
@@ -59,7 +60,7 @@ contract BaseTest is Test {
 
     IEntryPoint internal ENTRYPOINT;
     MEEEntryPoint internal MEE_ENTRYPOINT;
-    NodePaymaster internal NODE_PAYMASTER;
+    EmittingNodePaymaster internal NODE_PAYMASTER;
     K1MeeValidator internal k1MeeValidator;
     address internal MEE_NODE_ADDRESS;
     Vm.Wallet internal MEE_NODE;
@@ -87,7 +88,7 @@ contract BaseTest is Test {
 
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
         vm.prank(nodePmDeployer);
-        NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        NODE_PAYMASTER = new EmittingNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
 
         assertEq(NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS, "Owner should be properly set");
 
