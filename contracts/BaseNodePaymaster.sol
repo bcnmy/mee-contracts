@@ -46,10 +46,11 @@ abstract contract BaseNodePaymaster is BasePaymaster {
      * PaymasterAndData is encoded as follows:
      * 20 bytes: Paymaster address
      * 32 bytes: pm gas values
+     * === PM_DATA_START ===
      * 4 bytes: mode
      * 4 bytes: premium mode
-     * 24 bytes: financial data:: impliedCost, premiumPercentage or fixedPremium
-     * 20 bytes: refundReceiver (only for DAPP mode)
+     * 24 bytes: financial data:: impliedCost or premiumPercentage (only for according premium modes)
+     * 20 bytes: refundReceiver (only for DAPP refund mode)
      * 
      * @param userOp the userOp to validate
      * param userOpHash the hash of the userOp
@@ -62,42 +63,49 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         virtual
         returns (bytes memory, uint256)
     {   
-        // TODO : Optimize it
-        bytes4 refundMode = bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET+4]);
-        bytes4 premiumMode = bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+4:PAYMASTER_DATA_OFFSET+8]);
+        bytes4 refundMode;
+        bytes4 premiumMode;
+        bytes calldata pmAndData = userOp.paymasterAndData;
+        // 0x34 = 52 => PAYMASTER_DATA_OFFSET
+        // 0x38 = 56 => PAYMASTER_DATA_OFFSET + 4
+        assembly {
+            refundMode := calldataload(add(pmAndData.offset, 0x34))
+            premiumMode := calldataload(add(pmAndData.offset, 0x38))
+        }
+        
         address refundReceiver;
-
+        // Handle refund mode
         if (refundMode == NODE_PM_MODE_KEEP) { // NO REFUND
             return ("", 0);
         } else {
             if (refundMode == NODE_PM_MODE_USER) {
                 refundReceiver = userOp.sender;
             } else if (refundMode == NODE_PM_MODE_DAPP) {
-                refundReceiver = address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+32:]));
+                // if fixed premium => no financial data => offset is 0x08
+                // if % premium => financial data => offset is 0x08 + 0x18 = 0x20
+                uint256 refundReceiverOffset = premiumMode == NODE_PM_PREMIUM_FIXED ? 0x08 : 0x20;
+
+                // TODO: TEST AND BENCHMARK ASSEMBLY BLOCK vs SOLIDITY BLOCK
+
+                assembly {
+                    let o := add(0x34, refundReceiverOffset)
+                    refundReceiver := shr(96, calldataload(add(pmAndData.offset, o)))
+                }
+                // refundReceiver = address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+refundReceiverOffset:]));
+
             } else {
                 revert InvalidNodePMRefundMode(refundMode);
             }
         }
 
-        bytes memory context = abi.encodePacked(
-            refundReceiver,
-            uint192(bytes24(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+8:PAYMASTER_DATA_OFFSET+32])) // financial data : implied cost, or premium percentage or fixed premium  = 24 bytes (uint192)
-        );
+        bytes memory context = _prepareContext({
+            refundReceiver: refundReceiver,
+            premiumMode: premiumMode, 
+            maxCost: maxCost, 
+            postOpGasLimit: userOp.unpackPostOpGasLimit(),
+            paymasterAndData: userOp.paymasterAndData
+        });
 
-        if (premiumMode == NODE_PM_PREMIUM_IMPLIED) {
-            return (context, 0);
-        } else if (premiumMode == NODE_PM_PREMIUM_PERCENT || premiumMode == NODE_PM_PREMIUM_FIXED) {
-            // attach gas data to calc refund
-            uint256 postOpGasLimit = userOp.unpackPostOpGasLimit();
-            context = abi.encodePacked(
-                context,
-                bytes4(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+4:PAYMASTER_DATA_OFFSET+8]), // premium mode
-                maxCost, // maxGasCost
-                postOpGasLimit // postOpGasLimit
-            );
-        } else {
-            revert InvalidNodePMPremiumMode(premiumMode);
-        }
         return (context, 0);
     }
 
@@ -116,17 +124,22 @@ abstract contract BaseNodePaymaster is BasePaymaster {
             if it is too high, nodePM will be overcharging the superTxn sponsor as refund is going to be lower
      * @param context - the context value returned by validatePaymasterUserOp
      * context is encoded as follows:
-     * 32 bytes: userOpHash 
-     * total(32 bytes)
-     * ==== if there is refund add ===
+     * if mode is KEEP:
+     * 0 bytes
+     * ==== if there is a refund, always add ===
      * 20 bytes: refundReceiver
-     * 24 bytes: financial data:: impliedCost, or premiumPercentage or fixedPremium 
-     * total(76 bytes)
-     * ==== if % or fixed premium mode add ===
-     * 4 bytes: premium mode
+     * >== if there is implied cost add ===
+     * 24 bytes: financial data:: impliedCost 
+     *        (44 bytes total)
+     * >== if % premium mode also add ===
+     * 24 bytes: financial data:: premiumPercentage
      * 32 bytes: maxGasCost
      * 32 bytes: postOpGasLimit 
-     * total(176 bytes)
+     *        (108 bytes total) 
+     * >== if fixed premium ====
+     * 32 bytes: maxGasCost
+     * 32 bytes: postOpGasLimit 
+     *        (84 bytes total)
      * @param actualGasCost - actual gas used so far (without this postOp call).
      * @param actualUserOpFeePerGas - actual userOp fee per gas
      */
@@ -146,43 +159,63 @@ abstract contract BaseNodePaymaster is BasePaymaster {
             uint192 impliedCost;
             (refundReceiver, impliedCost) = _getRefundReceiverAndFinancialData(context);
             refund = actualGasCost - impliedCost;
-        } else if (context.length == 0x70) { // 112 bytes => REFUND: % premium or fixed premium mode.
-            // calc refund according to premium mode
-            uint192 premiumData;
-            (refundReceiver, premiumData) = _getRefundReceiverAndFinancialData(context); 
-
-            bytes4 premiumMode;
-            uint256 maxGasCost;
-            uint256 postOpGasLimit;
-
-            assembly {
-                premiumMode := calldataload(add(context.offset, 0x2c))
-                maxGasCost := calldataload(add(context.offset, 0x30))
-                postOpGasLimit := calldataload(add(context.offset, 0x50))
-            }
-
-            // account for postOpGas
-            actualGasCost += postOpGasLimit * actualUserOpFeePerGas;
-
-            // calculate refund based on premium mode
-            if (premiumMode == NODE_PM_PREMIUM_PERCENT) {
-                refund = _calculateRefundPercentage({
-                    actualGasCost: actualGasCost,
-                    maxGasCost: maxGasCost,
-                    premiumPercentage: uint256(premiumData)
-                });
-            } else if (premiumMode == NODE_PM_PREMIUM_FIXED) {
-                // when premium is fixed, payment by superTxn sponsor is maxGasCost + fixedPremium
-                // so we refund just the gas difference, while fixedPremium is going to the MEE Node
-                refund = maxGasCost - actualGasCost;
-            }
+        } else if (context.length == 0x54) { // 84 bytes => REFUND: fixed premium mode.
+            (refundReceiver, refund) = _handleFixedPremium(context, actualGasCost, actualUserOpFeePerGas);
+        } else if (context.length == 0x6c) { // 108 bytes => REFUND: % premium mode.
+            (refundReceiver, refund) = _handlePercentagePremium(context, actualGasCost, actualUserOpFeePerGas);
         } else {
             revert InvalidContext(context.length);
         }
-        
+
         // send refund to the superTxn sponsor
         if (refund > 0) {
                 entryPoint.withdrawTo(payable(refundReceiver), refund);
+        }
+    }
+
+    // ==== Helper functions ====
+
+    function _prepareContext(
+        address refundReceiver, 
+        bytes4 premiumMode, 
+        uint256 maxCost, 
+        uint256 postOpGasLimit,
+        bytes calldata paymasterAndData
+    ) internal pure returns (bytes memory context) {
+        context = abi.encodePacked(
+            refundReceiver
+        );
+
+        if (premiumMode == NODE_PM_PREMIUM_IMPLIED) {
+            uint192 impliedCost;
+            // 0x3c = 60 => PAYMASTER_DATA_OFFSET + 8
+            assembly {
+                impliedCost := shr(64, calldataload(add(paymasterAndData.offset, 0x3c)))
+            }
+            context = abi.encodePacked(
+                context,
+                impliedCost
+            ); // 44 bytes
+        } else if (premiumMode == NODE_PM_PREMIUM_PERCENT) {
+            uint192 premiumPercentage;
+            // 0x3c = 60 => PAYMASTER_DATA_OFFSET + 8
+            assembly {
+                premiumPercentage := shr(64, calldataload(add(paymasterAndData.offset, 0x3c)))
+            }
+            context = abi.encodePacked(
+                context,
+                premiumPercentage,
+                maxCost, 
+                postOpGasLimit
+            ); // 108 bytes
+        } else if (premiumMode == NODE_PM_PREMIUM_FIXED) {
+            context = abi.encodePacked(
+                context,
+                maxCost, 
+                postOpGasLimit
+            ); // 84 bytes
+        } else {
+            revert InvalidNodePMPremiumMode(premiumMode);
         }
     }
 
@@ -190,18 +223,49 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         return (address(bytes20(context[:0x14])), uint192(bytes24(context[0x14:0x2c])));
     }
 
-    /**
-     * @dev calculate the refund that will be sent to the userOp.sender when premium is %
-     * It is required as userOp.sender has paid the maxCostWithPremium, but the actual cost was lower
-     * @param actualGasCost the actual gas cost
-     * @param maxGasCost the max gas cost
-     * @return refund the refund amount
-     */
-    function _calculateRefundPercentage(
-        uint256 actualGasCost,
-        uint256 maxGasCost,
-        uint256 premiumPercentage
-    ) internal pure returns (uint256 refund) {
+    function _handleFixedPremium(
+        bytes calldata context, 
+        uint256 actualGasCost, 
+        uint256 actualUserOpFeePerGas
+    ) internal pure returns (address refundReceiver, uint256 refund) {
+
+        uint256 maxGasCost;
+        uint256 postOpGasLimit;
+
+        assembly {
+            refundReceiver := shr(96, calldataload(context.offset))
+            maxGasCost := calldataload(add(context.offset, 0x14))
+            postOpGasLimit := calldataload(add(context.offset, 0x34))
+        }
+
+        // account for postOpGas
+        actualGasCost += postOpGasLimit * actualUserOpFeePerGas;
+
+        // when premium is fixed, payment by superTxn sponsor is maxGasCost + fixedPremium
+        // so we refund just the gas difference, while fixedPremium is going to the MEE Node    
+        refund = maxGasCost - actualGasCost;
+    }
+
+    function _handlePercentagePremium(
+        bytes calldata context, 
+        uint256 actualGasCost, 
+        uint256 actualUserOpFeePerGas
+    ) internal pure returns (address refundReceiver, uint256 refund) {
+
+        uint192 premiumPercentage;
+        uint256 maxGasCost;
+        uint256 postOpGasLimit;
+
+        assembly {
+            refundReceiver := shr(96, calldataload(context.offset))
+            premiumPercentage := shr(64, calldataload(add(context.offset, 0x14)))
+            maxGasCost := calldataload(add(context.offset, 0x2c))
+            postOpGasLimit := calldataload(add(context.offset, 0x4c))
+        }
+
+        // account for postOpGas
+        actualGasCost += postOpGasLimit * actualUserOpFeePerGas;
+
         // we do not need to account for the penalty here because it goes to the beneficiary
         // which is the MEE Node itself, so we do not have to charge user for the penalty
 
@@ -223,6 +287,7 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         return amount * (PREMIUM_CALCULATION_BASE + premiumPercentage) / PREMIUM_CALCULATION_BASE;
     }
 
+    /// @dev This function is used to receive ETH from the user and immediately deposit it to the entryPoint
     receive() external payable {
         entryPoint.depositTo{value: msg.value}(address(this));
     }
