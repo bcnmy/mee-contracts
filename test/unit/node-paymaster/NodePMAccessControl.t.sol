@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {BaseTest} from "../Base.t.sol";
+import {BaseTest} from "../../Base.t.sol";
 import {Vm} from "forge-std/Test.sol";
 import {PackedUserOperation, UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
-import {MockTarget} from "../mock/MockTarget.sol";
-import {MockAccount} from "../mock/MockAccount.sol";
+import {MockTarget} from "../../mock/MockTarget.sol";
+import {MockAccount} from "../../mock/MockAccount.sol";
 import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPointSimulations.sol";
 import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulations.sol";
 import {NodePaymaster} from "contracts/NodePaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
-import {EmittingNodePaymaster} from "../mock/EmittingNodePaymaster.sol";
-import "contracts/types/Constants.sol";
+import {EmittingNodePaymaster} from "../../mock/EmittingNodePaymaster.sol";
+import "../../../contracts/types/Constants.sol";
 
 import "forge-std/console2.sol";
 
@@ -28,6 +28,23 @@ contract NodePMAccessControlTest is BaseTest {
         mockAccount = deployMockAccount({validator: address(0), handler: address(0)});
         wallet = createAndFundWallet("wallet", 1 ether);
         mockTarget.setValue(0);
+    }
+
+    function test_MEE_Node_is_Owner() public {
+        address payable receiver = payable(address(0xdeadbeef));
+
+        vm.prank(MEE_NODE_ADDRESS);
+        NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
+        assertEq(receiver.balance, 1 ether, "MEE_NODE should be the owner of the NodePM");
+
+        // node pm is owned by MEE_NODE_ADDRESS
+        assertEq(NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS);
+
+        vm.startPrank(address(nodePmDeployer));
+        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", address(nodePmDeployer)));
+        NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
+        vm.stopPrank();
+        assertEq(receiver.balance, 1 ether, "Balance should not be changed");
     }
 
     // happy path => userOp passes if properly signed
@@ -120,15 +137,17 @@ contract NodePMAccessControlTest is BaseTest {
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
-        userOp.paymasterAndData = makePMAndDataForOwnPM({
-            nodePM: address(NODE_PAYMASTER),
-            pmValidationGasLimit: pmValidationGasLimit,
-            pmPostOpGasLimit: pmPostOpGasLimit,
-            pmMode: NODE_PM_MODE_USER,
-            premiumMode: NODE_PM_PREMIUM_PERCENT,
-            financialData: premiumPercentage 
-        });
-
+        // refund mode = user
+        // premium mode = percentage premium
+        userOp.paymasterAndData = abi.encodePacked(
+            address(NODE_PAYMASTER),
+            pmValidationGasLimit,
+            pmPostOpGasLimit,
+            NODE_PM_MODE_USER,
+            NODE_PM_PREMIUM_PERCENT,
+            uint192(premiumPercentage)
+        );
+        
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         userOps[0] = userOp;
 

@@ -199,14 +199,18 @@ contract BaseTest is Test {
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
         uint256 maxGasCost = maxGasLimit * unpackMaxFeePerGasMemory(userOp);
-        userOp.paymasterAndData = makePMAndDataForOwnPM({
-            nodePM: address(NODE_PAYMASTER), // no access control
-            pmValidationGasLimit: pmValidationGasLimit,
-            pmPostOpGasLimit: pmPostOpGasLimit,
-            pmMode: NODE_PM_MODE_USER,
-            premiumMode: NODE_PM_PREMIUM_PERCENT,
-            financialData: 17_00000 // percentage premium = 17% of maxGasCost
-        });
+        
+        // refund mode = user
+        // premium mode = percentage premium
+        userOp.paymasterAndData = abi.encodePacked(
+            address(NODE_PAYMASTER),
+            pmValidationGasLimit, // pm validation gas limit
+            pmPostOpGasLimit, // pm post-op gas limit
+            NODE_PM_MODE_USER,
+            NODE_PM_PREMIUM_PERCENT,
+            uint192(17_00000)
+        );
+        
         userOp.signature = signUserOp(wallet, userOp);
         if (sigType != bytes4(0)) {
             userOp.signature = abi.encodePacked(sigType, userOp.signature);
@@ -543,26 +547,6 @@ contract BaseTest is Test {
 
     function unpackCallGasLimitMemory(PackedUserOperation memory userOp) internal pure returns (uint256) {
         return UserOperationLib.unpackLow128(userOp.accountGasLimits);
-    }
-
-    // ============ PM DATA UTILS ============
-
-    function makePMAndDataForOwnPM(
-        address nodePM,
-        uint128 pmValidationGasLimit,
-        uint128 pmPostOpGasLimit,
-        bytes4 pmMode,
-        bytes4 premiumMode,
-        uint256 financialData
-    ) internal view returns (bytes memory) {
-        return abi.encodePacked(
-            nodePM,
-            pmValidationGasLimit, // pm validation gas limit
-            pmPostOpGasLimit, // pm post-op gas limit
-            pmMode,
-            premiumMode,
-            uint192(financialData)
-        );
     }
 
     // ============ TXN SERIALIZATION UTILS ============

@@ -1,27 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {BaseTest} from "../Base.t.sol";
+import {BaseTest} from "../../../Base.t.sol";
 import {Vm} from "forge-std/Test.sol";
 import {PackedUserOperation, UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
-import {MockTarget} from "../mock/MockTarget.sol";
-import {MockAccount} from "../mock/MockAccount.sol";
+import {MockTarget} from "../../../mock/MockTarget.sol";
+import {MockAccount} from "../../../mock/MockAccount.sol";
 import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPointSimulations.sol";
 import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulations.sol";
 import {NodePaymaster} from "contracts/NodePaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
-import {EmittingNodePaymaster} from "../mock/EmittingNodePaymaster.sol";
-import "contracts/types/Constants.sol";
+import {EmittingNodePaymaster} from "../../../mock/EmittingNodePaymaster.sol";
+import "../../../../contracts/types/Constants.sol";
 
 import "forge-std/console2.sol";
 
-contract PMPerNodeTest is BaseTest {
+contract PercentagePremium_Paymaster_Test is BaseTest {
     using UserOperationLib for PackedUserOperation;
 
     Vm.Wallet wallet;
     MockAccount mockAccount;
     uint256 constant PREMIUM_CALCULATION_BASE = 100e5;
     uint256 valueToSet;
+    uint256 _premiumPercentage;
 
     function setUp() public virtual override {
         super.setUp();
@@ -53,9 +54,15 @@ contract PMPerNodeTest is BaseTest {
     // that user/dapp will take into account when choosing a node for the superTxn. So the nodes with 
     // non-reasonable gas fees will not be selected.
 
-    function test_pm_per_node_single() public returns (PackedUserOperation[] memory) {
+    function _percentage_single_base(
+        bytes memory pmAndData,
+        uint256 pmValidationGasLimit,
+        uint256 pmPostOpGasLimit
+    ) 
+        internal
+        returns (uint256 refund)
+    {
         valueToSet = MEE_NODE_HEX;
-        uint256 premiumPercentage = 17_00000;
         uint256 maxDiffPercentage = 0.10e18; // 10% difference
         
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
@@ -71,21 +78,7 @@ contract PMPerNodeTest is BaseTest {
             callGasLimit: 100e3
         });
 
-        uint128 pmValidationGasLimit = 15_000;
-        // ~ 12_000 is raw PM.postOp gas spent 
-        // here we add more for emitting events in the wrapper + refunds etc in EP
-        uint128 pmPostOpGasLimit = 37_000;
-        uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
-            + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
-
-        userOp.paymasterAndData = makePMAndDataForOwnPM({
-            nodePM: address(EMITTING_NODE_PAYMASTER),
-            pmValidationGasLimit: pmValidationGasLimit,
-            pmPostOpGasLimit: pmPostOpGasLimit,
-            pmMode: NODE_PM_MODE_USER,
-            premiumMode: NODE_PM_PREMIUM_PERCENT,
-            financialData: premiumPercentage // percentage premium = 17% of maxGasCost
-        });
+        userOp.paymasterAndData = pmAndData;
         // account owner does not need to re-sign the userOp as mock account does not check the signature
 
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
@@ -106,10 +99,13 @@ contract PMPerNodeTest is BaseTest {
 
         assertEq(mockTarget.value(), valueToSet);
 
+        uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
+            + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
+
         // When verification gas limits are tight, the difference is really small
-        assertFinancialStuffStrict({
+        refund = assertFinancialStuffStrict({
             entries: entries, 
-            meeNodePremiumPercentage: premiumPercentage, 
+            meeNodePremiumPercentage: _premiumPercentage, 
             nodePMDepositBefore: nodePMDepositBefore, 
             maxGasLimit: maxGasLimit, 
             maxFeePerGas: unpackMaxFeePerGasMemory(userOp),
@@ -117,12 +113,56 @@ contract PMPerNodeTest is BaseTest {
             maxDiffPercentage: maxDiffPercentage
         });
 
-        return (userOps);
+    }
+
+    // test percentage user single
+    function test_percentage_user_single() public {
+        _premiumPercentage = 17_00000;
+        uint128 pmValidationGasLimit = 15_000;
+        // ~ 12_000 is raw PM.postOp gas spent 
+        // here we add more for emitting events in the wrapper + refunds etc in EP
+        uint128 pmPostOpGasLimit = 37_000;
+        
+        bytes memory pmAndData = abi.encodePacked(
+            address(EMITTING_NODE_PAYMASTER),
+            pmValidationGasLimit, // pm validation gas limit
+            pmPostOpGasLimit, // pm post-op gas limit
+            NODE_PM_MODE_USER,
+            NODE_PM_PREMIUM_PERCENT,
+            uint192(_premiumPercentage)
+        );
+        
+        _percentage_single_base(pmAndData, pmValidationGasLimit, pmPostOpGasLimit);
+    }
+
+    // test percentage dApp single
+    function test_percentage_dapp_single() public {
+        Vm.Wallet memory dAppWallet = createAndFundWallet("dAppWallet", 1 ether);
+        uint256 dAppBalanceBefore = dAppWallet.addr.balance;
+
+        _premiumPercentage = 17_00000;
+        uint128 pmValidationGasLimit = 20_000;
+        // ~ 12_000 is raw PM.postOp gas spent 
+        // here we add more for emitting events in the wrapper + refunds etc in EP
+        uint128 pmPostOpGasLimit = 38_000;
+        
+        bytes memory pmAndData = abi.encodePacked(
+            address(EMITTING_NODE_PAYMASTER),
+            pmValidationGasLimit, // pm validation gas limit
+            pmPostOpGasLimit, // pm post-op gas limit
+            NODE_PM_MODE_DAPP,
+            NODE_PM_PREMIUM_PERCENT,
+            uint192(_premiumPercentage),
+            dAppWallet.addr
+        );
+        
+        uint256 refund = _percentage_single_base(pmAndData, pmValidationGasLimit, pmPostOpGasLimit);
+        assertEq(dAppWallet.addr.balance, dAppBalanceBefore + refund, "dApp should receive the refund");
     }
 
     // fuzz tests with different gas values =>
     // check all the charges and refunds are handled properly
-    function test_pm_per_node_fuzz(
+    function test_percentage_user_fuzz(
         uint256 preVerificationGasLimit,
         uint128 verificationGasLimit,
         uint128 callGasLimit,
@@ -154,15 +194,16 @@ contract PMPerNodeTest is BaseTest {
 
         uint256 maxGasLimit = preVerificationGasLimit + verificationGasLimit + callGasLimit + pmValidationGasLimit + pmPostOpGasLimit;
         
-        userOp.paymasterAndData = makePMAndDataForOwnPM({
-            nodePM: address(EMITTING_NODE_PAYMASTER),
-            pmValidationGasLimit: pmValidationGasLimit,
-            pmPostOpGasLimit: pmPostOpGasLimit,
-            pmMode: NODE_PM_MODE_USER,
-            premiumMode: NODE_PM_PREMIUM_PERCENT,
-            financialData: premiumPercentage // percentage premium = 17% of maxGasCost
-        });
-        //userOps[0] = addNodeMasterSig(userOp, MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+        // refund mode = user
+        // premium mode = percentage premium
+        userOp.paymasterAndData = abi.encodePacked(
+            address(EMITTING_NODE_PAYMASTER),
+            pmValidationGasLimit,
+            pmPostOpGasLimit,
+            NODE_PM_MODE_USER,
+            NODE_PM_PREMIUM_PERCENT,
+            uint192(premiumPercentage)
+        );
         userOps[0] = userOp;
 
         uint256 nodePMDepositBefore = getDeposit(address(EMITTING_NODE_PAYMASTER));
@@ -196,25 +237,6 @@ contract PMPerNodeTest is BaseTest {
         assertGt(approxGasCostWithPremium, approxGasCost, "premium should support fractions of %");
     }
 
-    // ============ other tests ==============
-
-    function test_MEE_Node_is_Owner() public {
-        address payable receiver = payable(address(0xdeadbeef));
-
-        vm.prank(MEE_NODE_ADDRESS);
-        EMITTING_NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
-        assertEq(receiver.balance, 1 ether, "MEE_NODE should be the owner of the NodePM");
-
-        // node pm is owned by MEE_NODE_ADDRESS
-        assertEq(EMITTING_NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS);
-
-        vm.startPrank(address(nodePmDeployer));
-        vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", address(nodePmDeployer)));
-        EMITTING_NODE_PAYMASTER.withdrawTo(receiver, 1 ether);
-        vm.stopPrank();
-        assertEq(receiver.balance, 1 ether, "Balance should not be changed");
-    }
-
     // ============ HELPERS ==============
 
     function assertFinancialStuff(
@@ -224,7 +246,7 @@ contract PMPerNodeTest is BaseTest {
         uint256 maxGasLimit,
         uint256 maxFeePerGas,
         uint256 gasSpentByExecutorEOA
-    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodeEarnings) {
+    ) public returns (uint256 meeNodeEarnings, uint256 expectedNodeEarnings, uint256 actualRefund) {
         // parse UserOperationEvent
         (,, uint256 actualGasCostFromEP, uint256 actualGasUsedFromEP) =
             abi.decode(entries[entries.length - 1].data, (uint256, bool, uint256, uint256));
@@ -244,7 +266,7 @@ contract PMPerNodeTest is BaseTest {
         expectedNodeEarnings = getPremium(actualGasCost, meeNodePremiumPercentage);
 
         // deposit decrease = refund to sponsor (if any) + gas cost refund to beneficiary (EXECUTOR_EOA) =>
-        uint256 actualRefund = (nodePMDepositBefore - getDeposit(address(EMITTING_NODE_PAYMASTER))) - actualGasCostFromEP;
+        actualRefund = (nodePMDepositBefore - getDeposit(address(EMITTING_NODE_PAYMASTER))) - actualGasCostFromEP;
 
         // earnings are (how much node receives in a payment userOp) minus (refund) minus (actual gas cost paid by executor EOA)
         meeNodeEarnings = applyPremium(maxGasCost, meeNodePremiumPercentage) - actualRefund - gasSpentByExecutorEOA * actualGasPrice;
@@ -263,12 +285,14 @@ contract PMPerNodeTest is BaseTest {
         uint256 maxFeePerGas,
         uint256 gasSpentByExecutorEOA,
         uint256 maxDiffPercentage
-    ) public {
-        (uint256 meeNodeEarnings, uint256 expectedNodeEarnings) =
+    ) public returns (uint256) {
+        (uint256 meeNodeEarnings, uint256 expectedNodeEarnings, uint256 refund) =
             assertFinancialStuff(entries, meeNodePremiumPercentage, nodePMDepositBefore, maxGasLimit, maxFeePerGas, gasSpentByExecutorEOA);
 
         // assert that MEE_NODE extra earnings are not too big
         assertApproxEqRel(expectedNodeEarnings, meeNodeEarnings, maxDiffPercentage, "MEE_NODE earnings are too big");
+
+        return refund;
     }
 
     function applyPremium(uint256 amount, uint256 premiumPercentage) internal pure returns (uint256) {
