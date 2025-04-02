@@ -66,11 +66,9 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         bytes4 refundMode;
         bytes4 premiumMode;
         bytes calldata pmAndData = userOp.paymasterAndData;
-        // 0x34 = 52 => PAYMASTER_DATA_OFFSET
-        // 0x38 = 56 => PAYMASTER_DATA_OFFSET + 4
         assembly {
+            // 0x34 = 52 => PAYMASTER_DATA_OFFSET
             refundMode := calldataload(add(pmAndData.offset, 0x34))
-            premiumMode := calldataload(add(pmAndData.offset, 0x38))
         }
         
         address refundReceiver;
@@ -78,6 +76,10 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         if (refundMode == NODE_PM_MODE_KEEP) { // NO REFUND
             return ("", 0);
         } else {
+            assembly {
+                // 0x38 = 56 => PAYMASTER_DATA_OFFSET + 4
+                premiumMode := calldataload(add(pmAndData.offset, 0x38))
+            }
             if (refundMode == NODE_PM_MODE_USER) {
                 refundReceiver = userOp.sender;
             } else if (refundMode == NODE_PM_MODE_DAPP) {
@@ -129,8 +131,9 @@ abstract contract BaseNodePaymaster is BasePaymaster {
      * ==== if there is a refund, always add ===
      * 20 bytes: refundReceiver
      * >== if there is implied cost add ===
-     * 24 bytes: financial data:: impliedCost 
-     *        (44 bytes total)
+     * 24 bytes: financial data:: impliedCost
+     * 32 bytes: maxGasCost
+     *        (76 bytes total)
      * >== if % premium mode also add ===
      * 24 bytes: financial data:: premiumPercentage
      * 32 bytes: maxGasCost
@@ -154,11 +157,9 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         // Prepare refund info if any
         if (context.length == 0x00) { // 0 bytes => KEEP mode => NO REFUND
             // do nothing
-        } else if (context.length == 0x2c) { // 44 bytes => REFUND: Implied cost mode.
+        } else if (context.length == 0x4c) { // 76 bytes => REFUND: Implied cost mode.
             // calc simple refund
-            uint192 impliedCost;
-            (refundReceiver, impliedCost) = _getRefundReceiverAndFinancialData(context);
-            refund = actualGasCost - impliedCost;
+            (refundReceiver, refund) = _handleImpliedCost(context);
         } else if (context.length == 0x54) { // 84 bytes => REFUND: fixed premium mode.
             (refundReceiver, refund) = _handleFixedPremium(context, actualGasCost, actualUserOpFeePerGas);
         } else if (context.length == 0x6c) { // 108 bytes => REFUND: % premium mode.
@@ -194,8 +195,9 @@ abstract contract BaseNodePaymaster is BasePaymaster {
             }
             context = abi.encodePacked(
                 context,
-                impliedCost
-            ); // 44 bytes
+                impliedCost,
+                maxCost
+            ); // 76 bytes
         } else if (premiumMode == NODE_PM_PREMIUM_PERCENT) {
             uint192 premiumPercentage;
             // 0x3c = 60 => PAYMASTER_DATA_OFFSET + 8
@@ -219,8 +221,15 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         }
     }
 
-    function _getRefundReceiverAndFinancialData(bytes calldata context) internal pure returns (address, uint192) {
-        return (address(bytes20(context[:0x14])), uint192(bytes24(context[0x14:0x2c])));
+    function _handleImpliedCost(bytes calldata context) internal pure returns (address refundReceiver, uint256 refund) {
+        uint192 impliedCost;
+        uint256 maxGasCost;
+        assembly {
+            refundReceiver := shr(96, calldataload(context.offset))
+            impliedCost := shr(64, calldataload(add(context.offset, 0x14)))
+            maxGasCost := calldataload(add(context.offset, 0x2c))
+        }
+        refund = maxGasCost - impliedCost;
     }
 
     function _handleFixedPremium(

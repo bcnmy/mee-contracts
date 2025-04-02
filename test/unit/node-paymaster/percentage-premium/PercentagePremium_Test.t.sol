@@ -87,14 +87,12 @@ contract PercentagePremium_Paymaster_Test is BaseTest {
         uint256 nodePMDepositBefore = getDeposit(address(EMITTING_NODE_PAYMASTER));
         uint256 refundReceiverBalanceBefore = userOps[0].sender.balance;
 
-        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         vm.recordLogs();
 
         uint256 gasLog = gasleft();
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         gasLog -= gasleft();
 
-        vm.stopPrank();
         Vm.Log[] memory entries = vm.getRecordedLogs();
 
         assertEq(mockTarget.value(), valueToSet);
