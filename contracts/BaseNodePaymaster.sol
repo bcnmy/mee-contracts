@@ -86,15 +86,10 @@ abstract contract BaseNodePaymaster is BasePaymaster {
                 // if fixed premium => no financial data => offset is 0x08
                 // if % premium => financial data => offset is 0x08 + 0x18 = 0x20
                 uint256 refundReceiverOffset = premiumMode == NODE_PM_PREMIUM_FIXED ? 0x08 : 0x20;
-
-                // TODO: TEST AND BENCHMARK ASSEMBLY BLOCK vs SOLIDITY BLOCK
-
                 assembly {
                     let o := add(0x34, refundReceiverOffset)
                     refundReceiver := shr(96, calldataload(add(pmAndData.offset, o)))
                 }
-                // refundReceiver = address(bytes20(userOp.paymasterAndData[PAYMASTER_DATA_OFFSET+refundReceiverOffset:]));
-
             } else {
                 revert InvalidNodePMRefundMode(refundMode);
             }
