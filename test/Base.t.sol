@@ -30,6 +30,7 @@ import {
 } from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {LibRLP} from "solady/utils/LibRLP.sol";
 
+address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
 contract BaseTest is Test {
     struct TestTemps {
@@ -55,7 +56,6 @@ contract BaseTest is Test {
     using LibZip for bytes;
     using LibRLP for LibRLP.List;
 
-    address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
 
     address constant MEE_NODE_EXECUTOR_EOA = address(0xa11cebeefb0bdecaf0);
