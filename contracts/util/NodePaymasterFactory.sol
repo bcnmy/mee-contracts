@@ -20,25 +20,25 @@ contract NodePaymasterFactory {
         address expectedPm = _predictNodePaymasterAddress(entryPoint, owner, index);
 
         bytes memory deploymentData = abi.encodePacked(
-                type(NodePaymaster).creationCode,
-                abi.encode(entryPoint, owner)
-            );
+            type(NodePaymaster).creationCode,
+            abi.encode(entryPoint, owner)
+        );
 
-            assembly {
-                nodePaymaster := create2(
-                    0x0,
-                    add(0x20, deploymentData),
-                    mload(deploymentData),
-                    index
-                )
-            }
-            
-            if(address(nodePaymaster) == address(0) || address(nodePaymaster) != expectedPm) {
-                revert NodePMDeployFailed();
-            }
+        assembly {
+            nodePaymaster := create2(
+                0x0,
+                add(0x20, deploymentData),
+                mload(deploymentData),
+                index
+            )
+        }
+        
+        if(address(nodePaymaster) == address(0) || address(nodePaymaster) != expectedPm) {
+            revert NodePMDeployFailed();
+        }
 
-            // deposit the msg.value to the EP at the node paymaster's name
-            IEntryPoint(entryPoint).depositTo{value: msg.value}(nodePaymaster);
+        // deposit the msg.value to the EP at the node paymaster's name
+        IEntryPoint(entryPoint).depositTo{value: msg.value}(nodePaymaster);
     }
 
     /// @notice Get the counterfactual address of a NodePaymaster
