@@ -17,10 +17,10 @@ contract NodePaymaster is BaseNodePaymaster {
 
     constructor(
         IEntryPoint _entryPoint,
-        address _meeNodeAddress
+        address _meeNodeMasterEOA
     ) 
         payable 
-        BaseNodePaymaster(_entryPoint, _meeNodeAddress)
+        BaseNodePaymaster(_entryPoint, _meeNodeMasterEOA)
     {}
 
     /**

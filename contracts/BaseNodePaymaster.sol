@@ -33,8 +33,8 @@ abstract contract BaseNodePaymaster is BasePaymaster {
     error Disabled();
     error PostOpGasLimitTooLow();
 
-    constructor(IEntryPoint _entryPoint, address _meeNodeAddress) payable BasePaymaster(_entryPoint) {
-        _transferOwnership(_meeNodeAddress);
+    constructor(IEntryPoint _entryPoint, address _meeNodeMasterEOA) payable BasePaymaster(_entryPoint) {
+        _transferOwnership(_meeNodeMasterEOA);
     }
 
     /**
