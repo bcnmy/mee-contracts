@@ -152,10 +152,7 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         // Prepare refund info if any
         if (context.length == 0x00) { // 0 bytes => KEEP mode => NO REFUND
             // do nothing
-        } else if (context.length == 0x4c) { // 76 bytes => REFUND: Implied cost mode.
-            // calc simple refund
-            (refundReceiver, refund) = _handleImpliedCost(context);
-        } else if (context.length == 0x54) { // 84 bytes => REFUND: fixed premium mode.
+       } else if (context.length == 0x54) { // 84 bytes => REFUND: fixed premium mode.
             (refundReceiver, refund) = _handleFixedPremium(context, actualGasCost, actualUserOpFeePerGas);
         } else if (context.length == 0x6c) { // 108 bytes => REFUND: % premium mode.
             (refundReceiver, refund) = _handlePercentagePremium(context, actualGasCost, actualUserOpFeePerGas);
@@ -182,18 +179,7 @@ abstract contract BaseNodePaymaster is BasePaymaster {
             refundReceiver
         );
 
-        if (premiumMode == NODE_PM_PREMIUM_IMPLIED) {
-            uint192 impliedCost;
-            // 0x3c = 60 => PAYMASTER_DATA_OFFSET + 8
-            assembly {
-                impliedCost := shr(64, calldataload(add(paymasterAndData.offset, 0x3c)))
-            }
-            context = abi.encodePacked(
-                context,
-                impliedCost,
-                maxCost
-            ); // 76 bytes
-        } else if (premiumMode == NODE_PM_PREMIUM_PERCENT) {
+        if (premiumMode == NODE_PM_PREMIUM_PERCENT) {
             uint192 premiumPercentage;
             // 0x3c = 60 => PAYMASTER_DATA_OFFSET + 8
             assembly {
@@ -214,17 +200,6 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         } else {
             revert InvalidNodePMPremiumMode(premiumMode);
         }
-    }
-
-    function _handleImpliedCost(bytes calldata context) internal pure returns (address refundReceiver, uint256 refund) {
-        uint192 impliedCost;
-        uint256 maxGasCost;
-        assembly {
-            refundReceiver := shr(96, calldataload(context.offset))
-            impliedCost := shr(64, calldataload(add(context.offset, 0x14)))
-            maxGasCost := calldataload(add(context.offset, 0x2c))
-        }
-        refund = maxGasCost - impliedCost;
     }
 
     function _handleFixedPremium(
