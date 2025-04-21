@@ -34,7 +34,7 @@ contract NodePaymaster is BaseNodePaymaster {
      * 32 bytes: pm gas values
      * 4 bytes: mode
      * 4 bytes: premium mode
-     * 24 bytes: financial data:: impliedCost, premiumPercentage or fixedPremium
+     * 24 bytes: financial data:: premiumPercentage or fixedPremium
      * 20 bytes: refundReceiver (only for DAPP mode)
      * 
      * @param userOp the userOp to validate

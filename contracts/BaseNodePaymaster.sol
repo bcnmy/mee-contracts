@@ -8,7 +8,7 @@ import "account-abstraction/core/Helpers.sol";
 import {UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
 import {EcdsaLib} from "./lib/util/EcdsaLib.sol";
-import {NODE_PM_MODE_USER, NODE_PM_MODE_DAPP, NODE_PM_MODE_KEEP, NODE_PM_PREMIUM_IMPLIED, NODE_PM_PREMIUM_PERCENT, NODE_PM_PREMIUM_FIXED} from "./types/Constants.sol";
+import {NODE_PM_MODE_USER, NODE_PM_MODE_DAPP, NODE_PM_MODE_KEEP, NODE_PM_PREMIUM_PERCENT, NODE_PM_PREMIUM_FIXED} from "./types/Constants.sol";
 
 /**
  * @title BaseNode Paymaster
@@ -49,7 +49,7 @@ abstract contract BaseNodePaymaster is BasePaymaster {
      * === PM_DATA_START ===
      * 4 bytes: mode
      * 4 bytes: premium mode
-     * 24 bytes: financial data:: impliedCost or premiumPercentage (only for according premium modes)
+     * 24 bytes: financial data:: premiumPercentage (only for according premium mode)
      * 20 bytes: refundReceiver (only for DAPP refund mode)
      * 
      * @param userOp the userOp to validate
@@ -125,10 +125,6 @@ abstract contract BaseNodePaymaster is BasePaymaster {
      * 0 bytes
      * ==== if there is a refund, always add ===
      * 20 bytes: refundReceiver
-     * >== if there is implied cost add ===
-     * 24 bytes: financial data:: impliedCost
-     * 32 bytes: maxGasCost
-     *        (76 bytes total)
      * >== if % premium mode also add ===
      * 24 bytes: financial data:: premiumPercentage
      * 32 bytes: maxGasCost
@@ -162,7 +158,10 @@ abstract contract BaseNodePaymaster is BasePaymaster {
 
         // send refund to the superTxn sponsor
         if (refund > 0) {
-                entryPoint.withdrawTo(payable(refundReceiver), refund);
+            // Note: At this point the paymaster hasn't received the refund yet, so this withdrawTo() is
+            // using the paymaster's existing balance. The paymaster's deposit in the entrypoint will be
+            // incremented after postOp() concludes.
+            entryPoint.withdrawTo(payable(refundReceiver), refund);
         }
     }
 
