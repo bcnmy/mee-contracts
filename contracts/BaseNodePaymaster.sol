@@ -221,8 +221,10 @@ abstract contract BaseNodePaymaster is BasePaymaster {
         actualGasCost += postOpGasLimit * actualUserOpFeePerGas;
 
         // when premium is fixed, payment by superTxn sponsor is maxGasCost + fixedPremium
-        // so we refund just the gas difference, while fixedPremium is going to the MEE Node    
-        refund = maxGasCost - actualGasCost;
+        // so we refund just the gas difference, while fixedPremium is going to the MEE Node
+        if (actualGasCost < maxGasCost) {
+            refund = maxGasCost - actualGasCost;
+        }
     }
 
     function _handlePercentagePremium(
