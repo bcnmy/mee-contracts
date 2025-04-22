@@ -14,6 +14,4 @@ contract MockTarget {
         counter++;
         return counter;
     }
-
-
 }
