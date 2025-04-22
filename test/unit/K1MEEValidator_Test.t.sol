@@ -62,7 +62,7 @@ contract K1MEEValidatorTest is BaseTest {
         userOps = makeSimpleSuperTx(userOps, wallet);
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertEq(mockTarget.counter(), counterBefore + numOfClones + 1);
@@ -125,7 +125,7 @@ contract K1MEEValidatorTest is BaseTest {
         });
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertEq(erc20.balanceOf(bob), amountToTransfer * numOfClones + 1e18);
@@ -160,7 +160,8 @@ contract K1MEEValidatorTest is BaseTest {
 
     // test txn mode
     // Fuzz for txn mode after solidity txn serialization is done
-    function test_superTxFlow_txn_mode_ValidateUserOp_success() public {
+    function test_superTxFlow_txn_mode_ValidateUserOp_success(uint256 numOfClones) public {
+        numOfClones = bound(numOfClones, 1, 25);
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
         address bob = address(0xb0bb0b);
@@ -175,7 +176,6 @@ contract K1MEEValidatorTest is BaseTest {
             userOpSigner: wallet
         });
 
-        uint256 numOfClones = 5; // attention!! if you change it => root hash will change => serializedTx will change
         PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
 
         // simulate the txn execution
@@ -184,18 +184,17 @@ contract K1MEEValidatorTest is BaseTest {
         vm.stopPrank();
 
         // it is not possible to get the actual executed and serialized txn (above) from Foundry tests
-        // so this is just some serialized txn signed by mockAccount owner + the super tx hash appended to calldata
-        // enough for testing purposes
-        // TODO: For fuzz test over # of leaves, we need to generate the serialized txn right here with the proper root hash
-        bytes memory serializedTx = hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800004042d234ae146b4013dcfb8221a305d280383b75bfa41464bea40788bf9c7787c080a041b2474759e956f07912f4d208975aba5dde7ea9730cb1f93973ce97babeac11a037c02bbe48830990ea20827ee657a20956b4ec5ac79b6d03af6ecd874bcf3e1f";
+        // so this is just some calldata for testing purposes
+        bytes memory callData = hex"a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec580000";
+
         userOps = makeOnChainTxnSuperTx(
             userOps,
             wallet,
-            serializedTx
+            callData
         );
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
-        MEE_ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertEq(erc20.balanceOf(bob), amountToTransfer * (numOfClones + 1));
@@ -206,11 +205,9 @@ contract K1MEEValidatorTest is BaseTest {
         bytes[] memory meeSigs = new bytes[](numOfObjs);
         bytes32 baseHash = keccak256(abi.encode("test"));
 
-        // pre-serialized txn
-        bytes memory serializedTx =
-            hex"02f8d1827a6980843b9aca00848321560082c3509470997970c51812dc3a010c7d01b50e0d17dc79c880b864a9059cbb000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb100000000000000000000000000000000000000000000000053444835ec5800005cb98b1166f4168a57931b88844fc8195271defd4b8e0f0c6422f5d7fbf6f7cfc001a0fbdf94d4e9b3ca8c26a0522e3c6e36d635e9c4fa507760434587f1e97b6a0bc6a05b875171e888dfd9dab9905fbbe79f604a085b32e1d72c119d4f5eed9efe362f";
+        bytes memory callData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
 
-        meeSigs = makeOnChainTxnSuperTxSignatures(baseHash, numOfObjs, serializedTx, address(mockAccount));
+        meeSigs = makeOnChainTxnSuperTxSignatures(baseHash, numOfObjs, callData, address(mockAccount), wallet);
 
         for (uint256 i = 0; i < numOfObjs; i++) {
             bytes32 includedLeafHash = keccak256(abi.encode(baseHash, i));
@@ -292,7 +289,7 @@ contract K1MEEValidatorTest is BaseTest {
             userOp: userOp, 
             pmValidationGasLimit: 40_000, 
             pmPostOpGasLimit: 50_000, 
-            premiumPercentage: 17_00000, 
+            impliedCostPercentageOfMaxGasCost: 75, 
             wallet: userOpSigner, 
             sigType: bytes4(0)
         });
