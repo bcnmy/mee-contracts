@@ -79,7 +79,6 @@ contract BaseTest is Test {
         MEE_NODE_ADDRESS = MEE_NODE.addr;
         
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
-
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
     }
