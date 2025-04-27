@@ -66,7 +66,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     error ModuleAlreadyInitialized();
 
     /// @notice Error to indicate that the new owner cannot be a contract address
-    error NewOwnerIsContract();
+    error NewOwnerIsNotEOA();
 
     /// @notice Error to indicate that the owner cannot be the zero address
     error OwnerCannotBeZeroAddress();
@@ -91,7 +91,9 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         require(!_isInitialized(msg.sender), ModuleAlreadyInitialized());
         address newOwner = address(bytes20(data[:20]));
         require(newOwner != address(0), OwnerCannotBeZeroAddress());
-        require(!_isContract(newOwner), NewOwnerIsContract());
+        if (_isNotEOA(newOwner)) {
+            revert NewOwnerIsNotEOA();
+        }
         smartAccountOwners[msg.sender] = newOwner;
         if (data.length > 20) {
             _fillSafeSenders(data[20:]);
@@ -110,7 +112,9 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @param newOwner The address of the new owner
     function transferOwnership(address newOwner) external {
         require(newOwner != address(0), ZeroAddressNotAllowed());
-        require(!_isContract(newOwner), NewOwnerIsContract());
+        if (_isNotEOA(newOwner)) {
+            revert NewOwnerIsNotEOA();
+        }
         smartAccountOwners[msg.sender] = newOwner;
     }
 
@@ -309,12 +313,13 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @notice Checks if the address is a contract
     /// @param account The address to check
     /// @return True if the address is a contract, false otherwise
-    function _isContract(address account) private view returns (bool) {
+    function _isNotEOA(address account) private view returns (bool) {
         uint256 size;
         assembly {
             size := extcodesize(account)
         }
-        return size > 0;
+        // has code and is not delegated via eip-7702
+        return (size > 0) && (size != 23);
     }
 
     /// @dev Returns whether the `hash` and `signature` are valid.
