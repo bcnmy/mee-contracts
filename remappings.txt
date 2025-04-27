@@ -9,3 +9,4 @@ rlp-reader/=node_modules/Solidity-RLP/contracts/
 murky-trees/=node_modules/murky/src/
 erc7579/=node_modules/erc7579/src/
 sentinellist/=node_modules/@rhinestone/sentinellist/src/
+delegation-framework/=node_modules/delegation-framework/src/

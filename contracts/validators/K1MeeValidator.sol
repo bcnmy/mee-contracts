@@ -11,6 +11,7 @@ import {
     SIG_TYPE_SIMPLE,
     SIG_TYPE_ON_CHAIN,
     SIG_TYPE_ERC20_PERMIT,
+    SIG_TYPE_MM_DELEGATION,
     EIP1271_SUCCESS,
     EIP1271_FAILED,
     MODULE_TYPE_STATELESS_VALIDATOR,
@@ -21,8 +22,8 @@ import {PermitValidatorLib} from "../lib/fusion/PermitValidatorLib.sol";
 import {TxValidatorLib} from "../lib/fusion/TxValidatorLib.sol";
 import {SimpleValidatorLib} from "../lib/fusion/SimpleValidatorLib.sol";
 import {NoMeeFlowLib} from "../lib/fusion/NoMeeFlowLib.sol";
+import {MmDelegationValidatorLib} from "../lib/fusion/MmDelegationVlidatorLib.sol";
 import {EcdsaLib} from "../lib/util/EcdsaLib.sol";
-
 /**
  * @title K1MeeValidator
  * @dev   An ERC-7579 validator (module type 1) and stateless validator (module type 7) for the MEE stack.
@@ -183,6 +184,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
                 return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length - 65], owner);
             } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
                 return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
+            } else if (sigType == SIG_TYPE_MM_DELEGATION) {
+                return MmDelegationValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else {
                 // fallback flow => non MEE flow => no prefix
                 return NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
