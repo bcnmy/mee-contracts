@@ -29,6 +29,9 @@ import {
     PermitValidatorLib
 } from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {LibRLP} from "solady/utils/LibRLP.sol";
+import {MockDelegationManager} from "./mock/MockDelegationManager.sol";
+import {Delegation, Caveat, MMDelegationHelpers, IDelegationManager} from "../contracts/lib/util/MMDelegationHelpers.sol";
+import {DecodedMmDelegationSig, DecodedMmDelegationSigShort} from "../contracts/lib/fusion/MmDelegationValidatorLib.sol";
 
 address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
@@ -514,6 +517,92 @@ contract BaseTest is Test {
             meeSigs[i] = signature;
         }
         return meeSigs;
+    }
+
+    // ==== DTK SUPER TX UTILS ====
+
+    function makeDTKSuperTx(
+        PackedUserOperation[] memory userOps,
+        Vm.Wallet memory signer,
+        address executionTo,
+        bytes memory executionCalldata,
+        MockDelegationManager delegationManager
+    ) internal returns (PackedUserOperation[] memory) {
+        PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
+        uint48 lowerBoundTimestamp = uint48(block.timestamp);
+        uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
+        bytes32[] memory leaves = buildLeavesOutOfUserOps(userOps, lowerBoundTimestamp, upperBoundTimestamp);
+
+        // make a tree
+        Merkle tree = new Merkle();
+        bytes32 root = tree.getRoot(leaves);
+
+        // compose the delegation
+        Caveat[] memory caveats = new Caveat[](1);
+        caveats[0] = Caveat({ 
+            enforcer: 0x146713078D39eCC1F5338309c28405ccf85Abfbb, // the real ExactExecution enforcer address
+            terms: abi.encodePacked(
+                executionTo, // to
+                uint256(0), //value
+                abi.encodePacked(executionCalldata, root) // append the superTxHash to the calldata                
+            ),
+            args: ""
+        });
+
+        /* 
+        caveat TERMS:
+        0x
+        b4ae654aca577781ca1c5de8fbe60c2f423f37da // to
+        0000000000000000000000000000000000000000000000000000000000000000 // value
+        a9059cbb // transfer
+        0000000000000000000000005d382c84c50b8623d2e9529c51e5edafe3416a04 // receiver
+        00000000000000000000000000000000000000000000000000000000000003e8 // value
+        ff7788ff00112233445566778899aabbccddeeff00ff7788ff00112233445577 // superTxnHash 
+        */
+        
+        // compose the delegation
+        Delegation memory delegation = Delegation({
+            delegate: address(0x4a151e), // some random address representing the MEE Node Master EOA
+            delegator: address(0x112233), // some random address representing the gator account
+            authority: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, // master authority
+            caveats: caveats,
+            salt: 0,
+            signature: "" // empty signature, will be set later
+        });
+
+        // get the data hash to sign out of the delegation
+        bytes32 dataHashToSign = MessageHashUtils.toTypedDataHash(
+            delegationManager.getDomainHash(), // domain hash
+            MMDelegationHelpers._getDelegationHash(delegation)   // struct hash
+        );
+
+        // sign the delegation
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.privateKey, dataHashToSign);
+        // assign the signature to the delegation
+        delegation.signature = abi.encodePacked(r, s, v);
+
+        for (uint256 i = 0; i < userOps.length; i++) {
+            superTxUserOps[i] = userOps[i].deepCopy();
+            bytes32[] memory proof = tree.getProof(leaves, i);
+
+            // compose the signature for the K1 MEE validator
+            bytes memory signature = abi.encodePacked(
+                SIG_TYPE_MM_DELEGATION,
+                abi.encode(
+                    DecodedMmDelegationSig({
+                        delegationManager: address(delegationManager),
+                        delegation: delegation,
+                        lowerBoundTimestamp: lowerBoundTimestamp,
+                        upperBoundTimestamp: upperBoundTimestamp,
+                        proof: proof
+                    })
+                )
+            );
+
+            superTxUserOps[i].signature = signature;
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+        }
+        return superTxUserOps;
     }
 
     // ============ WALLET UTILS ============

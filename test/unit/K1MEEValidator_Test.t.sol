@@ -12,12 +12,11 @@ import {NodePaymaster} from "contracts/NodePaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {MEEUserOpHashLib} from "contracts/lib/util/MEEUserOpHashLib.sol";
 import {MockERC20PermitToken} from "../mock/MockERC20PermitToken.sol";
-import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import {Strings} from "openzeppelin/utils/Strings.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {EIP712} from "solady/utils/EIP712.sol";
-
+import {MockDelegationManager} from "../mock/MockDelegationManager.sol";
 interface IGetOwner {
     function getOwner(address account) external view returns (address);
 }
@@ -226,27 +225,35 @@ contract K1MEEValidatorTest is BaseTest {
 
     // =================== test MM DTK flow ===================
 
-    // The full flow is:
-    // - gratn permission from the 
-    /* function test_superTxFlow_mm_dtk_ValidateUserOp_success(uint256 numOfClones) public {
-        numOfClones = bound(numOfClones, 1, 25);
-        ERC20 erc20 = new ERC20("test", "TEST");
+    // The full flow in the wild is:
+    // - deploy the MM DelegationManager
+    // - deploy the gator account for the eoa
+    // - grant permission to the MEE node to transfer tokens from the gator to the mockAccount
+    // - MEE Node redeems the permission, tokens are sent to the mockAccount
+    // We skip the steps above in the test and we assume that the permission is already granted and redeemed
 
-        // Deploy Gator account for a wallet
-        // fund the gator account with 1000 tokens
-        deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
+    // - superTxn is executed, mockAccount transfers tokens to bob as a result of several userOps which are part of the superTxn
+
+    function test_superTxFlow_mm_dtk_ValidateUserOp_success(/*uint256 numOfClones*/) public {
+        // numOfClones = bound(numOfClones, 1, 25); 
+        uint256 numOfClones = 1;
+        
+        MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
+        MockDelegationManager delegationManager = new MockDelegationManager();
+        uint256 amountToTransfer = 1 ether;
+        // fund the mockAccount with enough tokens, emulating those tokens being transferred from the gator account
+        deal(address(erc20), address(mockAccount), amountToTransfer * (numOfClones + 1));
 
         address bob = address(0xb0bb0b);
         assertEq(erc20.balanceOf(bob), 0);
 
-        uint256 amountToTransfer = 1 ether;
-
         // delegation calldata
-        // it will allow transfering tokens from the gator account to the mockAccount
-        bytes memory delegationCalldata = abi.encodeWithSelector(
+        // it allows transfering tokens from the gator account to the mockAccount
+        // this is what we could have used in the wild to request the permission
+        bytes memory delegationInnerCalldata = abi.encodeWithSelector(
             erc20.transfer.selector, 
             address(mockAccount), 
-            amountToTransfer * numOfClones
+            amountToTransfer * (numOfClones + 1)
         );
 
         // mock Account transfers tokens to bob - this is the calldata to be used in the userOps of 
@@ -261,13 +268,13 @@ contract K1MEEValidatorTest is BaseTest {
 
         PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
 
-        // TODO: make the DTK superTxn
-        userOps = makePermitSuperTx({
+    
+        userOps = makeDTKSuperTx({
             userOps: userOps,
-            token: erc20,
             signer: wallet,
-            spender: address(mockAccount),
-            amount: amountToTransfer * userOps.length
+            executionTo: address(erc20),
+            executionCalldata: delegationInnerCalldata,
+            delegationManager: delegationManager
         });
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
@@ -275,7 +282,7 @@ contract K1MEEValidatorTest is BaseTest {
         vm.stopPrank();
 
         assertEq(erc20.balanceOf(bob), amountToTransfer * (numOfClones + 1));
-    } */
+    }
 
     // =================== test non-MEE flow ===================
 

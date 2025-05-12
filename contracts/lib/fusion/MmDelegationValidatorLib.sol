@@ -59,7 +59,7 @@ library MmDelegationValidatorLib {
         if (
             !EcdsaLib.isValidSignature(
                 expectedSigner,
-                _getSignedDataHash(expectedSigner, decodedSig.delegation, decodedSig.delegationManager),
+                _getSignedDataHash(decodedSig.delegation, decodedSig.delegationManager),
                 decodedSig.delegation.signature)
         ) {
             return SIG_VALIDATION_FAILED;
@@ -92,7 +92,7 @@ library MmDelegationValidatorLib {
         if (
             !EcdsaLib.isValidSignature(
                 expectedSigner,
-                _getSignedDataHash(expectedSigner, decodedSig.delegation, decodedSig.delegationManager),
+                _getSignedDataHash(decodedSig.delegation, decodedSig.delegationManager),
                 decodedSig.delegation.signature
             )
         ) {
@@ -141,14 +141,13 @@ library MmDelegationValidatorLib {
         pure
         returns (bytes32)
     {
-        
         bytes calldata terms = delegation.caveats[0].terms;
         bytes32 superTxHash;
-        superTxHash = bytes32(terms[terms.length - 0x20]);
+        superTxHash = bytes32(terms[terms.length - 0x20 :]);
         return superTxHash;
     }
         
-    function _getSignedDataHash(address expectedSigner, Delegation calldata delegation, address delegationManager)
+    function _getSignedDataHash(Delegation calldata delegation, address delegationManager)
         private
         view
         returns (bytes32)

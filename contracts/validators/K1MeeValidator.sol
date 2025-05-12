@@ -22,7 +22,7 @@ import {PermitValidatorLib} from "../lib/fusion/PermitValidatorLib.sol";
 import {TxValidatorLib} from "../lib/fusion/TxValidatorLib.sol";
 import {SimpleValidatorLib} from "../lib/fusion/SimpleValidatorLib.sol";
 import {NoMeeFlowLib} from "../lib/fusion/NoMeeFlowLib.sol";
-import {MmDelegationValidatorLib} from "../lib/fusion/MmDelegationVlidatorLib.sol";
+import {MmDelegationValidatorLib} from "../lib/fusion/MmDelegationValidatorLib.sol";
 import {EcdsaLib} from "../lib/util/EcdsaLib.sol";
 /**
  * @title K1MeeValidator
