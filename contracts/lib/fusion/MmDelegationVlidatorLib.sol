@@ -68,10 +68,7 @@ library MmDelegationValidatorLib {
         // extract the superTxHash from the delegation
         // make the meeUserOpHash
         // verify the meeUserOpHash against the proof
-
-        // TODO:
-        // extract the superTxHash from the delegation
-        bytes32 superTxHash = hex'00';
+        bytes32 superTxHash = _getSuperTxHashFromDelegation(decodedSig.delegation);
 
         bytes32 meeUserOpHash = MEEUserOpHashLib.getMEEUserOpHash(
             userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp
@@ -90,7 +87,6 @@ library MmDelegationValidatorLib {
         returns (bool)
     {
         
-        // TODO: decode parsedSignature
         DecodedMmDelegationSigShort calldata decodedSig = _decodeShortPermitSig(parsedSignature);
 
         if (
@@ -103,8 +99,7 @@ library MmDelegationValidatorLib {
             return false;
         }
 
-        // TODO: extract the superTxHash from the delegation   
-        bytes32 superTxHash = hex'00';
+        bytes32 superTxHash = _getSuperTxHashFromDelegation(decodedSig.delegation);
         
         if (!MerkleProof.verify(decodedSig.proof, superTxHash, dataHash)) {
             return false;
@@ -133,6 +128,18 @@ library MmDelegationValidatorLib {
         }
     }
 
+    function _getSuperTxHashFromDelegation(Delegation calldata delegation)
+        private
+        pure
+        returns (bytes32)
+    {
+        
+        bytes calldata terms = delegation.caveats[0].terms;
+        bytes32 superTxHash;
+        superTxHash = bytes32(terms[terms.length - 0x20]);
+        return superTxHash;
+    }
+        
     function _getSignedDataHash(address expectedSigner, Delegation calldata delegation, address delegationManager)
         private
         view
