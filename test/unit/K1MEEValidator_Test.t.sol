@@ -12,6 +12,7 @@ import {NodePaymaster} from "contracts/NodePaymaster.sol";
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {MEEUserOpHashLib} from "contracts/lib/util/MEEUserOpHashLib.sol";
 import {MockERC20PermitToken} from "../mock/MockERC20PermitToken.sol";
+import {ERC20} from "openzeppelin/token/ERC20/ERC20.sol";
 import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
 import {Strings} from "openzeppelin/utils/Strings.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
@@ -43,7 +44,8 @@ contract K1MEEValidatorTest is BaseTest {
         valueToSet = MEE_NODE_HEX;
     }
 
-    // test simple mode
+    // =================== test simple mode ===================
+
     function test_superTxFlow_simple_mode_ValidateUserOp_success(uint256 numOfClones)
         public
         returns (PackedUserOperation[] memory)
@@ -94,7 +96,8 @@ contract K1MEEValidatorTest is BaseTest {
         }
     }
 
-    // test permit mode
+    // =================== test permit mode ===================
+
     function test_superTxFlow_permit_mode_ValidateUserOp_success(uint256 numOfClones) public {
         numOfClones = bound(numOfClones, 1, 25);
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
@@ -127,8 +130,8 @@ contract K1MEEValidatorTest is BaseTest {
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
-
-        assertEq(erc20.balanceOf(bob), amountToTransfer * numOfClones + 1e18);
+        // as the total # of userOps is numOfClones + 1, the balance of bob should be amountToTransfer * (numOfClones + 1)
+        assertEq(erc20.balanceOf(bob), amountToTransfer * (numOfClones + 1));
     }
 
     function test_superTxFlow_permit_mode_1271_and_WithData_success(uint256 numOfObjs) public {
@@ -158,8 +161,8 @@ contract K1MEEValidatorTest is BaseTest {
         }
     }
 
-    // test txn mode
-    // Fuzz for txn mode after solidity txn serialization is done
+    // =================== test txn mode ===================
+
     function test_superTxFlow_txn_mode_ValidateUserOp_success(uint256 numOfClones) public {
         numOfClones = bound(numOfClones, 1, 25);
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
@@ -221,7 +224,61 @@ contract K1MEEValidatorTest is BaseTest {
         }
     }
 
-    // test non-MEE flow
+    // =================== test MM DTK flow ===================
+
+    // The full flow is:
+    // - gratn permission from the 
+    /* function test_superTxFlow_mm_dtk_ValidateUserOp_success(uint256 numOfClones) public {
+        numOfClones = bound(numOfClones, 1, 25);
+        ERC20 erc20 = new ERC20("test", "TEST");
+
+        // Deploy Gator account for a wallet
+        // fund the gator account with 1000 tokens
+        deal(address(erc20), wallet.addr, 1_000 ether); // mint erc20 tokens to the wallet
+
+        address bob = address(0xb0bb0b);
+        assertEq(erc20.balanceOf(bob), 0);
+
+        uint256 amountToTransfer = 1 ether;
+
+        // delegation calldata
+        // it will allow transfering tokens from the gator account to the mockAccount
+        bytes memory delegationCalldata = abi.encodeWithSelector(
+            erc20.transfer.selector, 
+            address(mockAccount), 
+            amountToTransfer * numOfClones
+        );
+
+        // mock Account transfers tokens to bob - this is the calldata to be used in the userOps of 
+        // the superTxn
+        bytes memory innerCallData = abi.encodeWithSelector(erc20.transfer.selector, bob, amountToTransfer);
+
+        PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
+            callData: abi.encodeWithSelector(mockAccount.execute.selector, address(erc20), uint256(0), innerCallData),
+            account: address(mockAccount),
+            userOpSigner: wallet
+        });
+
+        PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
+
+        // TODO: make the DTK superTxn
+        userOps = makePermitSuperTx({
+            userOps: userOps,
+            token: erc20,
+            signer: wallet,
+            spender: address(mockAccount),
+            amount: amountToTransfer * userOps.length
+        });
+
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
+
+        assertEq(erc20.balanceOf(bob), amountToTransfer * (numOfClones + 1));
+    } */
+
+    // =================== test non-MEE flow ===================
+
     function test_nonMEEFlow_ValidateUserOp_success() public {
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);

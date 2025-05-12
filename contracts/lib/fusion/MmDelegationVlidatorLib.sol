@@ -128,6 +128,14 @@ library MmDelegationValidatorLib {
         }
     }
 
+    /**
+     * @dev Extracts the superTxHash from the first caveat of the delegation
+     * It expects the delegation to be restricted by the only caveat which is 
+     * the `exactExecution` caveat, where `calldata` param has the superTxHash appended to it.
+     * See https://docs.gator.metamask.io/how-to/create-delegation/restrict-delegation#exactexecution
+     * @param delegation The delegation to extract the superTxHash from
+     * @return The superTxHash
+     */
     function _getSuperTxHashFromDelegation(Delegation calldata delegation)
         private
         pure
