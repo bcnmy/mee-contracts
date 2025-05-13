@@ -234,10 +234,9 @@ contract K1MEEValidatorTest is BaseTest {
 
     // - superTxn is executed, mockAccount transfers tokens to bob as a result of several userOps which are part of the superTxn
 
-    function test_superTxFlow_mm_dtk_ValidateUserOp_success(/*uint256 numOfClones*/) public {
-        // numOfClones = bound(numOfClones, 1, 25); 
-        uint256 numOfClones = 1;
-        
+    function test_superTxFlow_mm_dtk_ValidateUserOp_success(uint256 numOfClones) public {
+        numOfClones = bound(numOfClones, 1, 25); 
+         
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         MockDelegationManager delegationManager = new MockDelegationManager();
         uint256 amountToTransfer = 1 ether;
@@ -267,8 +266,7 @@ contract K1MEEValidatorTest is BaseTest {
         });
 
         PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
-
-    
+ 
         userOps = makeDTKSuperTx({
             userOps: userOps,
             signer: wallet,
