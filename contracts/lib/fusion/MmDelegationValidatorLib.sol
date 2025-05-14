@@ -11,7 +11,23 @@ import "account-abstraction/core/Helpers.sol";
 import {Delegation, Caveat, MMDelegationHelpers, IDelegationManager} from "../util/MMDelegationHelpers.sol";
 
 /**
- * @dev ...// TODO: add docs
+ * @dev This library contains the logic for validating the entries of the superTxn
+ * which root hash is signed as a part of the MetaMask Delegation.
+ * For more details on the MetaMask Delegation, please refer to the following docs:
+ * https://docs.gator.metamask.io/
+ *
+ * @dev Current implementation expects the delegation to be restricted by the only caveat which is 
+ * the `exactExecution` caveat, where `calldata` param has the superTxHash appended to it.
+ * See https://docs.gator.metamask.io/how-to/create-delegation/restrict-delegation#exactexecution
+ *
+ * The flow is like this:
+ * - EOA user creates a MM deleGator smart account, or injects it's code to EOA address via ERC-7702
+ * - Gator SA issues the delegation to some session address or account, controlled by the MEE Node
+ *   Gator owner (EOA) signs the delegation, which hash superTx hash injected
+ * - This delegation only allows transferring assets required for the superTxn execution to the 
+ *   Nexus orchestrator Smart Account
+ * - Delegate redeems the delegation, tokens are sent to the Nexus orchestrator Smart Account
+ * - Nexus orchestrator Smart Account executes the superTxn as usual.
  */
 
 struct DecodedMmDelegationSig {
@@ -31,19 +47,16 @@ struct DecodedMmDelegationSigShort {
 library MmDelegationValidatorLib {
     
     /**
-     * This function parses the given userOpSignature into a DecodedErc20PermitSig data structure.
+     * This function parses the given userOpSignature into a DecodedMmDelegationSig data structure.
      *
      * Once parsed, the function will check for two conditions:
      *      1. is the userOp part of the merkle tree
      *      2. is the recovered message signer equal to the expected signer?
      *
      * NOTES: This function will revert if either of following is met:
-     *    1. the userOpSignature couldn't be abi.decoded into a valid DecodedErc20PermitSig struct as defined in this contract
+     *    1. the userOpSignature couldn't be abi.decoded into a valid DecodedMmDelegationSig struct as defined in this contract
      *    2. userOp is not part of the merkle tree
-     *    3. recovered Permit message signer wasn't equal to the expected signer
-     *
-     * The function will also perform the Permit approval on the given token in case the
-     * isPermitTx flag was set to true in the decoded signature struct.
+     *    3. recovered Delegation hash signer wasn't equal to the expected signer
      *
      * @param userOpHash UserOp hash being validated.
      * @param parsedSignature Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
@@ -81,6 +94,15 @@ library MmDelegationValidatorLib {
         return _packValidationData(false, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
     }
 
+    /**
+     * @dev Performs the full MM DTK Fusion type signature validation
+     * It includes checking the Delegation hash was signed by the expected signer
+     * and that the given msg hash was included into the superTxn Merkle tree
+     * @param expectedSigner The expected signer of the delegation
+     * @param dataHash The hash of the data to validate
+     * @param parsedSignature The signature to validate
+     * @return true if the signature is valid, false otherwise
+     */
     function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes calldata parsedSignature)
         internal
         view
@@ -108,7 +130,12 @@ library MmDelegationValidatorLib {
         return true;
     }
 
-    function _decodeFullPermitSig(bytes calldata parsedSignature)
+    /**
+     * @dev Decodes the full data struct out of the MM DTK fusion type signature
+     * @param parsedSignature The signature to decode
+     * @return The decoded signature
+     */
+    function _decodeFullDelegationSig(bytes calldata parsedSignature)
         private
         pure
         returns (DecodedMmDelegationSig calldata decodedSig)
@@ -118,7 +145,12 @@ library MmDelegationValidatorLib {
         }
     }
 
-    function _decodeShortPermitSig(bytes calldata parsedSignature)
+    /**
+     * @dev Decodes the short data struct out of the MM DTK fusion type signature
+     * @param parsedSignature The signature to decode
+     * @return The decoded signature
+     */
+    function _decodeShortDelegationSig(bytes calldata parsedSignature)
         private
         pure
         returns (DecodedMmDelegationSigShort calldata decodedSig)
@@ -146,7 +178,13 @@ library MmDelegationValidatorLib {
         superTxHash = bytes32(terms[terms.length - 0x20 :]);
         return superTxHash;
     }
-        
+
+    /**
+     * @dev Prepares the Delegation data struct eip-712 hash for the delegation manager
+     * @param delegation The delegation to hash
+     * @param delegationManager The delegation manager to hash
+     * @return The hash of the delegation and the delegation manager's domain separator
+     */
     function _getSignedDataHash(Delegation calldata delegation, address delegationManager)
         private
         view
@@ -157,6 +195,12 @@ library MmDelegationValidatorLib {
         return _hashTypedData(structHash, domainSeparator);
     }
 
+    /**
+     * @dev Hashes the struct hash and the domain separator
+     * @param structHash The struct hash to hash
+     * @param domainSeparator The domain separator to hash
+     * @return The hash of the struct hash and the domain separator
+     */
     function _hashTypedData(bytes32 structHash, bytes32 domainSeparator) private pure returns (bytes32) {
         return MessageHashUtils.toTypedDataHash(domainSeparator, structHash);
     }
