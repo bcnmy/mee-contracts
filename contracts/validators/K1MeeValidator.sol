@@ -292,6 +292,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
             return TxValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
             return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
+        } else if (sigType == SIG_TYPE_MM_DELEGATION) {
+            return MmDelegationValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else {
             // fallback flow => non MEE flow => no prefix
             return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);

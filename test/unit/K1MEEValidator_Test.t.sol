@@ -282,6 +282,33 @@ contract K1MEEValidatorTest is BaseTest {
         assertEq(erc20.balanceOf(bob), amountToTransfer * (numOfClones + 1));
     }
 
+    function test_superTxFlow_mm_dtk_1271_and_WithData_success(uint256 numOfObjs) public {
+        numOfObjs = bound(numOfObjs, 2, 25);
+        MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
+        MockDelegationManager delegationManager = new MockDelegationManager();
+        bytes[] memory meeSigs = new bytes[](numOfObjs);
+        bytes32 baseHash = keccak256(abi.encode("test"));
+
+        meeSigs = makeDTKSuperTxSignatures({
+            baseHash: baseHash,
+            total: numOfObjs,
+            delegationManager: delegationManager,
+            signer: wallet,
+            smartAccount: address(mockAccount)
+        });
+
+        for (uint256 i = 0; i < numOfObjs; i++) {
+            bytes32 includedLeafHash = keccak256(abi.encode(baseHash, i));
+            if (i / 2 == 0) {
+                assertTrue(
+                    mockAccount.validateSignatureWithData(includedLeafHash, meeSigs[i], abi.encodePacked(wallet.addr))
+                );
+            } else {
+                assertTrue(mockAccount.isValidSignature(includedLeafHash, meeSigs[i]) == EIP1271_SUCCESS);
+            }
+        }
+    }
+
     // =================== test non-MEE flow ===================
 
     function test_nonMEEFlow_ValidateUserOp_success() public {
