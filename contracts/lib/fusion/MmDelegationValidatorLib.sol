@@ -66,7 +66,7 @@ library MmDelegationValidatorLib {
         internal
         returns (uint256)
     {
-        DecodedMmDelegationSig calldata decodedSig = _decodeFullPermitSig(parsedSignature);
+        DecodedMmDelegationSig calldata decodedSig = _decodeFullDelegationSig(parsedSignature);
 
         // check that the owner has signed the delegation that includes the injected superTxnHash 
         if (
@@ -109,7 +109,7 @@ library MmDelegationValidatorLib {
         returns (bool)
     {
         
-        DecodedMmDelegationSigShort calldata decodedSig = _decodeShortPermitSig(parsedSignature);
+        DecodedMmDelegationSigShort calldata decodedSig = _decodeShortDelegationSig(parsedSignature);
 
         if (
             !EcdsaLib.isValidSignature(
@@ -133,7 +133,7 @@ library MmDelegationValidatorLib {
     /**
      * @dev Decodes the full data struct out of the MM DTK fusion type signature
      * @param parsedSignature The signature to decode
-     * @return The decoded signature
+     * @return decodedSig The decoded signature
      */
     function _decodeFullDelegationSig(bytes calldata parsedSignature)
         private
@@ -148,7 +148,7 @@ library MmDelegationValidatorLib {
     /**
      * @dev Decodes the short data struct out of the MM DTK fusion type signature
      * @param parsedSignature The signature to decode
-     * @return The decoded signature
+     * @return decodedSig The decoded signature
      */
     function _decodeShortDelegationSig(bytes calldata parsedSignature)
         private
