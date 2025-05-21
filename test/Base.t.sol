@@ -9,9 +9,11 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {MockAccount, ENTRY_POINT_V07} from "./mock/MockAccount.sol";
 import {MockTarget} from "./mock/MockTarget.sol";
+import {BaseNodePaymaster} from "../contracts/BaseNodePaymaster.sol";
 import {NodePaymaster} from "../contracts/NodePaymaster.sol";
+import {EmittingNodePaymaster} from "./mock/EmittingNodePaymaster.sol";
+import {MockNodePaymaster} from "./mock/MockNodePaymaster.sol";
 import {K1MeeValidator} from "../contracts/validators/K1MeeValidator.sol";
-import {MEEEntryPoint} from "../contracts/MEEEntryPoint.sol";
 import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
 import {MEEUserOpHashLib} from "../contracts/lib/util/MEEUserOpHashLib.sol";
 import {Merkle} from "murky-trees/Merkle.sol";
@@ -26,7 +28,9 @@ import {
     DecodedErc20PermitSigShort,
     PermitValidatorLib
 } from "contracts/lib/fusion/PermitValidatorLib.sol";
-import {ComposableExecutionModule} from "contracts/composability/ComposableExecutionModule.sol";
+import {LibRLP} from "solady/utils/LibRLP.sol";
+
+address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
 contract BaseTest is Test {
     struct TestTemps {
@@ -50,45 +54,55 @@ contract BaseTest is Test {
 
     using CopyUserOpLib for PackedUserOperation;
     using LibZip for bytes;
+    using LibRLP for LibRLP.List;
 
-    bytes32 constant NODE_PM_CODE_HASH = 0xc98f74edd98795d6535e24958b712b853480a40fc281205479e9b0f5aa62c3d1;
-
-    address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
-    address constant MEE_NODE_ADDRESS = 0x177EE170D31177Ee170D31177ee170d31177eE17;
     uint256 constant MEE_NODE_HEX = 0x177ee170de;
 
-    IEntryPoint internal ENTRYPOINT;
-    MEEEntryPoint internal MEE_ENTRYPOINT;
-    NodePaymaster internal NODE_PAYMASTER;
-    K1MeeValidator internal k1MeeValidator;
+    address constant MEE_NODE_EXECUTOR_EOA = address(0xa11cebeefb0bdecaf0);
 
+    IEntryPoint internal ENTRYPOINT;
+    
+    NodePaymaster internal NODE_PAYMASTER;
+    EmittingNodePaymaster internal EMITTING_NODE_PAYMASTER;
+    MockNodePaymaster internal MOCK_NODE_PAYMASTER;
+    K1MeeValidator internal k1MeeValidator;
+    address internal MEE_NODE_ADDRESS;
+    Vm.Wallet internal MEE_NODE;
+    
     MockTarget internal mockTarget;
     address nodePmDeployer = address(0x011a23423423423);
 
     function setUp() public virtual {
         setupEntrypoint();
-        deployMEEEntryPoint();
-        vm.deal(MEE_NODE_ADDRESS, 1_000 ether);
+        
+        MEE_NODE = createAndFundWallet("MEE_NODE", 1_000 ether);
+        MEE_NODE_ADDRESS = MEE_NODE.addr;
+        
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
     }
 
-    function deployMEEEntryPoint() internal {
-        MEE_ENTRYPOINT = new MEEEntryPoint(ENTRYPOINT, NODE_PM_CODE_HASH);
-    }
-
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
         vm.prank(nodePmDeployer);
+        
         NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
-        //console2.logBytes32(address(NODE_PAYMASTER).codehash);
+        EMITTING_NODE_PAYMASTER = new EmittingNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        MOCK_NODE_PAYMASTER = new MockNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
 
-        assertEq(NODE_PAYMASTER.owner(), MEE_NODE_ADDRESS, "Owner should be properly set");
+        address payable[] memory nodePaymasters = new address payable[](3);
+        nodePaymasters[0] = payable(address(NODE_PAYMASTER));
+        nodePaymasters[1] = payable(address(EMITTING_NODE_PAYMASTER));
+        nodePaymasters[2] = payable(address(MOCK_NODE_PAYMASTER));
 
-        vm.deal(address(NODE_PAYMASTER), 100 ether);
+        for (uint256 i = 0; i < nodePaymasters.length; i++) {
+            assertEq(BaseNodePaymaster(nodePaymasters[i]).owner(), MEE_NODE_ADDRESS, "Owner should be properly set");
 
-        vm.prank(address(NODE_PAYMASTER));
-        ENTRYPOINT.depositTo{value: 10 ether}(address(NODE_PAYMASTER));
+            vm.deal(nodePaymasters[i], 100 ether);
+
+            vm.prank(nodePaymasters[i]);
+            ENTRYPOINT.depositTo{value: 10 ether}(nodePaymasters[i]);
+        }
     }
 
     function deployMockAccount(address validator, address handler) internal returns (MockAccount) {
@@ -150,15 +164,25 @@ contract BaseTest is Test {
         });
     }
 
-    function signUserOp(Vm.Wallet memory wallet, PackedUserOperation memory userOp)
-        internal
-        view
-        returns (bytes memory)
-    {
-        bytes32 opHash = ENTRYPOINT.getUserOpHash(userOp);
-        opHash = MessageHashUtils.toEthSignedMessageHash(opHash);
+    function signUserOp(Vm.Wallet memory wallet, PackedUserOperation memory userOp) internal view returns (bytes memory) {
+        bytes32 opHash = MessageHashUtils.toEthSignedMessageHash(_getUserOpHash(userOp));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wallet.privateKey, opHash);
         return abi.encodePacked(r, s, v);
+    }
+
+    function addNodeMasterSig(PackedUserOperation memory userOp, Vm.Wallet memory nodeMaster, address approvedEOA) internal view returns (PackedUserOperation memory) {
+         bytes32 hashToSign = MessageHashUtils.toEthSignedMessageHash(keccak256(abi.encodePacked(
+            _getUserOpHash(userOp),
+            approvedEOA
+        )));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(nodeMaster.privateKey, hashToSign);
+        bytes memory nodeMasterSig = abi.encodePacked(r, s, v);
+        userOp.signature = abi.encodePacked(userOp.signature, nodeMasterSig);
+        return userOp;
+    }
+
+    function _getUserOpHash(PackedUserOperation memory userOp) internal view returns (bytes32) {
+        return ENTRYPOINT.getUserOpHash(userOp);
     }
 
     // ============ MEE USER OP SUPER TX UTILS ============
@@ -167,15 +191,25 @@ contract BaseTest is Test {
         PackedUserOperation memory userOp,
         uint128 pmValidationGasLimit,
         uint128 pmPostOpGasLimit,
-        uint256 premiumPercentage,
+        uint256 impliedCostPercentageOfMaxGasCost,
         Vm.Wallet memory wallet,
         bytes4 sigType
     ) internal view returns (PackedUserOperation memory) {
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
-        userOp.paymasterAndData = makePMAndDataForOwnPM(
-            address(NODE_PAYMASTER), pmValidationGasLimit, pmPostOpGasLimit, maxGasLimit, premiumPercentage
+        uint256 maxGasCost = maxGasLimit * unpackMaxFeePerGasMemory(userOp);
+        
+        // refund mode = user
+        // premium mode = percentage premium
+        userOp.paymasterAndData = abi.encodePacked(
+            address(NODE_PAYMASTER),
+            pmValidationGasLimit, // pm validation gas limit
+            pmPostOpGasLimit, // pm post-op gas limit
+            NODE_PM_MODE_USER,
+            NODE_PM_PREMIUM_PERCENT,
+            uint192(17_00000)
         );
+        
         userOp.signature = signUserOp(wallet, userOp);
         if (sigType != bytes4(0)) {
             userOp.signature = abi.encodePacked(sigType, userOp.signature);
@@ -244,6 +278,7 @@ contract BaseTest is Test {
                 SIG_TYPE_SIMPLE, abi.encode(root, lowerBoundTimestamp, upperBoundTimestamp, proof, superTxHashSignature)
             );
             superTxUserOps[i].signature = signature;
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
@@ -342,6 +377,7 @@ contract BaseTest is Test {
             );
 
             superTxUserOps[i].signature = signature;
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
@@ -413,7 +449,7 @@ contract BaseTest is Test {
     function makeOnChainTxnSuperTx(
         PackedUserOperation[] memory userOps,
         Vm.Wallet memory superTxSigner,
-        bytes memory serializedTx
+        bytes memory callData
     ) internal returns (PackedUserOperation[] memory) {
         PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
         uint48 lowerBoundTimestamp = uint48(block.timestamp);
@@ -424,8 +460,9 @@ contract BaseTest is Test {
         Merkle tree = new Merkle();
         bytes32 root = tree.getRoot(leaves);
 
-        //console2.log("super tx root");
-        //console2.logBytes32(root);
+        callData = abi.encodePacked(callData, root);
+
+        bytes memory serializedTx = getSerializedTxn(callData, address(0xa11cebeefb0bdecaf0), superTxSigner);
 
         for (uint256 i = 0; i < userOps.length; i++) {
             superTxUserOps[i] = userOps[i].deepCopy();
@@ -439,6 +476,7 @@ contract BaseTest is Test {
                 upperBoundTimestamp
             );
             superTxUserOps[i].signature = signature;
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
@@ -446,8 +484,9 @@ contract BaseTest is Test {
     function makeOnChainTxnSuperTxSignatures(
         bytes32 baseHash,
         uint256 total,
-        bytes memory serializedTx,
-        address smartAccount
+        bytes memory callData,
+        address smartAccount,
+        Vm.Wallet memory superTxSigner
     ) internal returns (bytes[] memory) {
         bytes[] memory meeSigs = new bytes[](total);
         require(total > 0, "total must be greater than 0");
@@ -464,9 +503,9 @@ contract BaseTest is Test {
 
         Merkle tree = new Merkle();
         bytes32 root = tree.getRoot(leaves);
+        callData = abi.encodePacked(callData, root);
 
-        //console2.log("super tx root");
-        //console2.logBytes32(root);
+        bytes memory serializedTx = getSerializedTxn(callData, address(0xa11cebeefb0bdecaf0), superTxSigner);
 
         for (uint256 i = 0; i < total; i++) {
             bytes32[] memory proof = tree.getProof(leaves, i);
@@ -509,20 +548,30 @@ contract BaseTest is Test {
         return UserOperationLib.unpackLow128(userOp.accountGasLimits);
     }
 
-    // ============ PM DATA UTILS ============
+    // ============ TXN SERIALIZATION UTILS ============
 
-    function makePMAndDataForOwnPM(
-        address nodePM,
-        uint128 pmValidationGasLimit,
-        uint128 pmPostOpGasLimit,
-        uint256 maxGasLimit,
-        uint256 premiumPercentage
+    function getSerializedTxn(
+        bytes memory txnData, // calldata + root
+        address to,
+        Vm.Wallet memory signer
     ) internal view returns (bytes memory) {
-        return abi.encodePacked(
-            nodePM,
-            pmValidationGasLimit, // pm validation gas limit
-            pmPostOpGasLimit, // pm post-op gas limit
-            premiumPercentage
-        );
+        LibRLP.List memory accessList = LibRLP.p();
+
+        LibRLP.List memory serializedTxList = 
+            LibRLP.p(block.chainid). // chainId
+                p(0). // nonce
+                    p(uint256(1)). // maxPriorityFeePerGas
+                        p(uint256(20)). // maxFeePerGas
+                            p(uint256(50000)). // gasLimit
+                                p(to). // to
+                                    p(uint256(0)). // value
+                                        p(txnData). // txn data
+                                            p(accessList); // empty access list
+
+        bytes32 uTxHash = keccak256(abi.encodePacked(hex"02", serializedTxList.encode()));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.privateKey, uTxHash);
+
+        serializedTxList = serializedTxList.p(v == 28 ? true : false).p(uint256(r)).p(uint256(s)); // add v, r, s to the list
+        return abi.encodePacked(hex"02", serializedTxList.encode()); // add tx type to the list
     }
 }

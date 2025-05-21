@@ -17,11 +17,12 @@ import {
     SIG_TYPE_MEE_FLOW
 } from "contracts/types/Constants.sol";
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
-import {PermitValidatorLib} from "contracts/lib/fusion/PermitValidatorLib.sol";
-import {TxValidatorLib} from "contracts/lib/fusion/TxValidatorLib.sol";
-import {SimpleValidatorLib} from "contracts/lib/fusion/SimpleValidatorLib.sol";
-import {NoMeeFlowLib} from "contracts/lib/fusion/NoMeeFlowLib.sol";
-import {EcdsaLib} from "contracts/lib/util/EcdsaLib.sol";
+import {PermitValidatorLib} from "../lib/fusion/PermitValidatorLib.sol";
+import {TxValidatorLib} from "../lib/fusion/TxValidatorLib.sol";
+import {SimpleValidatorLib} from "../lib/fusion/SimpleValidatorLib.sol";
+import {NoMeeFlowLib} from "../lib/fusion/NoMeeFlowLib.sol";
+import {EcdsaLib} from "../lib/util/EcdsaLib.sol";
+
 /**
  * @title K1MeeValidator
  * @dev   An ERC-7579 validator (module type 1) and stateless validator (module type 7) for the MEE stack.
@@ -47,6 +48,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
                             CONSTANTS & STORAGE
     //////////////////////////////////////////////////////////////////////////*/
 
+    uint256 private constant ENCODED_DATA_OFFSET = 4;
+    
     /// @notice Mapping of smart account addresses to their respective owner addresses
     mapping(address => address) public smartAccountOwners;
 
@@ -149,6 +152,9 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
      *      It may lead to a case where some signature turns out to have first bytes matching the prefix.
      *      However, this is very unlikely to happen and even if it does, the consequences are just
      *      that the signature is not validated which is easily solved by altering userOp => hash => sig.
+     *      The userOp.signature is encoded as follows:
+     *      MEE flow: [65 bytes node master signature] [4 bytes sigType] [encoded data for this validator]
+     *      Non-MEE flow: [65 bytes regular secp256k1 sig]
      *
      * @return uint256 the result of the signature validation, which can be:
      *  - 0 if the signature is valid
@@ -160,19 +166,23 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         external
         override
         returns (uint256)
-    {
-        bytes4 sigType = bytes4(userOp.signature[0:4]);
+    {   
         address owner = getOwner(userOp.sender);
-
-        if (sigType == SIG_TYPE_SIMPLE) {
-            return SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[4:], owner);
-        } else if (sigType == SIG_TYPE_ON_CHAIN) {
-            return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[4:], owner);
-        } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
-            return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[4:], owner);
-        } else {
-            // fallback flow => non MEE flow => no prefix
+        if (userOp.signature.length < ENCODED_DATA_OFFSET) {
+            // if sig is short then we are sure it is a non-MEE flow
             return NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
+        } else {
+            bytes4 sigType = bytes4(userOp.signature[0:ENCODED_DATA_OFFSET]);
+            if (sigType == SIG_TYPE_SIMPLE) {
+                return SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
+            } else if (sigType == SIG_TYPE_ON_CHAIN) {
+                return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length - 65], owner);
+            } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
+                return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
+            } else {
+                // fallback flow => non MEE flow => no prefix
+                return NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
+            }
         }
     }
 

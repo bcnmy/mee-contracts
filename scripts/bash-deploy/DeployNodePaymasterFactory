@@ -1,0 +1,5 @@
+Script started on Wed May 21 13:44:29 2025
+Command: false --sig run (bool) --rpc-url arbitrum-sepolia --etherscan-api-key arbitrum-sepolia --private-key 0xb7c2d2d82fb5d0dd715f8fcbb5da0793d4284ad41aa87ebf98a60fa144e4a34a --verify -vv --broadcast --slow
+
+Command exit status: 1
+Script done on Wed May 21 13:44:29 2025
