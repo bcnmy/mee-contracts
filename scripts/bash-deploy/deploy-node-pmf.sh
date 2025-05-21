@@ -84,7 +84,7 @@ fi
 ### DEPLOY MEE SCs ###
 printf "Predicted Addresses:\n"
 mkdir -p ./logs/$CHAIN_NAME
-forge script DeployNodePaymasterFactory true --sig "run(bool)" --rpc-url $CHAIN_NAME -vv > ./logs/$CHAIN_NAME/$CHAIN_NAME-predeploy-node-pmf.log
+forge script ../foundry/DeployNodePmFactory.s.sol:DeployNodePaymasterFactory true --sig "run(bool)" --rpc-url $CHAIN_NAME -vv > ./logs/$CHAIN_NAME/$CHAIN_NAME-predeploy-node-pmf.log
 cat ./logs/$CHAIN_NAME/$CHAIN_NAME-predeploy-node-pmf.log | grep -e "Addr" -e "already deployed"
 printf "Do you want to proceed with the addresses above? (y/n): "
 read -r proceed
@@ -105,8 +105,7 @@ if [ $proceed = "y" ]; then
     {   
         printf "Proceeding with deployment \n"
         mkdir -p ./logs/$CHAIN_NAME
-        #forge script DeployNodePaymasterFactory false --sig "run(bool)" --rpc-url $CHAIN_NAME --etherscan-api-key $CHAIN_NAME --private-key $PRIVATE_KEY $VERIFY -vv --broadcast --slow $GAS_SUFFIX 1> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-node-pmf.log 2> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-node-pmf-errors.log 
-        printf "script DeployNodePaymasterFactory false --sig run bool --rpc-url $CHAIN_NAME --etherscan-api-key $CHAIN_NAME --private-key $PRIVATE_KEY $VERIFY -vv --broadcast --slow $GAS_SUFFIX 1> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-node-pmf.log 2> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-node-pmf-errors.log"
+        forge script ../foundry/DeployNodePmFactory.s.sol:DeployNodePaymasterFactory false --sig "run(bool)" --rpc-url $CHAIN_NAME --etherscan-api-key $CHAIN_NAME --private-key $PRIVATE_KEY $VERIFY -vv --broadcast --slow $GAS_SUFFIX 1> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-node-pmf.log 2> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-node-pmf-errors.log 
     } || {
         printf "Deployment failed\n See logs for more details\n====================================\n"
         exit 1

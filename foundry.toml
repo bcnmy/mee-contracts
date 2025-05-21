@@ -87,43 +87,43 @@
   mainnet = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/api" }
   sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.etherscan.io/api" }
   
-  base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
-  base-sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
+  base = { key = "${ETHERSCAN_API_KEY}", url = "https://api.basescan.org/api" }
+  base-sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
 
-  arbitrum = { key = "${ARBISCAN_API_KEY}", url = "https://api.arbiscan.io/api" }
-  arbitrum-sepolia = { key = "${ARBISCAN_API_KEY}", url = "https://api-sepolia.arbiscan.io/api"}
+  arbitrum = { key = "${ETHERSCAN_API_KEY}", url = "https://api.arbiscan.io/api" }
+  arbitrum-sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.arbiscan.io/api"}
   
-  polygon = { key = "${POLYGONSCAN_API_KEY}", url = "https://api.polygonscan.com/api" }
-  amoy = { key = "${POLYGONSCAN_API_KEY}", url = "https://api-amoy.polygonscan.com/api" }
+  polygon = { key = "${ETHERSCAN_API_KEY}", url = "https://api.polygonscan.com/api" }
+  amoy = { key = "${ETHERSCAN_API_KEY}", url = "https://api-amoy.polygonscan.com/api" }
 
-  scroll = { key = "${SCROLLSCAN_API_KEY}", url = "https://api.scrollscan.com/api" }
-  scroll-sepolia = { key = "${SCROLLSCAN_API_KEY}", url = "https://api-sepolia.scrollscan.com/api" }
+  scroll = { key = "${ETHERSCAN_API_KEY}", url = "https://api.scrollscan.com/api" }
+  scroll-sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.scrollscan.com/api" }
 
-  gnosis = { key = "${GNOSISSCAN_API_KEY}", url = "https://api.gnosisscan.io/api" }
+  gnosis = { key = "${ETHERSCAN_API_KEY}", url = "https://api.gnosisscan.io/api" }
   # gnosis-chiado is via blockscan, not etherscan 
 
-  bsc = { key = "${BSCSCAN_API_KEY}", url = "https://api.bscscan.com/api"}
-  bsc-testnet = { key = "${BSCSCAN_API_KEY}", url = "https://api-testnet.bscscan.com/api" }
+  bsc = { key = "${ETHERSCAN_API_KEY}", url = "https://api.bscscan.com/api"}
+  bsc-testnet = { key = "${ETHERSCAN_API_KEY}", url = "https://api-testnet.bscscan.com/api" }
 
-  optimism = { key = "${OPTIMISM_API_KEY}", url = "https://api-optimistic.etherscan.io/api" }
-  optimism-sepolia = { key = "${OPTIMISM_API_KEY}", url = "https://api-sepolia-optimistic.etherscan.io/api" }
+  optimism = { key = "${ETHERSCAN_API_KEY}", url = "https://api-optimistic.etherscan.io/api" }
+  optimism-sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia-optimistic.etherscan.io/api" }
 
   berachain-bartio = { key = "${BERACHAIN_API_KEY}", url = "https://api.routescan.io/v2/network/testnet/evm/80084/etherscan" }
 
-  sonic-mainnet = { key = "${SONIC_API_KEY}", url = "https://api.sonicscan.org/api", chain="146"}
-  sonic-blaze-testnet = { key = "${SONIC_API_KEY}", url = "https://api-testnet.sonicscan.org/api", chain="57054"}
+  sonic-mainnet = { key = "${ETHERSCAN_API_KEY}", url = "https://api.sonicscan.org/api", chain="146"}
+  sonic-blaze-testnet = { key = "${ETHERSCAN_API_KEY}", url = "https://api-testnet.sonicscan.org/api", chain="57054"}
 
-  blast = { key = "${BLASTSCAN_API_KEY}", url = "https://api.blastscan.io/api", chain="81457"}
-  blast-sepolia = { key = "${BLASTSCAN_API_KEY}", url = "https://api-sepolia.blastscan.io/api", chain="168587773"}
+  blast = { key = "${ETHERSCAN_API_KEY}", url = "https://api.blastscan.io/api", chain="81457"}
+  blast-sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api-sepolia.blastscan.io/api", chain="168587773"}
 
   odyssey-testnet = { key = "${ODYSSEY_API_KEY}", url = "https://api.routescan.io/v2/network/testnet/evm/911867/etherscan" }
   mekong-testnet = { key = "${MEKONG_API_KEY}", url = "https://explorer-api.mekong.ethpandaops.io/api/" }
 
-  avalanche = { key = "${SNOWTRACE_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan" }
-  fuji = { key = "${SNOWTRACE_API_KEY}", url = "https://api.routescan.io/v2/network/testnet/evm/43113/etherscan" }
+  avalanche = { key = "${ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/mainnet/evm/43114/etherscan" }
+  fuji = { key = "${ETHERSCAN_API_KEY}", url = "https://api.routescan.io/v2/network/testnet/evm/43113/etherscan" }
 
-  apechain = { key = "${APECHAIN_API_KEY}", url = "https://api.apescan.io/api", chain="33139"}
-  apechain-testnet = { key = "${APECHAIN_TESTNET_API_KEY}", url = "https://curtis.explorer.caldera.xyz/api/", chain="33111" }
+  apechain = { key = "${ETHERSCAN_API_KEY}", url = "https://api.apescan.io/api", chain="33139"}
+  apechain-testnet = { key = "${ETHERSCAN_API_KEY}", url = "https://curtis.explorer.caldera.xyz/api/", chain="33111" }
 
   airdao = { key = "${AIRDAO_API_KEY}", url = "https://sourcify.ambrosus.io/", chain="16718"}
   airdao-testnet = { key = "${AIRDAO_API_KEY}", url = "https://sourcify.ambrosus-test.io/", chain="22040"}  
