@@ -521,12 +521,15 @@ contract BaseTest is Test {
 
     // ==== DTK SUPER TX UTILS ====
 
-    function makeDTKSuperTx(
+    function makeDTKSuperTxWithRedeem(
         PackedUserOperation[] memory userOps,
-        Vm.Wallet memory signer,
+        Vm.Wallet memory delegationSigner,
         address executionTo,
-        bytes memory executionCalldata,
-        MockDelegationManager delegationManager
+        bytes memory allowedCalldata,
+        IDelegationManager delegationManager,
+        bool isRedeemTx,
+        bytes32 executionMode,
+        bytes memory redeemExecutionCalldata
     ) internal returns (PackedUserOperation[] memory) {
         PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
         uint48 lowerBoundTimestamp = uint48(block.timestamp);
@@ -544,7 +547,7 @@ contract BaseTest is Test {
             terms: abi.encodePacked(
                 executionTo, // to
                 uint256(0), //value
-                abi.encodePacked(executionCalldata, root) // append the superTxHash to the calldata                
+                abi.encodePacked(allowedCalldata, root) // append the superTxHash to the calldata                
             ),
             args: ""
         });
@@ -566,7 +569,7 @@ contract BaseTest is Test {
         );
 
         // sign the delegation
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.privateKey, dataHashToSign);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(delegationSigner.privateKey, dataHashToSign);
         // assign the signature to the delegation
         delegation.signature = abi.encodePacked(r, s, v);
 
@@ -581,6 +584,9 @@ contract BaseTest is Test {
                     DecodedMmDelegationSig({
                         delegationManager: address(delegationManager),
                         delegation: delegation,
+                        isRedeemTx: i==0 ? isRedeemTx : false, //only the first userOp can redeem the delegation
+                        executionMode: executionMode,
+                        executionCalldata: redeemExecutionCalldata,
                         lowerBoundTimestamp: lowerBoundTimestamp,
                         upperBoundTimestamp: upperBoundTimestamp,
                         proof: proof
@@ -592,6 +598,25 @@ contract BaseTest is Test {
             superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
+    }
+
+    function makeDTKSuperTx(
+        PackedUserOperation[] memory userOps,
+        Vm.Wallet memory delegationSigner,
+        address executionTo,
+        bytes memory allowedCalldata,
+        IDelegationManager delegationManager
+    ) internal returns (PackedUserOperation[] memory) {
+        return makeDTKSuperTxWithRedeem(
+            userOps, 
+            delegationSigner, 
+            executionTo, 
+            allowedCalldata, 
+            delegationManager, 
+            false, 
+            bytes32(0), 
+            hex'00'
+        );
     }
 
     /**

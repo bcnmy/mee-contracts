@@ -36,6 +36,7 @@ struct Caveat {
 
 interface IDelegationManager {
     function getDomainHash() external view returns (bytes32);
+    function redeemDelegations(bytes[] calldata _permissionContexts, bytes32[] calldata _modes, bytes[] calldata _executionCallDatas) external;
 }
 
 library MMDelegationHelpers {

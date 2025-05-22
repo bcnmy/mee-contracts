@@ -17,6 +17,8 @@ import {Strings} from "openzeppelin/utils/Strings.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {EIP712} from "solady/utils/EIP712.sol";
 import {MockDelegationManager} from "../mock/MockDelegationManager.sol";
+import {IDelegationManager} from "contracts/lib/util/MMDelegationHelpers.sol";
+
 interface IGetOwner {
     function getOwner(address account) external view returns (address);
 }
@@ -240,7 +242,8 @@ contract K1MEEValidatorTest is BaseTest {
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
         MockDelegationManager delegationManager = new MockDelegationManager();
         uint256 amountToTransfer = 1 ether;
-        // fund the mockAccount with enough tokens, emulating those tokens being transferred from the gator account
+        // fund the mockAccount with enough tokens, emulating those tokens being transferred 
+        // from the gator account via redeeming the delegation
         deal(address(erc20), address(mockAccount), amountToTransfer * (numOfClones + 1));
 
         address bob = address(0xb0bb0b);
@@ -269,10 +272,10 @@ contract K1MEEValidatorTest is BaseTest {
  
         userOps = makeDTKSuperTx({
             userOps: userOps,
-            signer: wallet,
+            delegationSigner: wallet,
             executionTo: address(erc20),
-            executionCalldata: delegationInnerCalldata,
-            delegationManager: delegationManager
+            allowedCalldata: delegationInnerCalldata,
+            delegationManager: IDelegationManager(address(delegationManager))
         });
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
@@ -307,6 +310,68 @@ contract K1MEEValidatorTest is BaseTest {
                 assertTrue(mockAccount.isValidSignature(includedLeafHash, meeSigs[i]) == EIP1271_SUCCESS);
             }
         }
+    }
+    /// forge-config: default.fuzz.runs = 10
+    function test_superTxFlow_mm_dtk_redeem_Delegation_success(uint256 numOfClones) public {
+        numOfClones = bound(numOfClones, 1, 25);
+        uint256 amountToTransfer = 1 ether;
+
+        // create a fork of baseSepolia
+        string memory baseSepoliaRpcUrl = vm.envString("BASE_SEPOLIA_RPC_URL");
+        uint256 baseSepolia = vm.createFork(baseSepoliaRpcUrl);
+        vm.selectFork(baseSepolia);
+
+        IDelegationManager delegationManager = IDelegationManager(0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3);
+
+        MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
+        
+        address bob = address(0xb0bb0b);
+        assertEq(erc20.balanceOf(bob), 0);
+
+        Vm.Wallet memory alice = createAndFundWallet("alice", 5 ether);
+        // 7702 delegate some account to the EIP7702StatelessDeleGatorImpl
+        vm.etch(address(alice.addr), abi.encodePacked(hex'ef0100', hex'63c0c19a282a1B52b07dD5a65b58948A07DAE32B'));
+        vm.deal(address(alice.addr), amountToTransfer * (numOfClones + 10));
+        
+        // create superTxn with the delegation
+
+        // this is the calldata to be used in the delegation caveat
+        bytes memory delegationInnerCalldata = abi.encodeWithSelector(
+            erc20.approve.selector, 
+            address(mockAccount), 
+            amountToTransfer * (numOfClones + 1)
+        );
+
+        // this is the calldata to be used to redeem the delegation
+        bytes memory redeemingExecutionCalldata = abi.encodeWithSelector(
+            erc20.approve.selector, 
+            address(mockAccount), 
+            amountToTransfer * (numOfClones + 1)
+        );
+
+        // this is the calldata to be used in the superTxn, transfer tokens to bob
+        bytes memory innerCallData = abi.encodeWithSelector(erc20.transferFrom.selector, alice, bob, amountToTransfer);
+
+        PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
+            callData: abi.encodeWithSelector(mockAccount.execute.selector, address(erc20), uint256(0), innerCallData),
+            account: address(mockAccount),
+            userOpSigner: wallet
+        });
+
+        PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
+ 
+        userOps = makeDTKSuperTxWithRedeem({
+            userOps: userOps,
+            delegationSigner: alice, //Delegator Account signs the delegation
+            executionTo: address(erc20),
+            allowedCalldata: delegationInnerCalldata,
+            delegationManager: delegationManager,
+            isRedeemTx: true,
+            executionMode: bytes32(0), // this is the simple single erc7579 mode
+            redeemExecutionCalldata: redeemingExecutionCalldata
+        });
+
+
     }
 
     // =================== test non-MEE flow ===================

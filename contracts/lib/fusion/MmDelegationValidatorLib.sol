@@ -33,6 +33,9 @@ import {Delegation, Caveat, MMDelegationHelpers, IDelegationManager} from "../ut
 struct DecodedMmDelegationSig {
     address delegationManager;
     Delegation delegation;
+    bool isRedeemTx;
+    bytes32 executionMode;
+    bytes executionCalldata;
     uint48 lowerBoundTimestamp;
     uint48 upperBoundTimestamp;
     bytes32[] proof;
@@ -43,6 +46,8 @@ struct DecodedMmDelegationSigShort {
     Delegation delegation;
     bytes32[] proof;
 }
+
+error RedeemDelegationFailed();
 
 library MmDelegationValidatorLib {
     
@@ -89,6 +94,30 @@ library MmDelegationValidatorLib {
 
         if (!MerkleProof.verify(decodedSig.proof, superTxHash, meeUserOpHash)) {
             return SIG_VALIDATION_FAILED;
+        }
+
+        if (decodedSig.isRedeemTx) {
+            Delegation[] memory _delegations = new Delegation[](1);
+            _delegations[0] = decodedSig.delegation;
+
+            bytes[] memory _permissionContexts = new bytes[](1);
+            _permissionContexts[0] = abi.encode(_delegations);
+
+            bytes32[] memory _modes = new bytes32[](1);
+            _modes[0] = decodedSig.executionMode;
+
+            bytes[] memory _executionCallDatas = new bytes[](1);
+            _executionCallDatas[0] = decodedSig.executionCalldata;
+            
+            try IDelegationManager(decodedSig.delegationManager).redeemDelegations({
+                    _permissionContexts: _permissionContexts, 
+                    _modes: _modes, 
+                    _executionCallDatas: _executionCallDatas
+                }) {
+                    // all good
+                } catch {
+                    revert RedeemDelegationFailed();
+                }
         }
 
         return _packValidationData(false, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
