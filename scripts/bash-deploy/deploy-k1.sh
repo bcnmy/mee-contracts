@@ -31,6 +31,9 @@ else
         fi
         CHAIN_NAME=$2
         VERIFY="--verify"
+        if [ $CHAIN_NAME = "hyperevm" ]; then
+            VERIFY="--verify --verifier sourcify"
+        fi
     else 
         printf "Invalid environment\n"
         printMan
