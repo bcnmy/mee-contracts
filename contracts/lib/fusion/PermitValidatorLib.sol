@@ -122,7 +122,7 @@ library PermitValidatorLib {
                 // check if by some reason this permit was already successfully used (and not spent yet)
                 if (IERC20(address(decodedSig.token)).allowance(expectedSigner, decodedSig.spender) < decodedSig.amount)
                 {
-                    // if the above expectationis not true, revert
+                    // if the above expectation is not true, revert
                     revert PermitFailed();
                 }
             }

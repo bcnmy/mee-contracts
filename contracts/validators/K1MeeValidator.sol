@@ -11,6 +11,7 @@ import {
     SIG_TYPE_SIMPLE,
     SIG_TYPE_ON_CHAIN,
     SIG_TYPE_ERC20_PERMIT,
+    SIG_TYPE_MM_DELEGATION,
     EIP1271_SUCCESS,
     EIP1271_FAILED,
     MODULE_TYPE_STATELESS_VALIDATOR,
@@ -21,8 +22,8 @@ import {PermitValidatorLib} from "../lib/fusion/PermitValidatorLib.sol";
 import {TxValidatorLib} from "../lib/fusion/TxValidatorLib.sol";
 import {SimpleValidatorLib} from "../lib/fusion/SimpleValidatorLib.sol";
 import {NoMeeFlowLib} from "../lib/fusion/NoMeeFlowLib.sol";
+import {MmDelegationValidatorLib} from "../lib/fusion/MmDelegationValidatorLib.sol";
 import {EcdsaLib} from "../lib/util/EcdsaLib.sol";
-
 /**
  * @title K1MeeValidator
  * @dev   An ERC-7579 validator (module type 1) and stateless validator (module type 7) for the MEE stack.
@@ -66,7 +67,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     error ModuleAlreadyInitialized();
 
     /// @notice Error to indicate that the new owner cannot be a contract address
-    error NewOwnerIsContract();
+    error NewOwnerIsNotEOA();
 
     /// @notice Error to indicate that the owner cannot be the zero address
     error OwnerCannotBeZeroAddress();
@@ -91,7 +92,9 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         require(!_isInitialized(msg.sender), ModuleAlreadyInitialized());
         address newOwner = address(bytes20(data[:20]));
         require(newOwner != address(0), OwnerCannotBeZeroAddress());
-        require(!_isContract(newOwner), NewOwnerIsContract());
+        if (_isNotEOA(newOwner)) {
+            revert NewOwnerIsNotEOA();
+        }
         smartAccountOwners[msg.sender] = newOwner;
         if (data.length > 20) {
             _fillSafeSenders(data[20:]);
@@ -110,7 +113,9 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @param newOwner The address of the new owner
     function transferOwnership(address newOwner) external {
         require(newOwner != address(0), ZeroAddressNotAllowed());
-        require(!_isContract(newOwner), NewOwnerIsContract());
+        if (_isNotEOA(newOwner)) {
+            revert NewOwnerIsNotEOA();
+        }
         smartAccountOwners[msg.sender] = newOwner;
     }
 
@@ -179,6 +184,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
                 return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length - 65], owner);
             } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
                 return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
+            } else if (sigType == SIG_TYPE_MM_DELEGATION) {
+                return MmDelegationValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else {
                 // fallback flow => non MEE flow => no prefix
                 return NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
@@ -285,6 +292,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
             return TxValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
             return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
+        } else if (sigType == SIG_TYPE_MM_DELEGATION) {
+            return MmDelegationValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else {
             // fallback flow => non MEE flow => no prefix
             return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
@@ -309,12 +318,13 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @notice Checks if the address is a contract
     /// @param account The address to check
     /// @return True if the address is a contract, false otherwise
-    function _isContract(address account) private view returns (bool) {
+    function _isNotEOA(address account) private view returns (bool) {
         uint256 size;
         assembly {
             size := extcodesize(account)
         }
-        return size > 0;
+        // has code and is not delegated via eip-7702
+        return (size > 0) && (size != 23);
     }
 
     /// @dev Returns whether the `hash` and `signature` are valid.

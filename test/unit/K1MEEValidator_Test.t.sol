@@ -16,6 +16,8 @@ import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol
 import {Strings} from "openzeppelin/utils/Strings.sol";
 import {EIP1271_SUCCESS, EIP1271_FAILED} from "contracts/types/Constants.sol";
 import {EIP712} from "solady/utils/EIP712.sol";
+import {MockDelegationManager} from "../mock/MockDelegationManager.sol";
+import {IDelegationManager} from "contracts/lib/util/MMDelegationHelpers.sol";
 
 interface IGetOwner {
     function getOwner(address account) external view returns (address);
@@ -43,7 +45,8 @@ contract K1MEEValidatorTest is BaseTest {
         valueToSet = MEE_NODE_HEX;
     }
 
-    // test simple mode
+    // =================== test simple mode ===================
+
     function test_superTxFlow_simple_mode_ValidateUserOp_success(uint256 numOfClones)
         public
         returns (PackedUserOperation[] memory)
@@ -94,7 +97,8 @@ contract K1MEEValidatorTest is BaseTest {
         }
     }
 
-    // test permit mode
+    // =================== test permit mode ===================
+
     function test_superTxFlow_permit_mode_ValidateUserOp_success(uint256 numOfClones) public {
         numOfClones = bound(numOfClones, 1, 25);
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
@@ -127,8 +131,8 @@ contract K1MEEValidatorTest is BaseTest {
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
-
-        assertEq(erc20.balanceOf(bob), amountToTransfer * numOfClones + 1e18);
+        // as the total # of userOps is numOfClones + 1, the balance of bob should be amountToTransfer * (numOfClones + 1)
+        assertEq(erc20.balanceOf(bob), amountToTransfer * (numOfClones + 1));
     }
 
     function test_superTxFlow_permit_mode_1271_and_WithData_success(uint256 numOfObjs) public {
@@ -158,8 +162,8 @@ contract K1MEEValidatorTest is BaseTest {
         }
     }
 
-    // test txn mode
-    // Fuzz for txn mode after solidity txn serialization is done
+    // =================== test txn mode ===================
+
     function test_superTxFlow_txn_mode_ValidateUserOp_success(uint256 numOfClones) public {
         numOfClones = bound(numOfClones, 1, 25);
         MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
@@ -221,7 +225,95 @@ contract K1MEEValidatorTest is BaseTest {
         }
     }
 
-    // test non-MEE flow
+    // =================== test MM DTK flow ===================
+
+    // The full flow in the wild is:
+    // - deploy the MM DelegationManager
+    // - deploy the gator account for the eoa
+    // - grant permission to the MEE node to transfer tokens from the gator to the mockAccount
+    // - MEE Node redeems the permission, tokens are sent to the mockAccount
+    // We skip the steps above in the test and we assume that the permission is already granted and redeemed
+
+    // - superTxn is executed, mockAccount transfers tokens to bob as a result of several userOps which are part of the superTxn
+
+    function test_superTxFlow_mm_dtk_ValidateUserOp_success(uint256 numOfClones) public {
+        numOfClones = bound(numOfClones, 1, 25); 
+         
+        MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
+        MockDelegationManager delegationManager = new MockDelegationManager();
+        uint256 amountToTransfer = 1 ether;
+        // fund the mockAccount with enough tokens, emulating those tokens being transferred 
+        // from the gator account via redeeming the delegation
+        deal(address(erc20), address(mockAccount), amountToTransfer * (numOfClones + 1));
+
+        address bob = address(0xb0bb0b);
+        assertEq(erc20.balanceOf(bob), 0);
+
+        // delegation calldata
+        // it allows transfering tokens from the gator account to the mockAccount
+        // this is what we could have used in the wild to request the permission
+        bytes memory delegationInnerCalldata = abi.encodeWithSelector(
+            erc20.transfer.selector, 
+            address(mockAccount), 
+            amountToTransfer * (numOfClones + 1)
+        );
+
+        // mock Account transfers tokens to bob - this is the calldata to be used in the userOps of 
+        // the superTxn
+        bytes memory innerCallData = abi.encodeWithSelector(erc20.transfer.selector, bob, amountToTransfer);
+
+        PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
+            callData: abi.encodeWithSelector(mockAccount.execute.selector, address(erc20), uint256(0), innerCallData),
+            account: address(mockAccount),
+            userOpSigner: wallet
+        });
+
+        PackedUserOperation[] memory userOps = cloneUserOpToAnArray(userOp, wallet, numOfClones);
+ 
+        userOps = makeDTKSuperTx({
+            userOps: userOps,
+            delegationSigner: wallet,
+            executionTo: address(erc20),
+            allowedCalldata: delegationInnerCalldata,
+            delegationManager: IDelegationManager(address(delegationManager))
+        });
+
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
+        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
+        vm.stopPrank();
+
+        assertEq(erc20.balanceOf(bob), amountToTransfer * (numOfClones + 1));
+    }
+
+    function test_superTxFlow_mm_dtk_1271_and_WithData_success(uint256 numOfObjs) public {
+        numOfObjs = bound(numOfObjs, 2, 25);
+        MockERC20PermitToken erc20 = new MockERC20PermitToken("test", "TEST");
+        MockDelegationManager delegationManager = new MockDelegationManager();
+        bytes[] memory meeSigs = new bytes[](numOfObjs);
+        bytes32 baseHash = keccak256(abi.encode("test"));
+
+        meeSigs = makeDTKSuperTxSignatures({
+            baseHash: baseHash,
+            total: numOfObjs,
+            delegationManager: delegationManager,
+            signer: wallet,
+            smartAccount: address(mockAccount)
+        });
+
+        for (uint256 i = 0; i < numOfObjs; i++) {
+            bytes32 includedLeafHash = keccak256(abi.encode(baseHash, i));
+            if (i / 2 == 0) {
+                assertTrue(
+                    mockAccount.validateSignatureWithData(includedLeafHash, meeSigs[i], abi.encodePacked(wallet.addr))
+                );
+            } else {
+                assertTrue(mockAccount.isValidSignature(includedLeafHash, meeSigs[i]) == EIP1271_SUCCESS);
+            }
+        }
+    }
+
+    // =================== test non-MEE flow ===================
+
     function test_nonMEEFlow_ValidateUserOp_success() public {
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);

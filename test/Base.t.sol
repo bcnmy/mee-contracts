@@ -29,6 +29,9 @@ import {
     PermitValidatorLib
 } from "contracts/lib/fusion/PermitValidatorLib.sol";
 import {LibRLP} from "solady/utils/LibRLP.sol";
+import {MockDelegationManager} from "./mock/MockDelegationManager.sol";
+import {Delegation, Caveat, MMDelegationHelpers, IDelegationManager} from "../contracts/lib/util/MMDelegationHelpers.sol";
+import {DecodedMmDelegationSig, DecodedMmDelegationSigShort} from "../contracts/lib/fusion/MmDelegationValidatorLib.sol";
 
 address constant ENTRYPOINT_V07_ADDRESS = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
 
@@ -511,6 +514,191 @@ contract BaseTest is Test {
             bytes32[] memory proof = tree.getProof(leaves, i);
             bytes memory signature =
                 abi.encodePacked(SIG_TYPE_ON_CHAIN, serializedTx, abi.encodePacked(proof), uint8(proof.length));
+            meeSigs[i] = signature;
+        }
+        return meeSigs;
+    }
+
+    // ==== DTK SUPER TX UTILS ====
+
+    function makeDTKSuperTxWithRedeem(
+        PackedUserOperation[] memory userOps,
+        Vm.Wallet memory delegationSigner,
+        address executionTo,
+        bytes memory allowedCalldata,
+        IDelegationManager delegationManager,
+        bool isRedeemTx,
+        bytes32 executionMode,
+        bytes memory redeemExecutionCalldata
+    ) internal returns (PackedUserOperation[] memory) {
+        PackedUserOperation[] memory superTxUserOps = new PackedUserOperation[](userOps.length);
+        uint48 lowerBoundTimestamp = uint48(block.timestamp);
+        uint48 upperBoundTimestamp = uint48(block.timestamp + 1000);
+        bytes32[] memory leaves = buildLeavesOutOfUserOps(userOps, lowerBoundTimestamp, upperBoundTimestamp);
+
+        // make a tree
+        Merkle tree = new Merkle();
+        bytes32 root = tree.getRoot(leaves);
+
+        // compose the delegation
+        Caveat[] memory caveats = new Caveat[](1);
+        caveats[0] = Caveat({ 
+            enforcer: 0x146713078D39eCC1F5338309c28405ccf85Abfbb, // the real ExactExecution enforcer address
+            terms: abi.encodePacked(
+                executionTo, // to
+                uint256(0), //value
+                abi.encodePacked(allowedCalldata, root) // append the superTxHash to the calldata                
+            ),
+            args: ""
+        });
+
+        // compose the delegation
+        Delegation memory delegation = Delegation({
+            delegate: address(0x0000000000000000000000000000000000000a11), // open delegation
+            delegator: delegationSigner.addr, // in our case the signer is the delegator since 7702
+            authority: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, // master authority
+            caveats: caveats,
+            salt: 0,
+            signature: "" // empty signature, will be set later
+        });
+
+        // get the data hash to sign out of the delegation
+        bytes32 dataHashToSign = MessageHashUtils.toTypedDataHash(
+            delegationManager.getDomainHash(), // domain hash
+            MMDelegationHelpers._getDelegationHash(delegation)   // struct hash
+        );
+
+        // sign the delegation
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(delegationSigner.privateKey, dataHashToSign);
+        // assign the signature to the delegation
+        delegation.signature = abi.encodePacked(r, s, v);
+
+        for (uint256 i = 0; i < userOps.length; i++) {
+            superTxUserOps[i] = userOps[i].deepCopy();
+            bytes32[] memory proof = tree.getProof(leaves, i);
+
+            // compose the signature for the K1 MEE validator
+            bytes memory signature = abi.encodePacked(
+                SIG_TYPE_MM_DELEGATION,
+                abi.encode(
+                    DecodedMmDelegationSig({
+                        delegationManager: address(delegationManager),
+                        delegation: delegation,
+                        isRedeemTx: i==0 ? isRedeemTx : false, //only the first userOp can redeem the delegation
+                        executionMode: executionMode,
+                        executionCalldata: abi.encodePacked( // in the erc-7579 format
+                            executionTo, // to 
+                            uint256(0),  // value
+                            abi.encodePacked(redeemExecutionCalldata, root) // calldata: append the superTxHash to the calldata as it is expected by the ExactExecution enforcer
+                        ),
+                        lowerBoundTimestamp: lowerBoundTimestamp,
+                        upperBoundTimestamp: upperBoundTimestamp,
+                        proof: proof
+                    })
+                )
+            );
+
+            superTxUserOps[i].signature = signature;
+            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
+        }
+        return superTxUserOps;
+    }
+
+    function makeDTKSuperTx(
+        PackedUserOperation[] memory userOps,
+        Vm.Wallet memory delegationSigner,
+        address executionTo,
+        bytes memory allowedCalldata,
+        IDelegationManager delegationManager
+    ) internal returns (PackedUserOperation[] memory) {
+        return makeDTKSuperTxWithRedeem(
+            userOps, 
+            delegationSigner, 
+            executionTo, 
+            allowedCalldata, 
+            delegationManager, 
+            false, 
+            bytes32(0), 
+            hex'00'
+        );
+    }
+
+    /**
+     * @dev This function is used to make signatures to test the K1 MEE validator's 
+     * 1271 flow and SS.sessionValidator flow with MM DTK fusion mode.
+     * The signed superTxn hash is the root of the Merkle tree which consists of msg hashes. 
+     * When the K1 MEE validator validates the signature, 
+     * it will be provided with the msg hash which it will verify via the Merkle root and proof.
+     * It will of course verify that the root has been signed by the appropriate signer.
+     */
+    function makeDTKSuperTxSignatures(
+        bytes32 baseHash,
+        uint256 total,
+        MockDelegationManager delegationManager,
+        Vm.Wallet memory signer,
+        address smartAccount
+    ) internal returns (bytes[] memory) {
+        bytes[] memory meeSigs = new bytes[](total);
+        require(total > 0, "total must be greater than 0");
+
+        bytes32[] memory leaves = new bytes32[](total);
+
+        for (uint256 i = 0; i < total; i++) {
+            if (i / 2 == 0) {
+                leaves[i] = keccak256(abi.encode(baseHash, i));
+            } else {
+                leaves[i] = keccak256(abi.encodePacked(keccak256(abi.encode(baseHash, i)), smartAccount));
+            }
+        }
+
+        Merkle tree = new Merkle();
+        bytes32 root = tree.getRoot(leaves);
+
+        // compose the delegation
+        Caveat[] memory caveats = new Caveat[](1);
+        caveats[0] = Caveat({ 
+            enforcer: 0x146713078D39eCC1F5338309c28405ccf85Abfbb, // the real ExactExecution enforcer address
+            terms: abi.encodePacked(
+                address(0xdecaf000), // some random address  => execution to
+                uint256(0), //value
+                abi.encodePacked(hex'ff01020304ff', root) // append the superTxHash to some random calldata                
+            ),
+            args: ""
+        });
+
+        // compose the delegation
+        Delegation memory delegation = Delegation({
+            delegate: address(0x4a151e), // some random address representing the MEE Node Master EOA
+            delegator: address(0x112233), // some random address representing the gator account
+            authority: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, // master authority
+            caveats: caveats,
+            salt: 0,
+            signature: "" // empty signature, will be set later
+        });
+
+       // get the data hash to sign out of the delegation
+        bytes32 dataHashToSign = MessageHashUtils.toTypedDataHash(
+            delegationManager.getDomainHash(), // domain hash
+            MMDelegationHelpers._getDelegationHash(delegation)   // struct hash
+        );
+
+        // sign the delegation
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.privateKey, dataHashToSign);
+        // assign the signature to the delegation
+        delegation.signature = abi.encodePacked(r, s, v); 
+
+        for (uint256 i = 0; i < total; i++) {
+            bytes32[] memory proof = tree.getProof(leaves, i);
+            bytes memory signature = abi.encodePacked(
+                SIG_TYPE_MM_DELEGATION,
+                abi.encode(
+                    DecodedMmDelegationSigShort({
+                        delegationManager: address(delegationManager),
+                        delegation: delegation,
+                        proof: proof
+                    })
+                )
+            );
             meeSigs[i] = signature;
         }
         return meeSigs;
