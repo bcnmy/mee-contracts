@@ -554,8 +554,8 @@ contract BaseTest is Test {
 
         // compose the delegation
         Delegation memory delegation = Delegation({
-            delegate: address(0x4a151e), // some random address representing the MEE Node Master EOA
-            delegator: address(0x112233), // some random address representing the gator account
+            delegate: address(0x0000000000000000000000000000000000000a11), // open delegation
+            delegator: delegationSigner.addr, // in our case the signer is the delegator since 7702
             authority: 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, // master authority
             caveats: caveats,
             salt: 0,
@@ -586,7 +586,11 @@ contract BaseTest is Test {
                         delegation: delegation,
                         isRedeemTx: i==0 ? isRedeemTx : false, //only the first userOp can redeem the delegation
                         executionMode: executionMode,
-                        executionCalldata: redeemExecutionCalldata,
+                        executionCalldata: abi.encodePacked( // in the erc-7579 format
+                            executionTo, // to 
+                            uint256(0),  // value
+                            abi.encodePacked(redeemExecutionCalldata, root) // calldata: append the superTxHash to the calldata as it is expected by the ExactExecution enforcer
+                        ),
                         lowerBoundTimestamp: lowerBoundTimestamp,
                         upperBoundTimestamp: upperBoundTimestamp,
                         proof: proof
