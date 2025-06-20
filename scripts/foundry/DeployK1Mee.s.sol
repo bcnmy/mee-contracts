@@ -19,7 +19,6 @@ contract DeployK1 is Script {
     ModuleType[] moduleTypesToAttest;
 
     function setUp() public {
-     
     }
 
     function run(bool check) external {
