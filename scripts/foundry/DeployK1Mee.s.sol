@@ -78,9 +78,11 @@ contract DeployK1 is Script {
             console2.log("MEE K1 Validator deployed at: ", meeK1Validator);
         }
         
+        /*
         if (registerModule(expectedMEEK1Validator)) {
             attestModule(expectedMEEK1Validator);
         }
+        */
 
         // ETH Forwarder contract
         bytecode = vm.getCode("scripts/bash-deploy/artifacts/EtherForwarder/EtherForwarder.json");

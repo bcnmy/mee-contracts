@@ -183,12 +183,8 @@ Enter gas prices args:
 Proceeding with deployment 
 Deployment successful
   MEE K1 Validator deployed at:  0x00000000d74E2e8874475b0Ecc0432A8aEC929fb
-  Module registered on registry 
-  Attestation successful, check passed
   ETH Forwarder deployed at:  0x000000Afe527A978Ecb761008Af475cfF04132a1  
 ```
-
-Registrations and attestations will only happen on chains that have Rhinestone Registry deployed at a standard address.
 
 The deployment process may take a while, depending on how busy the network is.
 The script won't display live logs, but you can check the live logs in the `logs/<chain>/
