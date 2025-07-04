@@ -13,7 +13,7 @@ contract DeployK1 is Script {
 
     address constant ATTESTER_ADDRESS = 0xF9ff902Cdde729b47A4cDB55EF16DF3683a04EAB; // Biconomy Attester
 
-    bytes32 constant MEE_K1_VALIDATOR_SALT = 0x000000000000000000000000000000000000000047819504fd5006001ee95238; //=> 0x00000000d12897DDAdC2044614A9677B191A2d95;
+    bytes32 constant MEE_K1_VALIDATOR_SALT = 0x00000000000000000000000000000000000000000cad102ff5d5fd00ea1468fc; //=> 0x00000000d74E2e8874475b0Ecc0432A8aEC929fb;
     bytes32 constant ETH_FORWARDER_SALT = 0x0000000000000000000000000000000000000000f9941fb84509c0031a6fc104; //=> 0x000000Afe527A978Ecb761008Af475cfF04132a1; 
 
     ModuleType[] moduleTypesToAttest;
@@ -31,7 +31,7 @@ contract DeployK1 is Script {
 
     }
 
-    function _checkMEEAddresses() internal {
+    function _checkMEEAddresses() internal view {
 
         // =================== K1 MEE Validator ===================
         bytes memory bytecode = vm.getCode("scripts/bash-deploy/artifacts/K1MeeValidator/K1MeeValidator.json");
@@ -152,6 +152,7 @@ contract DeployK1 is Script {
             try registry.check(moduleAddress, moduleType, attesters, 1) {
                 console2.log("Attestation as type %s successful, check passed", ModuleType.unwrap(moduleType));
             } catch (bytes memory reason) {
+                reason;
                 console2.log("Module not attested as type %s, attesting...", ModuleType.unwrap(moduleType));
                 needToAttest++;
                 moduleTypesToAttest.push(moduleType);
@@ -205,9 +206,11 @@ contract DeployK1 is Script {
         } catch (bytes memory reason) {
             console2.log("Attestation failed");
             console2.logBytes(reason);
+            return false;
         }
 
         vm.stopBroadcast();
+        return true;
     }
 }
 

@@ -1,24 +1,29 @@
 # Deploying Nexus contracts with a bash script
-This script allows for seamless and automated deployment of Nexus contracts.
+Those scripts allows for seamless and automated deployment of MEE contracts.
+
+
+TODO: FIX DESCRIPTION
+
+
 
 # Usage
 
 ## Clone the repository
 
 ```bash
-git clone https://github.com/nexus-labs/nexus.git
+git clone https://github.com/bcnmy/mee-contracts
 git fetch --all
-git checkout 'deploy-v1.0.1'
+git checkout 'deploy/vx.x.x'
 ```
 
-This script is using the pre-compiled artifacts from the `v.1.0.1` release tag.
+This script is using the pre-compiled artifacts.
 To ensure consistent addresses accross chains, it is highly recommended to use the pre-compiled artifacts.
 In this case you do not even need to install any dependencies.
 
 If you still want to compile the contracts yourself, you can do so by running the following 
 
 ```bash
-yarn
+pnpm i
 forge clean
 forge build
 ```
@@ -75,9 +80,15 @@ Example:
 
 ## Run the script
 
+To deploy MEEK1Validator and EthForwarder, run
 ```bash
 cd scripts/bash-deploy
-bash deploy-nexus.sh <environment> <chain>
+bash deploy-k1.sh <environment> <chain> 
+```
+
+To deploy Node Paymaster Factory, run
+```bash
+bash deploy-node-pmf.sh <environment> <chain> 
 ```
 
 Where `<environment>` is the environment you want to deploy to and `<chain>` is the chain you want to deploy to.
@@ -96,7 +107,7 @@ Environment influences which `PRIVATE_KEY` is used for the deployment.
 
 Example:
 ```bash
-bash deploy-nexus.sh testnet scroll-sepolia
+bash deploy-k1.sh testnet scroll-sepolia
 ```
 
 ## Interacting with the script
@@ -104,7 +115,7 @@ bash deploy-nexus.sh testnet scroll-sepolia
 First, the script will check the network connection by requesting chainId.
 
 ```bash
-$ bash deploy-nexus.sh local
+$ bash deploy-k1.sh local
 
 Environment: local
 Network: localhost
@@ -125,15 +136,11 @@ In any case, the next stage is pre-calculating the addresses for the Nexus smart
 Script will display expected addresses for the contracts and check if they are already deployed.
 
 ```bash
-Do you want to rebuild Nexus artifacts from your local sources? (y/n): n
+Do you want to rebuild MEE artifacts from your local sources? (y/n): n
 Using precompiled artifacts
-Addresses for Nexus SCs:
-  Nexus Addr:  0x000000008761E87F023f65c49DC9cb1C7EdFEaaf  || >> Code Size:  0
-  Nexus K1 Validator Addr:  0x0000002D6DB27c52E3C11c1Cf24072004AC75cBa  || >> Code Size:  0
-  Nexus Bootstrap Addr:  0x000000F5b753Fdd20C5CA2D7c1210b3Ab1EA5903  || >> Code Size:  0
-  K1ValidatorFactory Addr:  0x00000024115AA990F0bAE0B6b0D5B8F68b684cd6  || >> Code Size:  0
-  Nexus Account Factory Addr:  0x000000226cada0d8b36034F5D5c06855F59F6F3A  || >> Code Size:  0
-  =====> On this chain we have 0  contracts already deployed out of  5
+Addresses for MEE SCs:
+  MEE K1 Validator Addr:  0x00000000d74E2e8874475b0Ecc0432A8aEC929fb  || >> Code Size:  0
+  ETH Forwarder Addr:  0x000000Afe527A978Ecb761008Af475cfF04132a1  || >> Code Size:  0
 ```
 
 Addresses depend on the bytecode that is about to be deployed and the salt.
@@ -142,12 +149,8 @@ Those are salts used by Biconomy to deploy the contracts on most chains.
 If you want different addresses, you can change the salts in the script.
 
 ```solidity
-    // NEXUS CONTRACTS DEPLOYMENT SALTS
-    bytes32 constant NEXUS_SALT = 0x0000000000000000000000000000000000000000f2bd6e8e0a8d8b01a83be4c5;
-    bytes32 constant K1VALIDATOR_SALT = 0x000000000000000000000000000000000000000014fedeb9e1c61d030943b78e;
-    bytes32 constant NEXUSBOOTSTRAP_SALT = 0x0000000000000000000000000000000000000000685bdf10d2a63f043e248cc0;
-    bytes32 constant K1VALIDATORFACTORY_SALT = 0x0000000000000000000000000000000000000000d07e828a05cf8c02ef869155;
-    bytes32 constant NEXUS_ACCOUNT_FACTORY_SALT = 0x0000000000000000000000000000000000000000a00deaddeb69f9031a251b40;
+    bytes32 constant MEE_K1_VALIDATOR_SALT = 0x00000000000000000000000000000000000000000cad102ff5d5fd00ea1468fc; //=> 0x00000000d74E2e8874475b0Ecc0432A8aEC929fb;
+    bytes32 constant ETH_FORWARDER_SALT = 0x0000000000000000000000000000000000000000f9941fb84509c0031a6fc104; //=> 0x000000Afe527A978Ecb761008Af475cfF04132a1; 
 ```
 
 For the addresses that are already deployed, the script will skip the deployment stage.
@@ -179,15 +182,16 @@ Enter gas prices args:
 1 1
 Proceeding with deployment 
 Deployment successful
-  Nexus deployed at:  0x000000008761E87F023f65c49DC9cb1C7EdFEaaf
-  Nexus K1 Validator deployed at:  0x0000002D6DB27c52E3C11c1Cf24072004AC75cBa
-  Nexus Bootstrap deployed at:  0x000000F5b753Fdd20C5CA2D7c1210b3Ab1EA5903
-  Nexus K1 Validator Factory deployed at:  0x00000024115AA990F0bAE0B6b0D5B8F68b684cd6
-  Nexus Account Factory deployed at:  0x000000226cada0d8b36034F5D5c06855F59F6F3A
+  MEE K1 Validator deployed at:  0x00000000d74E2e8874475b0Ecc0432A8aEC929fb
+  Module registered on registry 
+  Attestation successful, check passed
+  ETH Forwarder deployed at:  0x000000Afe527A978Ecb761008Af475cfF04132a1  
 ```
 
+Registrations and attestations will only happen on chains that have Rhinestone Registry deployed at a standard address.
+
 The deployment process may take a while, depending on how busy the network is.
-The script won't display live logs, but you can check the live logs in the `logs/<chain>/<chain>-deploy-nexus.log` file and `logs/<chain>/<chain>-deploy-nexus-errors.log` file.
+The script won't display live logs, but you can check the live logs in the `logs/<chain>/
 Run the script on localhost to see the live logs example.
 
 
@@ -204,4 +208,4 @@ This error means that the script can not connect to the network you provided.
 Check if the RPC URL is correct and if you're using local environment, if the anvil network is running.
 
 ## Submit an issue.
-Feel free to [submit an issue](https://github.com/bcnmy/nexus/issues/new/choose) if you can't find the solution here or you have any suggestions for the script.
+Feel free to [submit an issue](https://github.com/bcnmy/mee-contracts) if you can't find the solution here or you have any suggestions for the script.
