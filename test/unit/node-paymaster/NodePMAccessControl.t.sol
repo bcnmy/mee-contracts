@@ -132,7 +132,7 @@ contract NodePMAccessControlTest is BaseTest {
             callGasLimit: 100e3
         });
 
-        uint128 pmValidationGasLimit = 35_000;
+        uint128 pmValidationGasLimit = 27_000;
         uint128 pmPostOpGasLimit = 20_000;
         uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
             + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
