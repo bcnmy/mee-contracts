@@ -177,7 +177,7 @@ contract BaseTest is Test {
         )));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(nodeMaster.privateKey, hashToSign);
         bytes memory nodeMasterSig = abi.encodePacked(r, s, v);
-        userOp.signature = abi.encodePacked(userOp.signature, nodeMasterSig);
+        userOp.paymasterAndData = abi.encodePacked(userOp.paymasterAndData, nodeMasterSig);
         return userOp;
     }
 
