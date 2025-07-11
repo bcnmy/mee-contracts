@@ -2,7 +2,6 @@
 pragma solidity ^0.8.27;
 
 import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
-
 import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
 import {BaseNodePaymaster} from "./BaseNodePaymaster.sol";
 import {EcdsaLib} from "./lib/util/EcdsaLib.sol";
@@ -14,7 +13,6 @@ import {EcdsaLib} from "./lib/util/EcdsaLib.sol";
  * It is used to sponsor userOps. Introduced for gas efficient MEE flow.
  */
 contract NodePaymaster is BaseNodePaymaster {
-
     constructor(
         IEntryPoint _entryPoint,
         address _meeNodeMasterEOA
@@ -49,24 +47,33 @@ contract NodePaymaster is BaseNodePaymaster {
         override
         returns (bytes memory, uint256)
     {   
-        if( tx.origin == owner() || _checkMeeNodeMasterSig(userOp.signature, userOpHash)) {
+        if( tx.origin == owner() || _checkMeeNodeMasterSig(userOp)) {
             return _validate(userOp, userOpHash, maxCost);
         }
         return ("", 1);
     }
 
     /// @notice Checks if the hash was signed by the MEE Node (owner())
-    function _checkMeeNodeMasterSig(bytes calldata userOpSigData, bytes32 userOpHash) internal view returns (bool) {
+    function _checkMeeNodeMasterSig(PackedUserOperation calldata userOp) internal view returns (bool) {
+        
         bytes calldata nodeMasterSig;
+        bytes calldata userOpPmAndData = userOp.paymasterAndData;
         assembly {
-            nodeMasterSig.offset := sub(add(userOpSigData.offset, userOpSigData.length), 65)
+            nodeMasterSig.offset := sub(add(userOpPmAndData.offset, userOpPmAndData.length), 65)
             nodeMasterSig.length := 65
         }
+
+        // copy the userOp and cut the last 65 bytes of the paymasterAndData out of it
+        PackedUserOperation memory userOpWithoutNodeMasterSig = userOp;
+        userOpWithoutNodeMasterSig.paymasterAndData = userOp.paymasterAndData[0:userOp.paymasterAndData.length - 65];
+
+        // rehash the userOp
+        bytes32 userOpWithoutNodeMasterSigHash = entryPoint.getUserOpHash(userOpWithoutNodeMasterSig);
+
         return EcdsaLib.isValidSignature({
             expectedSigner: owner(),
-            hash: keccak256(abi.encodePacked(userOpHash, tx.origin)),
+            hash: keccak256(abi.encodePacked(userOpWithoutNodeMasterSigHash, tx.origin)),
             signature: nodeMasterSig
         });
     }
-
 }
