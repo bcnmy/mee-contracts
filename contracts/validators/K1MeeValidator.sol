@@ -180,7 +180,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
             if (sigType == SIG_TYPE_SIMPLE) {
                 return SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else if (sigType == SIG_TYPE_ON_CHAIN) {
-                return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length - 65], owner);
+                return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length], owner);
             } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
                 return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else {

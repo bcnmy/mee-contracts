@@ -13,8 +13,6 @@ import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
 import {EmittingNodePaymaster} from "../../mock/EmittingNodePaymaster.sol";
 import "../../../contracts/types/Constants.sol";
 
-import "forge-std/console2.sol";
-
 contract NodePMAccessControlTest is BaseTest {
     using UserOperationLib for PackedUserOperation;
 
@@ -51,8 +49,6 @@ contract NodePMAccessControlTest is BaseTest {
     function test_passes_if_properly_signed() public {
         PackedUserOperation[] memory userOps = _prepareUserOps();
 
-        userOps[0] = addNodeMasterSig(userOps[0], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
-
         uint256 mockTargetValueBefore = mockTarget.value();
 
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA); 
@@ -82,8 +78,6 @@ contract NodePMAccessControlTest is BaseTest {
     function test_reverts_if_sent_by_non_approved_EOA() public {
         PackedUserOperation[] memory userOps = _prepareUserOps();
 
-        userOps[0] = addNodeMasterSig(userOps[0], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
-
         uint256 mockTargetValueBefore = mockTarget.value();
 
         vm.startPrank(address(0xdeadbeef)); // submitter is not an executor EOA signed above
@@ -91,25 +85,6 @@ contract NodePMAccessControlTest is BaseTest {
         vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
 
-        vm.stopPrank();
-
-        assertFalse(mockTargetValueBefore == valueToSet);
-        assertEq(mockTargetValueBefore, mockTarget.value());
-    }
-
-    // test reverts if userOp hash was not signed
-    function test_reverts_if_userOp_hash_was_not_signed() public {
-        PackedUserOperation[] memory userOps = _prepareUserOps();
-        userOps[0] = addNodeMasterSig(userOps[0], MEE_NODE, MEE_NODE_EXECUTOR_EOA); 
- 
-        userOps[0].preVerificationGas++; // change some data so the userOp hash changes
-        // Do not re-sign with MEE Node EOA, so the userOp hash is not signed by the Node
-
-        uint256 mockTargetValueBefore = mockTarget.value();
-
-        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA); // should revert despite of the correct tx.origin
-        vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA34 signature error"));
-        ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertFalse(mockTargetValueBefore == valueToSet);
