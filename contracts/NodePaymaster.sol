@@ -73,11 +73,31 @@ contract NodePaymaster is BaseNodePaymaster {
     }
 
     /**
+     * @notice Whitelist a list of worker EOAs
+     * @param workerEOAs The list of worker EOAs to whitelist
+     */
+    function whitelistWorkerEOAs(address[] calldata workerEOAs) external onlyOwner {
+        for (uint256 i; i < workerEOAs.length; i++) {
+            _workerEOAs[workerEOAs[i]] = true;
+        }
+    }
+
+    /**
      * @notice Remove a worker EOA from the whitelist
      * @param workerEOA The worker EOA to remove from the whitelist
      */
     function removeWorkerEOAFromWhitelist(address workerEOA) external onlyOwner {
         _workerEOAs[workerEOA] = false;
+    }
+
+    /**
+     * @notice Remove a list of worker EOAs from the whitelist
+     * @param workerEOAs The list of worker EOAs to remove from the whitelist
+     */
+    function removeWorkerEOAsFromWhitelist(address[] calldata workerEOAs) external onlyOwner {
+        for (uint256 i; i < workerEOAs.length; i++) {
+            _workerEOAs[workerEOAs[i]] = false;
+        }
     }
 
     /**
