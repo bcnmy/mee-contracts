@@ -15,13 +15,20 @@ import {EcdsaLib} from "./lib/util/EcdsaLib.sol";
  */
 contract NodePaymaster is BaseNodePaymaster {
 
+    mapping(address => bool) private _workerEOAs;
+
     constructor(
         IEntryPoint _entryPoint,
-        address _meeNodeMasterEOA
+        address _meeNodeMasterEOA,
+        address[] memory workerEOAs
     ) 
         payable 
         BaseNodePaymaster(_entryPoint, _meeNodeMasterEOA)
-    {}
+    {
+        for (uint256 i; i < workerEOAs.length; i++) {
+            _workerEOAs[workerEOAs[i]] = true;
+        }
+    }
 
     /**
      * @dev Accepts all userOps
@@ -49,24 +56,69 @@ contract NodePaymaster is BaseNodePaymaster {
         override
         returns (bytes memory, uint256)
     {   
-        if( tx.origin == owner() || _checkMeeNodeMasterSig(userOp.signature, userOpHash)) {
+        if( tx.origin == owner() || _workerEOAs[tx.origin]) {
             return _validate(userOp, userOpHash, maxCost);
         }
         return ("", 1);
     }
 
-    /// @notice Checks if the hash was signed by the MEE Node (owner())
-    function _checkMeeNodeMasterSig(bytes calldata userOpSigData, bytes32 userOpHash) internal view returns (bool) {
-        bytes calldata nodeMasterSig;
-        assembly {
-            nodeMasterSig.offset := sub(add(userOpSigData.offset, userOpSigData.length), 65)
-            nodeMasterSig.length := 65
-        }
-        return EcdsaLib.isValidSignature({
-            expectedSigner: owner(),
-            hash: keccak256(abi.encodePacked(userOpHash, tx.origin)),
-            signature: nodeMasterSig
-        });
+    // ====== Manage worker EOAs ======
+
+    /**
+     * @notice Whitelist a worker EOA
+     * @param workerEOA The worker EOA to whitelist
+     */
+    function whitelistWorkerEOA(address workerEOA) external onlyOwner {
+        _workerEOAs[workerEOA] = true;
     }
 
+    /**
+     * @notice Whitelist a list of worker EOAs
+     * @param workerEOAs The list of worker EOAs to whitelist
+     */
+    function whitelistWorkerEOAs(address[] calldata workerEOAs) external onlyOwner {
+        for (uint256 i; i < workerEOAs.length; i++) {
+            _workerEOAs[workerEOAs[i]] = true;
+        }
+    }
+
+    /**
+     * @notice Remove a worker EOA from the whitelist
+     * @param workerEOA The worker EOA to remove from the whitelist
+     */
+    function removeWorkerEOAFromWhitelist(address workerEOA) external onlyOwner {
+        _workerEOAs[workerEOA] = false;
+    }
+
+    /**
+     * @notice Remove a list of worker EOAs from the whitelist
+     * @param workerEOAs The list of worker EOAs to remove from the whitelist
+     */
+    function removeWorkerEOAsFromWhitelist(address[] calldata workerEOAs) external onlyOwner {
+        for (uint256 i; i < workerEOAs.length; i++) {
+            _workerEOAs[workerEOAs[i]] = false;
+        }
+    }
+
+    /**
+     * @notice Check if a worker EOA is whitelisted
+     * @param workerEOA The worker EOA to check
+     * @return True if the worker EOA is whitelisted, false otherwise
+     */
+    function isWorkerEOAWhitelisted(address workerEOA) external view returns (bool) {
+        return _workerEOAs[workerEOA];
+    }
+
+    /**
+     * @notice Check if a list of worker EOAs are whitelisted
+     * @param workerEOAs The list of worker EOAs to check
+     * @return An array of booleans, where each element corresponds to the whitelist status of the corresponding worker EOA
+     */
+    function areWorkerEOAsWhitelisted(address[] calldata workerEOAs) external view returns (bool[] memory) {
+        bool[] memory whitelisted = new bool[](workerEOAs.length);
+        for (uint256 i; i < workerEOAs.length; i++) {
+            whitelisted[i] = _workerEOAs[workerEOAs[i]];
+        }
+        return whitelisted;
+    }
 }

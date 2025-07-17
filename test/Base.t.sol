@@ -79,15 +79,17 @@ contract BaseTest is Test {
         MEE_NODE_ADDRESS = MEE_NODE.addr;
         
         deployNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
-
         mockTarget = new MockTarget();
         k1MeeValidator = new K1MeeValidator();
     }
 
     function deployNodePaymaster(IEntryPoint ep, address meeNodeAddress) internal {
         vm.prank(nodePmDeployer);
+
+        address[] memory workerEOAs = new address[](1);
+        workerEOAs[0] = MEE_NODE_EXECUTOR_EOA;
         
-        NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
+        NODE_PAYMASTER = new NodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS, workerEOAs);
         EMITTING_NODE_PAYMASTER = new EmittingNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
         MOCK_NODE_PAYMASTER = new MockNodePaymaster(ENTRYPOINT, MEE_NODE_ADDRESS);
 
@@ -169,17 +171,6 @@ contract BaseTest is Test {
         bytes32 opHash = MessageHashUtils.toEthSignedMessageHash(_getUserOpHash(userOp));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wallet.privateKey, opHash);
         return abi.encodePacked(r, s, v);
-    }
-
-    function addNodeMasterSig(PackedUserOperation memory userOp, Vm.Wallet memory nodeMaster, address approvedEOA) internal view returns (PackedUserOperation memory) {
-         bytes32 hashToSign = MessageHashUtils.toEthSignedMessageHash(keccak256(abi.encodePacked(
-            _getUserOpHash(userOp),
-            approvedEOA
-        )));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(nodeMaster.privateKey, hashToSign);
-        bytes memory nodeMasterSig = abi.encodePacked(r, s, v);
-        userOp.signature = abi.encodePacked(userOp.signature, nodeMasterSig);
-        return userOp;
     }
 
     function _getUserOpHash(PackedUserOperation memory userOp) internal view returns (bytes32) {
@@ -279,7 +270,6 @@ contract BaseTest is Test {
                 SIG_TYPE_SIMPLE, abi.encode(root, lowerBoundTimestamp, upperBoundTimestamp, proof, superTxHashSignature)
             );
             superTxUserOps[i].signature = signature;
-            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
@@ -378,7 +368,6 @@ contract BaseTest is Test {
             );
 
             superTxUserOps[i].signature = signature;
-            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
@@ -477,7 +466,6 @@ contract BaseTest is Test {
                 upperBoundTimestamp
             );
             superTxUserOps[i].signature = signature;
-            superTxUserOps[i] = addNodeMasterSig(superTxUserOps[i], MEE_NODE, MEE_NODE_EXECUTOR_EOA);
         }
         return superTxUserOps;
     }
