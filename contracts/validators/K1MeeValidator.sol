@@ -180,7 +180,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
             if (sigType == SIG_TYPE_SIMPLE) {
                 return SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else if (sigType == SIG_TYPE_ON_CHAIN) {
-                return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length - 65], owner);
+                return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length], owner);
             } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
                 return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else {
@@ -261,7 +261,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// - supports appended 65-bytes signature for on-chain fusion mode
     /// - supports erc7702-delegated EOAs as owners  
     function version() external pure returns (string memory) {
-        return "1.0.2";
+        return "1.0.3";
     }
 
     /// @notice Checks if the module is of the specified type
