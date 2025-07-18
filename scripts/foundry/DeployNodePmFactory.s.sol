@@ -7,7 +7,7 @@ import {NodePaymasterFactory} from "contracts/util/NodePaymasterFactory.sol";
 
 contract DeployNodePaymasterFactory is Script {
 
-    bytes32 constant NODE_PMF_SALT = 0x0000000000000000000000000000000000000000082f0a9c0b993b04b8c0225e; // => 0x000000f28C524B5f80550a074910bf68bf69A446 
+    bytes32 constant NODE_PMF_SALT = 0x00000000000000000000000000000000000000000621b09c7f5c6b003de7bfc4; // => 0x000000005824a1ED617994dF733151D26a4cf03d 
 
     function setUp() public {
      
