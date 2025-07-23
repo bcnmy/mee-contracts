@@ -34,6 +34,9 @@ else
         if [ $CHAIN_NAME = "hyperevm" ]; then
             VERIFY="--verify --verifier sourcify"
         fi
+        if [ $CHAIN_NAME = "sei-mainnet" ]; then
+            VERIFY="--verify --verifier blockscout --verifier-url https://seitrace.com/atlantic-2/api --chain-id 1329"
+        fi
     else 
         printf "Invalid environment\n"
         printMan

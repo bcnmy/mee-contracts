@@ -32,9 +32,4 @@ contract NodePaymasterFactoryTest is BaseTest {
         uint256 deposit = IEntryPoint(ENTRYPOINT_V07_ADDRESS).getDepositInfo(nodePaymaster).deposit;
         assertEq(deposit, 1 ether);
     }
-
-    
-
-}
-
-    
+}    
