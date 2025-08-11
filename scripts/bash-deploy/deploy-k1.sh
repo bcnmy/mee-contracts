@@ -68,6 +68,10 @@ read -r -p "Do you want to rebuild MEE artifacts from your local sources? (y/n):
 if [ $proceed = "y" ]; then
     ### BUILD ARTIFACTS ###
     printf "Building MEE artifacts\n"
+    if [ $CHAIN_NAME = "chiliz-testnet" ]; then
+        export FOUNDRY_PROFILE="maxcompatibility"
+        printf "Using max compatibility profile\n"
+    fi
     { (forge build 1> ./logs/forge-build.log 2> ./logs/forge-build-errors.log) } || {
         printf "Build failed\n See logs for more details\n"
         exit 1
@@ -103,7 +107,9 @@ if [ $proceed = "y" ]; then
     if [ $proceed = "y" ]; then
         printf "Enter gas prices args: \n For the EIP-1559 chains, enter two args: base fee and priority fee in gwei\n For the legacy chains, enter one argument. \n Example eip-1559: 20 1 \n Example legacy: 20 \n"
         read -r -a GAS_ARGS
-        if [ ${#GAS_ARGS[@]} -eq 2 ]; then
+        if [ ${#GAS_ARGS[@]} -eq 3 ]; then
+            GAS_SUFFIX="--with-gas-price ${GAS_ARGS[0]}gwei --priority-gas-price ${GAS_ARGS[1]}gwei --gas-estimate-multiplier ${GAS_ARGS[2]}"
+        elif [ ${#GAS_ARGS[@]} -eq 2 ]; then
             GAS_SUFFIX="--with-gas-price ${GAS_ARGS[0]}gwei --priority-gas-price ${GAS_ARGS[1]}gwei"
         else 
             GAS_SUFFIX="--with-gas-price ${GAS_ARGS[0]}gwei"
@@ -116,7 +122,10 @@ if [ $proceed = "y" ]; then
         mkdir -p ./logs/$CHAIN_NAME
         forge script ../foundry/DeployK1Mee.s.sol:DeployK1 false --sig "run(bool)" --rpc-url $CHAIN_NAME --etherscan-api-key $CHAIN_NAME --private-key $PRIVATE_KEY $VERIFY -vv --broadcast --slow $GAS_SUFFIX 1> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee.log 2> ./logs/$CHAIN_NAME/$CHAIN_NAME-deploy-mee-errors.log 
     } || {
-        printf "Deployment failed\n See logs for more details\n====================================\n"
+        printf "Deployment failed\n See logs for more details\n"
+        printf "Checking the code sizes\n"
+        forge script ../foundry/DeployK1Mee.s.sol:DeployK1 true --sig "run(bool)" --rpc-url $CHAIN_NAME -vv > ./logs/$CHAIN_NAME/$CHAIN_NAME-predeploy-mee.log
+        cat ./logs/$CHAIN_NAME/$CHAIN_NAME-predeploy-mee.log | grep -e "Addr" -e "already deployed"
         exit 1
     }
     printf "Deployment successful\n"

@@ -65,6 +65,9 @@ read -r -p "Do you want to rebuild artifacts from your local sources? (y/n): " p
 if [ $proceed = "y" ]; then
     ### BUILD ARTIFACTS ###
     printf "Building MEE artifacts\n"
+    if [ $CHAIN_NAME = "chiliz-testnet" ]; then
+        export FOUNDRY_PROFILE="maxcompatibility"
+    fi
     { (forge build 1> ./logs/forge-build.log 2> ./logs/forge-build-errors.log) } || {
         printf "Build failed\n See logs for more details\n"
         exit 1
@@ -97,7 +100,9 @@ if [ $proceed = "y" ]; then
     if [ $proceed = "y" ]; then
         printf "Enter gas prices args: \n For the EIP-1559 chains, enter two args: base fee and priority fee in gwei\n For the legacy chains, enter one argument. \n Example eip-1559: 20 1 \n Example legacy: 20 \n"
         read -r -a GAS_ARGS
-        if [ ${#GAS_ARGS[@]} -eq 2 ]; then
+        if [ ${#GAS_ARGS[@]} -eq 3 ]; then
+            GAS_SUFFIX="--with-gas-price ${GAS_ARGS[0]}gwei --priority-gas-price ${GAS_ARGS[1]}gwei --gas-estimate-multiplier ${GAS_ARGS[2]}"
+        elif [ ${#GAS_ARGS[@]} -eq 2 ]; then
             GAS_SUFFIX="--with-gas-price ${GAS_ARGS[0]}gwei --priority-gas-price ${GAS_ARGS[1]}gwei"
         else 
             GAS_SUFFIX="--with-gas-price ${GAS_ARGS[0]}gwei"
