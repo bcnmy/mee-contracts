@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {VmSafe} from "forge-std/Vm.sol";
+import {VmSafe} from "node_modules/forge-std/src/Vm.sol";
 
 /// @notice Library for deploying contracts using Deterministic Deployer
 /// @dev forked from Wilson Cusack's https://github.com/wilsoncusack/safe-singleton-deployer-sol 

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Script, console2} from "lib/forge-std/src/Script.sol";
-import {K1MeeValidator} from "contracts/validators/K1MeeValidator.sol";
+import {Script, console2} from "node_modules/forge-std/src/Script.sol";
+import {K1MeeValidator} from "../../../contracts/validators/K1MeeValidator.sol";
 import {DeterministicDeployerLib} from "./utils/DeterministicDeployerLib.sol";
-import {NodePaymaster} from "contracts/NodePaymaster.sol";
+import {NodePaymaster} from "../../../contracts/NodePaymaster.sol";
 
 contract DeployK1 is Script {
 
