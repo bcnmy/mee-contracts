@@ -58,6 +58,16 @@ contract DeployNodePaymasterFactory is Script {
         } else {
             console2.log("CreateX deployed at expected Addr");
         }
+
+        // disperse
+        assembly {
+            codeSize := extcodesize(0xd15fE25eD0Dba12fE05e7029C88b10C25e8880E3)
+        }
+        if (codeSize == 0) {
+            console2.log("Disperse not deployed at expected Addr");
+        } else {
+            console2.log("Disperse deployed at expected Addr");
+        }
     }
 
     function _deployNodePMF() internal {
