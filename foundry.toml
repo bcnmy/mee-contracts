@@ -116,6 +116,7 @@
 
   sophon-zk-testnet="${SOPHON_ZK_TESTNET_RPC_URL}"
 
+  arc-testnet="${ARC_TESTNET_RPC_URL}"
 
 [etherscan]
   mainnet = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/api" }

@@ -88,6 +88,7 @@ contract DeployNodePaymasterFactory is Script {
         }
 
         // Disperse 
+        /*
         assembly {
             codeSize := extcodesize(0xd15fE25eD0Dba12fE05e7029C88b10C25e8880E3)
         }
@@ -98,8 +99,8 @@ contract DeployNodePaymasterFactory is Script {
             console2.log("Disperse now deployed at address:", disperse);
         } else {
             console2.log("Disperse already deployed at expected Addr");
-        }
-        
+        } 
+        */
 
     }
 }
