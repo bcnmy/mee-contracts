@@ -1,0 +1,35 @@
+{
+    "extends": "solhint:recommended",
+    "rules": {
+        "no-console": "off",
+        "foundry-test-functions": [
+            "error",
+                [
+                    "setUp"
+                ]
+            ],
+        "no-unused-import": "warn",
+        "use-natspec": "off",
+        "func-visibility": "off",
+        "state-visibility": "off",
+        "code-complexity": "off",
+        "max-line-length": "off",
+        "no-global-import": "off",
+        "no-unused-vars": "warn",
+        "visibility-modifier-order": "off",
+        "gas-custom-errors": "off",
+        "gas-calldata-parameters": "off",
+        "gas-increment-by-one": "off",
+        "gas-indexed-events": "off",
+        "gas-length-in-loops": "off",
+        "gas-named-return-values": "off",
+        "gas-small-strings": "off",
+        "gas-struct-packing": "off",
+        "func-name-mixedcase": "off",
+        "contract-name-capwords": "off",
+        "var-name-mixedcase": "off",
+        "private-vars-leading-underscore": "off",
+        "import-path-check": "off",
+        "function-max-lines": "off"
+    }
+}

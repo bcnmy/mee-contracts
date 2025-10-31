@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {BaseTest} from "../../Base.t.sol";
-import {Vm} from "forge-std/Test.sol";
-import {PackedUserOperation, UserOperationLib} from "account-abstraction/core/UserOperationLib.sol";
-import {MockTarget} from "../../mock/MockTarget.sol";
-import {MockAccount} from "../../mock/MockAccount.sol";
-import {IEntryPointSimulations} from "account-abstraction/interfaces/IEntryPointSimulations.sol";
-import {EntryPointSimulations} from "account-abstraction/core/EntryPointSimulations.sol";
-import {NodePaymaster} from "contracts/NodePaymaster.sol";
-import {IEntryPoint} from "account-abstraction/interfaces/IEntryPoint.sol";
-import {EmittingNodePaymaster} from "../../mock/EmittingNodePaymaster.sol";
+import { BaseTest } from "../../Base.t.sol";
+import { Vm } from "forge-std/Test.sol";
+import { PackedUserOperation, UserOperationLib } from "account-abstraction/core/UserOperationLib.sol";
+import { MockTarget } from "../../mock/MockTarget.sol";
+import { MockAccount } from "../../mock/MockAccount.sol";
 import "../../../contracts/types/Constants.sol";
 
 contract NodePMAccessControlTest is BaseTest {
@@ -23,7 +18,7 @@ contract NodePMAccessControlTest is BaseTest {
 
     function setUp() public virtual override {
         super.setUp();
-        mockAccount = deployMockAccount({validator: address(0), handler: address(0)});
+        mockAccount = deployMockAccount({ validator: address(0), handler: address(0) });
         wallet = createAndFundWallet("wallet", 1 ether);
         mockTarget.setValue(0);
     }
@@ -51,7 +46,7 @@ contract NodePMAccessControlTest is BaseTest {
 
         uint256 mockTargetValueBefore = mockTarget.value();
 
-        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA); 
+        vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
@@ -67,12 +62,12 @@ contract NodePMAccessControlTest is BaseTest {
 
         uint256 mockTargetValueBefore = mockTarget.value();
 
-        vm.startPrank(NODE_PAYMASTER.owner(), NODE_PAYMASTER.owner()); 
+        vm.startPrank(NODE_PAYMASTER.owner(), NODE_PAYMASTER.owner());
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
 
         assertFalse(mockTargetValueBefore == valueToSet);
-        assertEq(mockTarget.value(), valueToSet); 
+        assertEq(mockTarget.value(), valueToSet);
     }
 
     function test_reverts_if_sent_by_non_approved_EOA() public {
@@ -91,10 +86,11 @@ contract NodePMAccessControlTest is BaseTest {
         assertEq(mockTargetValueBefore, mockTarget.value());
     }
 
+    /* solhint-disable foundry-test-functions */
     function _prepareUserOps() public returns (PackedUserOperation[] memory) {
         valueToSet = MEE_NODE_HEX;
-        uint256 premiumPercentage = 17_00000;
-        
+        uint256 premiumPercentage = 1_700_000;
+
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.setValue.selector, valueToSet);
         bytes memory callData =
             abi.encodeWithSelector(mockAccount.execute.selector, address(mockTarget), uint256(0), innerCallData);
@@ -109,8 +105,6 @@ contract NodePMAccessControlTest is BaseTest {
 
         uint128 pmValidationGasLimit = 25_000;
         uint128 pmPostOpGasLimit = 20_000;
-        uint256 maxGasLimit = userOp.preVerificationGas + unpackVerificationGasLimitMemory(userOp)
-            + unpackCallGasLimitMemory(userOp) + pmValidationGasLimit + pmPostOpGasLimit;
 
         // refund mode = user
         // premium mode = percentage premium
@@ -122,11 +116,10 @@ contract NodePMAccessControlTest is BaseTest {
             NODE_PM_PREMIUM_PERCENT,
             uint192(premiumPercentage)
         );
-        
+
         PackedUserOperation[] memory userOps = new PackedUserOperation[](1);
         userOps[0] = userOp;
 
         return (userOps);
     }
-
 }

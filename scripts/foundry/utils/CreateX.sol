@@ -8,12 +8,14 @@ pragma solidity ^0.8.13;
  * @notice Factory smart contract to make easier and safer usage of the
  * `CREATE` (https://web.archive.org/web/20230921103540/https://www.evm.codes/#f0?fork=shanghai) and `CREATE2`
  * (https://web.archive.org/web/20230921103540/https://www.evm.codes/#f5?fork=shanghai) EVM opcodes as well as of
- * `CREATE3`-based (https://web.archive.org/web/20230921103920/https://github.com/ethereum/EIPs/pull/3171) contract creations.
+ * `CREATE3`-based (https://web.archive.org/web/20230921103920/https://github.com/ethereum/EIPs/pull/3171) contract
+ * creations.
  * @dev To simplify testing of non-public variables and functions, we use the `internal`
  * function visibility specifier `internal` for all variables and functions, even though
  * they could technically be `private` since we do not expect anyone to inherit from
  * the `CreateX` contract.
- * @custom:security-contact See https://web.archive.org/web/20230921105029/https://raw.githubusercontent.com/pcaversaccio/createx/main/SECURITY.md.
+ * @custom:security-contact See
+ * https://web.archive.org/web/20230921105029/https://raw.githubusercontent.com/pcaversaccio/createx/main/SECURITY.md.
  */
 contract CreateX {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -131,8 +133,8 @@ contract CreateX {
         assembly ("memory-safe") {
             newContract := create(callvalue(), add(initCode, 0x20), mload(initCode))
         }
-        _requireSuccessfulContractCreation({newContract: newContract});
-        emit ContractCreation({newContract: newContract});
+        _requireSuccessfulContractCreation({ newContract: newContract });
+        emit ContractCreation({ newContract: newContract });
     }
 
     /**
@@ -155,24 +157,28 @@ contract CreateX {
         bytes memory data,
         Values memory values,
         address refundAddress
-    ) public payable returns (address newContract) {
+    )
+        public
+        payable
+        returns (address newContract)
+    {
         assembly ("memory-safe") {
             newContract := create(mload(values), add(initCode, 0x20), mload(initCode))
         }
-        _requireSuccessfulContractCreation({newContract: newContract});
-        emit ContractCreation({newContract: newContract});
+        _requireSuccessfulContractCreation({ newContract: newContract });
+        emit ContractCreation({ newContract: newContract });
 
-        (bool success, bytes memory returnData) = newContract.call{value: values.initCallAmount}(data);
+        (bool success, bytes memory returnData) = newContract.call{ value: values.initCallAmount }(data);
         if (!success) {
-            revert FailedContractInitialisation({emitter: _SELF, revertData: returnData});
+            revert FailedContractInitialisation({ emitter: _SELF, revertData: returnData });
         }
 
         if (_SELF.balance != 0) {
             // Any wei amount previously forced into this contract (e.g. by using the `SELFDESTRUCT`
             // opcode) will be part of the refund transaction.
-            (success, returnData) = refundAddress.call{value: _SELF.balance}("");
+            (success, returnData) = refundAddress.call{ value: _SELF.balance }("");
             if (!success) {
-                revert FailedEtherTransfer({emitter: _SELF, revertData: returnData});
+                revert FailedEtherTransfer({ emitter: _SELF, revertData: returnData });
             }
         }
     }
@@ -195,8 +201,12 @@ contract CreateX {
         bytes memory initCode,
         bytes memory data,
         Values memory values
-    ) public payable returns (address newContract) {
-        newContract = deployCreateAndInit({initCode: initCode, data: data, values: values, refundAddress: msg.sender});
+    )
+        public
+        payable
+        returns (address newContract)
+    {
+        newContract = deployCreateAndInit({ initCode: initCode, data: data, values: values, refundAddress: msg.sender });
     }
 
     /**
@@ -215,23 +225,17 @@ contract CreateX {
         bytes20 implementationInBytes = bytes20(implementation);
         assembly ("memory-safe") {
             let clone := mload(0x40)
-            mstore(
-                clone,
-                hex"3d_60_2d_80_60_0a_3d_39_81_f3_36_3d_3d_37_3d_3d_3d_36_3d_73_00_00_00_00_00_00_00_00_00_00_00_00"
-            )
+            mstore(clone, hex"3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000")
             mstore(add(clone, 0x14), implementationInBytes)
-            mstore(
-                add(clone, 0x28),
-                hex"5a_f4_3d_82_80_3e_90_3d_91_60_2b_57_fd_5b_f3_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00"
-            )
+            mstore(add(clone, 0x28), hex"5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000")
             proxy := create(0, clone, 0x37)
         }
         if (proxy == address(0)) {
-            revert FailedContractCreation({emitter: _SELF});
+            revert FailedContractCreation({ emitter: _SELF });
         }
-        emit ContractCreation({newContract: proxy});
+        emit ContractCreation({ newContract: proxy });
 
-        (bool success, bytes memory returnData) = proxy.call{value: msg.value}(data);
+        (bool success, bytes memory returnData) = proxy.call{ value: msg.value }(data);
         _requireSuccessfulContractInitialisation({
             success: success,
             returnData: returnData,
@@ -242,11 +246,16 @@ contract CreateX {
     /**
      * @dev Returns the address where a contract will be stored if deployed via `deployer` using
      * the `CREATE` opcode. For the specification of the Recursive Length Prefix (RLP) encoding
-     * scheme, please refer to p. 19 of the Ethereum Yellow Paper (https://web.archive.org/web/20230921110603/https://ethereum.github.io/yellowpaper/paper.pdf)
-     * and the Ethereum Wiki (https://web.archive.org/web/20230921112807/https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
-     * For further insights also, see the following issue: https://web.archive.org/web/20230921112943/https://github.com/transmissions11/solmate/issues/207.
+     * scheme, please refer to p. 19 of the Ethereum Yellow Paper
+     * (https://web.archive.org/web/20230921110603/https://ethereum.github.io/yellowpaper/paper.pdf)
+     * and the Ethereum Wiki
+     * (https://web.archive.org/web/20230921112807/https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
+     * For further insights also, see the following issue:
+     * https://web.archive.org/web/20230921112943/https://github.com/transmissions11/solmate/issues/207.
      *
-     * Based on the EIP-161 (https://web.archive.org/web/20230921113207/https://raw.githubusercontent.com/ethereum/EIPs/master/EIPS/eip-161.md) specification,
+     * Based on the EIP-161
+     * (https://web.archive.org/web/20230921113207/https://raw.githubusercontent.com/ethereum/EIPs/master/EIPS/eip-161.md)
+     * specification,
      * all contract accounts on the Ethereum mainnet are initiated with `nonce = 1`. Thus, the
      * first contract address created by another contract is calculated with a non-zero nonce.
      * @param deployer The 20-byte deployer address.
@@ -260,7 +269,7 @@ contract CreateX {
         // The theoretical allowed limit, based on EIP-2681, for an account nonce is 2**64-2:
         // https://web.archive.org/web/20230921113252/https://eips.ethereum.org/EIPS/eip-2681.
         if (nonce > type(uint64).max - 1) {
-            revert InvalidNonceValue({emitter: _SELF});
+            revert InvalidNonceValue({ emitter: _SELF });
         }
 
         // The integer zero is treated as an empty byte string and therefore has only one length prefix,
@@ -302,18 +311,23 @@ contract CreateX {
     /**
      * @dev Returns the address where a contract will be stored if deployed via this contract
      * using the `CREATE` opcode. For the specification of the Recursive Length Prefix (RLP)
-     * encoding scheme, please refer to p. 19 of the Ethereum Yellow Paper (https://web.archive.org/web/20230921110603/https://ethereum.github.io/yellowpaper/paper.pdf)
-     * and the Ethereum Wiki (https://web.archive.org/web/20230921112807/https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
-     * For further insights also, see the following issue: https://web.archive.org/web/20230921112943/https://github.com/transmissions11/solmate/issues/207.
+     * encoding scheme, please refer to p. 19 of the Ethereum Yellow Paper
+     * (https://web.archive.org/web/20230921110603/https://ethereum.github.io/yellowpaper/paper.pdf)
+     * and the Ethereum Wiki
+     * (https://web.archive.org/web/20230921112807/https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/).
+     * For further insights also, see the following issue:
+     * https://web.archive.org/web/20230921112943/https://github.com/transmissions11/solmate/issues/207.
      *
-     * Based on the EIP-161 (https://web.archive.org/web/20230921113207/https://raw.githubusercontent.com/ethereum/EIPs/master/EIPS/eip-161.md) specification,
+     * Based on the EIP-161
+     * (https://web.archive.org/web/20230921113207/https://raw.githubusercontent.com/ethereum/EIPs/master/EIPS/eip-161.md)
+     * specification,
      * all contract accounts on the Ethereum mainnet are initiated with `nonce = 1`. Thus, the
      * first contract address created by another contract is calculated with a non-zero nonce.
      * @param nonce The next 32-byte nonce of this contract.
      * @return computedAddress The 20-byte address where a contract will be stored.
      */
     function computeCreateAddress(uint256 nonce) public view returns (address computedAddress) {
-        computedAddress = computeCreateAddress({deployer: _SELF, nonce: nonce});
+        computedAddress = computeCreateAddress({ deployer: _SELF, nonce: nonce });
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -330,12 +344,12 @@ contract CreateX {
      * @return newContract The 20-byte address where the contract was deployed.
      */
     function deployCreate2(bytes32 salt, bytes memory initCode) public payable returns (address newContract) {
-        bytes32 guardedSalt = _guard({salt: salt});
+        bytes32 guardedSalt = _guard({ salt: salt });
         assembly ("memory-safe") {
             newContract := create2(callvalue(), add(initCode, 0x20), mload(initCode), guardedSalt)
         }
-        _requireSuccessfulContractCreation({newContract: newContract});
-        emit ContractCreation({newContract: newContract, salt: guardedSalt});
+        _requireSuccessfulContractCreation({ newContract: newContract });
+        emit ContractCreation({ newContract: newContract, salt: guardedSalt });
     }
 
     /**
@@ -350,7 +364,7 @@ contract CreateX {
     function deployCreate2(bytes memory initCode) public payable returns (address newContract) {
         // Note that the safeguarding function `_guard` is called as part of the overloaded function
         // `deployCreate2`.
-        newContract = deployCreate2({salt: _generateSalt(), initCode: initCode});
+        newContract = deployCreate2({ salt: _generateSalt(), initCode: initCode });
     }
 
     /**
@@ -375,25 +389,29 @@ contract CreateX {
         bytes memory data,
         Values memory values,
         address refundAddress
-    ) public payable returns (address newContract) {
-        bytes32 guardedSalt = _guard({salt: salt});
+    )
+        public
+        payable
+        returns (address newContract)
+    {
+        bytes32 guardedSalt = _guard({ salt: salt });
         assembly ("memory-safe") {
             newContract := create2(mload(values), add(initCode, 0x20), mload(initCode), guardedSalt)
         }
-        _requireSuccessfulContractCreation({newContract: newContract});
-        emit ContractCreation({newContract: newContract, salt: guardedSalt});
+        _requireSuccessfulContractCreation({ newContract: newContract });
+        emit ContractCreation({ newContract: newContract, salt: guardedSalt });
 
-        (bool success, bytes memory returnData) = newContract.call{value: values.initCallAmount}(data);
+        (bool success, bytes memory returnData) = newContract.call{ value: values.initCallAmount }(data);
         if (!success) {
-            revert FailedContractInitialisation({emitter: _SELF, revertData: returnData});
+            revert FailedContractInitialisation({ emitter: _SELF, revertData: returnData });
         }
 
         if (_SELF.balance != 0) {
             // Any wei amount previously forced into this contract (e.g. by using the `SELFDESTRUCT`
             // opcode) will be part of the refund transaction.
-            (success, returnData) = refundAddress.call{value: _SELF.balance}("");
+            (success, returnData) = refundAddress.call{ value: _SELF.balance }("");
             if (!success) {
-                revert FailedEtherTransfer({emitter: _SELF, revertData: returnData});
+                revert FailedEtherTransfer({ emitter: _SELF, revertData: returnData });
             }
         }
     }
@@ -418,16 +436,15 @@ contract CreateX {
         bytes memory initCode,
         bytes memory data,
         Values memory values
-    ) public payable returns (address newContract) {
+    )
+        public
+        payable
+        returns (address newContract)
+    {
         // Note that the safeguarding function `_guard` is called as part of the overloaded function
         // `deployCreate2AndInit`.
-        newContract = deployCreate2AndInit({
-            salt: salt,
-            initCode: initCode,
-            data: data,
-            values: values,
-            refundAddress: msg.sender
-        });
+        newContract =
+            deployCreate2AndInit({ salt: salt, initCode: initCode, data: data, values: values, refundAddress: msg.sender });
     }
 
     /**
@@ -452,7 +469,11 @@ contract CreateX {
         bytes memory data,
         Values memory values,
         address refundAddress
-    ) public payable returns (address newContract) {
+    )
+        public
+        payable
+        returns (address newContract)
+    {
         // Note that the safeguarding function `_guard` is called as part of the overloaded function
         // `deployCreate2AndInit`.
         newContract = deployCreate2AndInit({
@@ -484,7 +505,11 @@ contract CreateX {
         bytes memory initCode,
         bytes memory data,
         Values memory values
-    ) public payable returns (address newContract) {
+    )
+        public
+        payable
+        returns (address newContract)
+    {
         // Note that the safeguarding function `_guard` is called as part of the overloaded function
         // `deployCreate2AndInit`.
         newContract = deployCreate2AndInit({
@@ -513,28 +538,26 @@ contract CreateX {
         bytes32 salt,
         address implementation,
         bytes memory data
-    ) public payable returns (address proxy) {
-        bytes32 guardedSalt = _guard({salt: salt});
+    )
+        public
+        payable
+        returns (address proxy)
+    {
+        bytes32 guardedSalt = _guard({ salt: salt });
         bytes20 implementationInBytes = bytes20(implementation);
         assembly ("memory-safe") {
             let clone := mload(0x40)
-            mstore(
-                clone,
-                hex"3d_60_2d_80_60_0a_3d_39_81_f3_36_3d_3d_37_3d_3d_3d_36_3d_73_00_00_00_00_00_00_00_00_00_00_00_00"
-            )
+            mstore(clone, hex"3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000")
             mstore(add(clone, 0x14), implementationInBytes)
-            mstore(
-                add(clone, 0x28),
-                hex"5a_f4_3d_82_80_3e_90_3d_91_60_2b_57_fd_5b_f3_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00_00"
-            )
+            mstore(add(clone, 0x28), hex"5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000")
             proxy := create2(0, clone, 0x37, guardedSalt)
         }
         if (proxy == address(0)) {
-            revert FailedContractCreation({emitter: _SELF});
+            revert FailedContractCreation({ emitter: _SELF });
         }
-        emit ContractCreation({newContract: proxy, salt: guardedSalt});
+        emit ContractCreation({ newContract: proxy, salt: guardedSalt });
 
-        (bool success, bytes memory returnData) = proxy.call{value: msg.value}(data);
+        (bool success, bytes memory returnData) = proxy.call{ value: msg.value }(data);
         _requireSuccessfulContractInitialisation({
             success: success,
             returnData: returnData,
@@ -559,7 +582,7 @@ contract CreateX {
     function deployCreate2Clone(address implementation, bytes memory data) public payable returns (address proxy) {
         // Note that the safeguarding function `_guard` is called as part of the overloaded function
         // `deployCreate2Clone`.
-        proxy = deployCreate2Clone({salt: _generateSalt(), implementation: implementation, data: data});
+        proxy = deployCreate2Clone({ salt: _generateSalt(), implementation: implementation, data: data });
     }
 
     /**
@@ -576,7 +599,11 @@ contract CreateX {
         bytes32 salt,
         bytes32 initCodeHash,
         address deployer
-    ) public pure returns (address computedAddress) {
+    )
+        public
+        pure
+        returns (address computedAddress)
+    {
         assembly ("memory-safe") {
             // |                      | ↓ ptr ...  ↓ ptr + 0x0B (start) ...  ↓ ptr + 0x20 ...  ↓ ptr + 0x40 ...   |
             // |----------------------|---------------------------------------------------------------------------|
@@ -606,7 +633,7 @@ contract CreateX {
      * @return computedAddress The 20-byte address where a contract will be stored.
      */
     function computeCreate2Address(bytes32 salt, bytes32 initCodeHash) public view returns (address computedAddress) {
-        computedAddress = computeCreate2Address({salt: salt, initCodeHash: initCodeHash, deployer: _SELF});
+        computedAddress = computeCreate2Address({ salt: salt, initCodeHash: initCodeHash, deployer: _SELF });
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -628,21 +655,21 @@ contract CreateX {
      * proxy deployments on other chains.
      */
     function deployCreate3(bytes32 salt, bytes memory initCode) public payable returns (address newContract) {
-        bytes32 guardedSalt = _guard({salt: salt});
-        bytes memory proxyChildBytecode = hex"67_36_3d_3d_37_36_3d_34_f0_3d_52_60_08_60_18_f3";
+        bytes32 guardedSalt = _guard({ salt: salt });
+        bytes memory proxyChildBytecode = hex"67363d3d37363d34f03d5260086018f3";
         address proxy;
         assembly ("memory-safe") {
             proxy := create2(0, add(proxyChildBytecode, 32), mload(proxyChildBytecode), guardedSalt)
         }
         if (proxy == address(0)) {
-            revert FailedContractCreation({emitter: _SELF});
+            revert FailedContractCreation({ emitter: _SELF });
         }
-        emit Create3ProxyContractCreation({newContract: proxy, salt: guardedSalt});
+        emit Create3ProxyContractCreation({ newContract: proxy, salt: guardedSalt });
 
-        newContract = computeCreate3Address({salt: guardedSalt});
-        (bool success, ) = proxy.call{value: msg.value}(initCode);
-        _requireSuccessfulContractCreation({success: success, newContract: newContract});
-        emit ContractCreation({newContract: newContract});
+        newContract = computeCreate3Address({ salt: guardedSalt });
+        (bool success,) = proxy.call{ value: msg.value }(initCode);
+        _requireSuccessfulContractCreation({ success: success, newContract: newContract });
+        emit ContractCreation({ newContract: newContract });
     }
 
     /**
@@ -659,7 +686,7 @@ contract CreateX {
     function deployCreate3(bytes memory initCode) public payable returns (address newContract) {
         // Note that the safeguarding function `_guard` is called as part of the overloaded function
         // `deployCreate3`.
-        newContract = deployCreate3({salt: _generateSalt(), initCode: initCode});
+        newContract = deployCreate3({ salt: _generateSalt(), initCode: initCode });
     }
 
     /**
@@ -689,35 +716,39 @@ contract CreateX {
         bytes memory data,
         Values memory values,
         address refundAddress
-    ) public payable returns (address newContract) {
-        bytes32 guardedSalt = _guard({salt: salt});
-        bytes memory proxyChildBytecode = hex"67_36_3d_3d_37_36_3d_34_f0_3d_52_60_08_60_18_f3";
+    )
+        public
+        payable
+        returns (address newContract)
+    {
+        bytes32 guardedSalt = _guard({ salt: salt });
+        bytes memory proxyChildBytecode = hex"67363d3d37363d34f03d5260086018f3";
         address proxy;
         assembly ("memory-safe") {
             proxy := create2(0, add(proxyChildBytecode, 32), mload(proxyChildBytecode), guardedSalt)
         }
         if (proxy == address(0)) {
-            revert FailedContractCreation({emitter: _SELF});
+            revert FailedContractCreation({ emitter: _SELF });
         }
-        emit Create3ProxyContractCreation({newContract: proxy, salt: guardedSalt});
+        emit Create3ProxyContractCreation({ newContract: proxy, salt: guardedSalt });
 
-        newContract = computeCreate3Address({salt: guardedSalt});
-        (bool success, ) = proxy.call{value: values.constructorAmount}(initCode);
-        _requireSuccessfulContractCreation({success: success, newContract: newContract});
-        emit ContractCreation({newContract: newContract});
+        newContract = computeCreate3Address({ salt: guardedSalt });
+        (bool success,) = proxy.call{ value: values.constructorAmount }(initCode);
+        _requireSuccessfulContractCreation({ success: success, newContract: newContract });
+        emit ContractCreation({ newContract: newContract });
 
         bytes memory returnData;
-        (success, returnData) = newContract.call{value: values.initCallAmount}(data);
+        (success, returnData) = newContract.call{ value: values.initCallAmount }(data);
         if (!success) {
-            revert FailedContractInitialisation({emitter: _SELF, revertData: returnData});
+            revert FailedContractInitialisation({ emitter: _SELF, revertData: returnData });
         }
 
         if (_SELF.balance != 0) {
             // Any wei amount previously forced into this contract (e.g. by using the `SELFDESTRUCT`
             // opcode) will be part of the refund transaction.
-            (success, returnData) = refundAddress.call{value: _SELF.balance}("");
+            (success, returnData) = refundAddress.call{ value: _SELF.balance }("");
             if (!success) {
-                revert FailedEtherTransfer({emitter: _SELF, revertData: returnData});
+                revert FailedEtherTransfer({ emitter: _SELF, revertData: returnData });
             }
         }
     }
@@ -747,16 +778,15 @@ contract CreateX {
         bytes memory initCode,
         bytes memory data,
         Values memory values
-    ) public payable returns (address newContract) {
+    )
+        public
+        payable
+        returns (address newContract)
+    {
         // Note that the safeguarding function `_guard` is called as part of the overloaded function
         // `deployCreate3AndInit`.
-        newContract = deployCreate3AndInit({
-            salt: salt,
-            initCode: initCode,
-            data: data,
-            values: values,
-            refundAddress: msg.sender
-        });
+        newContract =
+            deployCreate3AndInit({ salt: salt, initCode: initCode, data: data, values: values, refundAddress: msg.sender });
     }
 
     /**
@@ -782,7 +812,11 @@ contract CreateX {
         bytes memory data,
         Values memory values,
         address refundAddress
-    ) public payable returns (address newContract) {
+    )
+        public
+        payable
+        returns (address newContract)
+    {
         // Note that the safeguarding function `_guard` is called as part of the overloaded function
         // `deployCreate3AndInit`.
         newContract = deployCreate3AndInit({
@@ -815,7 +849,11 @@ contract CreateX {
         bytes memory initCode,
         bytes memory data,
         Values memory values
-    ) public payable returns (address newContract) {
+    )
+        public
+        payable
+        returns (address newContract)
+    {
         // Note that the safeguarding function `_guard` is called as part of the overloaded function
         // `deployCreate3AndInit`.
         newContract = deployCreate3AndInit({
@@ -842,10 +880,7 @@ contract CreateX {
             mstore(0x00, deployer)
             mstore8(0x0b, 0xff)
             mstore(0x20, salt)
-            mstore(
-                0x40,
-                hex"21_c3_5d_be_1b_34_4a_24_88_cf_33_21_d6_ce_54_2f_8e_9f_30_55_44_ff_09_e4_99_3a_62_31_9a_49_7c_1f"
-            )
+            mstore(0x40, hex"21c35dbe1b344a2488cf3321d6ce542f8e9f305544ff09e4993a62319a497c1f")
             mstore(0x14, keccak256(0x0b, 0x55))
             mstore(0x40, ptr)
             mstore(0x00, 0xd694)
@@ -863,7 +898,7 @@ contract CreateX {
      * @return computedAddress The 20-byte address where a contract will be stored.
      */
     function computeCreate3Address(bytes32 salt) public view returns (address computedAddress) {
-        computedAddress = computeCreate3Address({salt: salt, deployer: _SELF});
+        computedAddress = computeCreate3Address({ salt: salt, deployer: _SELF });
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -884,26 +919,25 @@ contract CreateX {
      * @return guardedSalt The guarded 32-byte random value used to create the contract address.
      */
     function _guard(bytes32 salt) internal view returns (bytes32 guardedSalt) {
-        (SenderBytes senderBytes, RedeployProtectionFlag redeployProtectionFlag) = _parseSalt({salt: salt});
+        (SenderBytes senderBytes, RedeployProtectionFlag redeployProtectionFlag) = _parseSalt({ salt: salt });
 
         if (senderBytes == SenderBytes.MsgSender && redeployProtectionFlag == RedeployProtectionFlag.True) {
             // Configures a permissioned deploy protection as well as a cross-chain redeploy protection.
             guardedSalt = keccak256(abi.encode(msg.sender, block.chainid, salt));
         } else if (senderBytes == SenderBytes.MsgSender && redeployProtectionFlag == RedeployProtectionFlag.False) {
             // Configures solely a permissioned deploy protection.
-            guardedSalt = _efficientHash({a: bytes32(uint256(uint160(msg.sender))), b: salt});
+            guardedSalt = _efficientHash({ a: bytes32(uint256(uint160(msg.sender))), b: salt });
         } else if (senderBytes == SenderBytes.MsgSender) {
             // Reverts if the 21st byte is greater than `0x01` in order to enforce developer explicitness.
-            revert InvalidSalt({emitter: _SELF});
+            revert InvalidSalt({ emitter: _SELF });
         } else if (senderBytes == SenderBytes.ZeroAddress && redeployProtectionFlag == RedeployProtectionFlag.True) {
             // Configures solely a cross-chain redeploy protection. In order to prevent a pseudo-randomly
             // generated cross-chain redeploy protection, we enforce the zero address check for the first 20 bytes.
-            guardedSalt = _efficientHash({a: bytes32(block.chainid), b: salt});
-        } else if (
-            senderBytes == SenderBytes.ZeroAddress && redeployProtectionFlag == RedeployProtectionFlag.Unspecified
-        ) {
+            guardedSalt = _efficientHash({ a: bytes32(block.chainid), b: salt });
+        } else if (senderBytes == SenderBytes.ZeroAddress && redeployProtectionFlag == RedeployProtectionFlag.Unspecified)
+        {
             // Reverts if the 21st byte is greater than `0x01` in order to enforce developer explicitness.
-            revert InvalidSalt({emitter: _SELF});
+            revert InvalidSalt({ emitter: _SELF });
         } else {
             // For the non-pseudo-random cases, the salt value `salt` is hashed to prevent the safeguard mechanisms
             // from being bypassed. Otherwise, the salt value `salt` is not modified.
@@ -919,9 +953,11 @@ contract CreateX {
      * @return redeployProtectionFlag The 8-byte enum for the selection of a cross-chain redeploy
      * protection.
      */
-    function _parseSalt(
-        bytes32 salt
-    ) internal view returns (SenderBytes senderBytes, RedeployProtectionFlag redeployProtectionFlag) {
+    function _parseSalt(bytes32 salt)
+        internal
+        view
+        returns (SenderBytes senderBytes, RedeployProtectionFlag redeployProtectionFlag)
+    {
         if (address(bytes20(salt)) == msg.sender && bytes1(salt[20]) == hex"01") {
             (senderBytes, redeployProtectionFlag) = (SenderBytes.MsgSender, RedeployProtectionFlag.True);
         } else if (address(bytes20(salt)) == msg.sender && bytes1(salt[20]) == hex"00") {
@@ -1000,7 +1036,7 @@ contract CreateX {
         // protect against unexpected chain behaviour or a hypothetical compiler bug that doesn't surface
         // the call success status properly.
         if (!success || newContract == address(0) || newContract.code.length == 0) {
-            revert FailedContractCreation({emitter: _SELF});
+            revert FailedContractCreation({ emitter: _SELF });
         }
     }
 
@@ -1010,7 +1046,7 @@ contract CreateX {
      */
     function _requireSuccessfulContractCreation(address newContract) internal view {
         if (newContract == address(0) || newContract.code.length == 0) {
-            revert FailedContractCreation({emitter: _SELF});
+            revert FailedContractCreation({ emitter: _SELF });
         }
     }
 
@@ -1024,9 +1060,12 @@ contract CreateX {
         bool success,
         bytes memory returnData,
         address implementation
-    ) internal view {
+    )
+        internal
+        view
+    {
         if (!success || implementation.code.length == 0) {
-            revert FailedContractInitialisation({emitter: _SELF, revertData: returnData});
+            revert FailedContractInitialisation({ emitter: _SELF, revertData: returnData });
         }
     }
 }

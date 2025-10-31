@@ -6,7 +6,6 @@ node_modules
 out
 docs
 storageLayout
-.husky
 deployments
 .yarn
 
@@ -17,7 +16,6 @@ deployments
 .pnp.*
 lcov.info
 package-lock.json
-pnpm-lock.yaml
 # yarn.lock
 *.bak
 
@@ -26,6 +24,7 @@ pnpm-lock.yaml
 broadcast/*
 broadcast/*/31337/
 
+# basic
 node_modules
 .env
 
@@ -44,7 +43,16 @@ node_modules
 
 # Foundry cache
 cache_forge/solidity-files-cache.json
-.vscode/settings.json
 
 artifacts
 .states
+
+# Claude
+.claude
+CLAUDE.MD
+
+# VSCode
+.vscode
+
+# Solhint
+solhint-report.txt

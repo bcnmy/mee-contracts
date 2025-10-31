@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
-import {RLPReader as RLPDecoder} from "rlp-reader/RLPReader.sol";
-import {RLPEncoder} from "../rlp/RLPEncoder.sol";
-import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
-import {EcdsaLib} from "../util/EcdsaLib.sol";
-import {BytesLib} from "byteslib/BytesLib.sol";
-import "account-abstraction/core/Helpers.sol";
+import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
+import { RLPReader as RLPDecoder } from "rlp-reader/RLPReader.sol";
+import { RLPEncoder } from "../rlp/RLPEncoder.sol";
+import { MEEUserOpHashLib } from "../util/MEEUserOpHashLib.sol";
+import { EcdsaLib } from "../util/EcdsaLib.sol";
+import { BytesLib } from "byteslib/BytesLib.sol";
+import { SIG_VALIDATION_FAILED, _packValidationData } from "account-abstraction/core/Helpers.sol";
+import { EfficientHashLib } from "solady/utils/EfficientHashLib.sol";
 
 /**
  * @dev Library to validate the signature for MEE on-chain Txn mode
@@ -33,15 +34,18 @@ import "account-abstraction/core/Helpers.sol";
  *           and are just appended at the end.
  */
 library TxValidatorLib {
-    uint8 constant LEGACY_TX_TYPE = 0x00;
-    uint8 constant EIP1559_TX_TYPE = 0x02;
+    error TxDecoder_CallDataLengthTooShort();
+    error TxValidatorLib_UnsupportedTxType();
 
-    uint8 constant EIP_155_MIN_V_VALUE = 37;
-    uint8 constant HASH_BYTE_SIZE = 32;
+    uint8 internal constant LEGACY_TX_TYPE = 0x00;
+    uint8 internal constant EIP1559_TX_TYPE = 0x02;
 
-    uint8 constant TIMESTAMP_BYTE_SIZE = 6;
-    uint8 constant PROOF_ITEM_BYTE_SIZE = 32;
-    uint8 constant ITX_HASH_BYTE_SIZE = 32;
+    uint8 internal constant EIP_155_MIN_V_VALUE = 37;
+    uint8 internal constant HASH_BYTE_SIZE = 32;
+
+    uint8 internal constant TIMESTAMP_BYTE_SIZE = 6;
+    uint8 internal constant PROOF_ITEM_BYTE_SIZE = 32;
+    uint8 internal constant ITX_HASH_BYTE_SIZE = 32;
 
     using RLPDecoder for RLPDecoder.RLPItem;
     using RLPDecoder for bytes;
@@ -102,7 +106,11 @@ library TxValidatorLib {
      *                        already contains 0x02 prefix.
      * @param expectedSigner Expected EOA signer of the given EVM transaction => superTX.
      */
-    function validateUserOp(bytes32 userOpHash, bytes calldata parsedSignature, address expectedSigner)
+    function validateUserOp(
+        bytes32 userOpHash,
+        bytes calldata parsedSignature,
+        address expectedSigner
+    )
         internal
         view
         returns (uint256)
@@ -117,7 +125,7 @@ library TxValidatorLib {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, meeUserOpHash)) {
+        if (!MerkleProofLib.verify(decodedTx.proof, decodedTx.superTxHash, meeUserOpHash)) {
             return SIG_VALIDATION_FAILED;
         }
 
@@ -132,7 +140,11 @@ library TxValidatorLib {
      * @param parsedSignature the signature to be validated
      * @return true if the signature is valid, false otherwise
      */
-    function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes calldata parsedSignature)
+    function validateSignatureForOwner(
+        address expectedSigner,
+        bytes32 dataHash,
+        bytes calldata parsedSignature
+    )
         internal
         view
         returns (bool)
@@ -145,7 +157,7 @@ library TxValidatorLib {
             return false;
         }
 
-        if (!MerkleProof.verify(decodedTx.proof, decodedTx.superTxHash, dataHash)) {
+        if (!MerkleProofLib.verify(decodedTx.proof, decodedTx.superTxHash, dataHash)) {
             return false;
         }
         return true;
@@ -168,7 +180,9 @@ library TxValidatorLib {
             v: _adjustV(params.v),
             r: params.r,
             s: params.s,
-            utxHash: calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
+            utxHash: calculateUnsignedTxHash(
+                txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s
+            ),
             superTxHash: extractAppendedHash(params.callData),
             proof: extractProof(self, proofItemsCount),
             lowerBoundTimestamp: lowerBoundTimestamp,
@@ -190,13 +204,18 @@ library TxValidatorLib {
             v: _adjustV(params.v),
             r: params.r,
             s: params.s,
-            utxHash: calculateUnsignedTxHash(txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s),
+            utxHash: calculateUnsignedTxHash(
+                txType, rlpEncodedTx, parsedRlpEncodedTx.payloadLen(), params.v, params.r, params.s
+            ),
             superTxHash: extractAppendedHash(params.callData),
             proof: extractProofShort(self, proofItemsCount)
         });
     }
 
-    function extractParams(uint8 txType, RLPDecoder.RLPItem[] memory items)
+    function extractParams(
+        uint8 txType,
+        RLPDecoder.RLPItem[] memory items
+    )
         private
         pure
         returns (TxParams memory params)
@@ -217,7 +236,7 @@ library TxValidatorLib {
             rPos = 10;
             sPos = 11;
         } else {
-            revert("TxValidatorLib:: unsupported evm tx type");
+            revert TxValidatorLib_UnsupportedTxType();
         }
 
         return TxParams(
@@ -226,15 +245,11 @@ library TxValidatorLib {
     }
 
     function extractAppendedHash(bytes memory callData) private pure returns (bytes32 iTxHash) {
-        if (callData.length < ITX_HASH_BYTE_SIZE) revert("TxDecoder:: callData length too short");
+        if (callData.length < ITX_HASH_BYTE_SIZE) revert TxDecoder_CallDataLengthTooShort();
         iTxHash = bytes32(callData.slice(callData.length - ITX_HASH_BYTE_SIZE, ITX_HASH_BYTE_SIZE));
     }
 
-    function extractProof(bytes calldata signedTx, uint8 proofItemsCount)
-        private
-        pure
-        returns (bytes32[] memory proof)
-    {
+    function extractProof(bytes calldata signedTx, uint8 proofItemsCount) private pure returns (bytes32[] memory proof) {
         proof = new bytes32[](proofItemsCount);
         uint256 pos = signedTx.length - 2 * TIMESTAMP_BYTE_SIZE - 1;
         for (proofItemsCount; proofItemsCount > 0; proofItemsCount--) {
@@ -243,7 +258,10 @@ library TxValidatorLib {
         }
     }
 
-    function extractProofShort(bytes calldata signedTx, uint8 proofItemsCount)
+    function extractProofShort(
+        bytes calldata signedTx,
+        uint8 proofItemsCount
+    )
         private
         pure
         returns (bytes32[] memory proof)
@@ -263,31 +281,33 @@ library TxValidatorLib {
         uint256 v,
         bytes32 r,
         bytes32 s
-    ) private pure returns (bytes32 hash) {
+    )
+        private
+        pure
+        returns (bytes32 hash)
+    {
         uint256 totalSignatureSize =
             uint256(r).encodeUint().length + uint256(s).encodeUint().length + v.encodeUint().length;
         uint256 totalPrefixSize = rlpEncodedTx.length - rlpEncodedTxPayloadLen;
         bytes memory rlpEncodedTxNoSigAndPrefix =
             rlpEncodedTx.slice(totalPrefixSize, rlpEncodedTx.length - totalSignatureSize - totalPrefixSize);
         if (txType == EIP1559_TX_TYPE) {
-            return keccak256(abi.encodePacked(txType, prependRlpContentSize(rlpEncodedTxNoSigAndPrefix, "")));
+            return EfficientHashLib.hash(abi.encodePacked(txType, prependRlpContentSize(rlpEncodedTxNoSigAndPrefix, "")));
         } else if (txType == LEGACY_TX_TYPE) {
             if (v >= EIP_155_MIN_V_VALUE) {
-                return keccak256(
+                return EfficientHashLib.hash(
                     prependRlpContentSize(
                         rlpEncodedTxNoSigAndPrefix,
                         abi.encodePacked(
-                            uint256(_extractChainIdFromV(v)).encodeUint(),
-                            uint256(0).encodeUint(),
-                            uint256(0).encodeUint()
+                            uint256(_extractChainIdFromV(v)).encodeUint(), uint256(0).encodeUint(), uint256(0).encodeUint()
                         )
                     )
                 );
             } else {
-                return keccak256(prependRlpContentSize(rlpEncodedTxNoSigAndPrefix, ""));
+                return EfficientHashLib.hash(prependRlpContentSize(rlpEncodedTxNoSigAndPrefix, ""));
             }
         } else {
-            revert("TxValidatorLib:: unsupported tx type");
+            revert TxValidatorLib_UnsupportedTxType();
         }
     }
 

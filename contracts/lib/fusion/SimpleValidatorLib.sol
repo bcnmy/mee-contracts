@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
-import {EcdsaLib} from "../util/EcdsaLib.sol";
-import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
-import "account-abstraction/core/Helpers.sol";
+import { EcdsaLib } from "../util/EcdsaLib.sol";
+import { MEEUserOpHashLib } from "../util/MEEUserOpHashLib.sol";
+import { SIG_VALIDATION_FAILED, _packValidationData } from "account-abstraction/core/Helpers.sol";
+import { UserOperationLib } from "account-abstraction/core/UserOperationLib.sol";
+// solhint-disable-next-line no-unused-import
+import { HashLib, STATIC_HEAD_LENGTH } from "../util/HashLib.sol";
 
 /**
  * @dev Library to validate the signature for MEE Simple mode
@@ -12,89 +14,102 @@ import "account-abstraction/core/Helpers.sol";
  */
 library SimpleValidatorLib {
     /**
-     * This function parses the given userOpSignature into a Supertransaction signature
-     *
-     * Once parsed, the function will check for two conditions:
-     *      1. is the root supertransaction hash signed by the account owner's EOA
-     *      2. is the userOp actually a part of the given supertransaction
-     *      by checking the leaf based on this userOpHash is a part of the merkle tree represented by root hash = superTxHash
-     *
-     * If both conditions are met - outside contract can be sure that the expected signer has indeed
-     * approved the given userOp - and the userOp is successfully validate.
+     * This function validates the signature for the MEE Simple mode
+     * 1. Parse the signature data
+     * 2. Compare the current item (mee user op) hash with the item hash at the index in the itemHashes array
+     * 3. Get the superTx hash as per EIP-712
+     * 4. Validate the signature against the superTx hash
      *
      * @param userOpHash UserOp hash being validated.
      * @param signatureData Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
      * @param expectedSigner Signer expected to be recovered when decoding the ERC20OPermit signature.
      */
-    function validateUserOp(bytes32 userOpHash, bytes calldata signatureData, address expectedSigner)
+    // solhint-disable-next-line gas-named-return-values
+    function validateUserOp(
+        bytes32 userOpHash,
+        bytes calldata signatureData,
+        address expectedSigner
+    )
         internal
         view
         returns (uint256)
     {
-        bytes32 superTxHash;
-        uint48 lowerBoundTimestamp;
-        uint48 upperBoundTimestamp;
-        bytes32[] calldata proof;
-        bytes calldata secp256k1Signature;
+        /*
+         * packedSignatureData layout :
+         * ======== static head part : 0x61 (97) bytes========
+         * ... static head part ...
+         * ======== static tail for simple mode =====
+         * uint256 = 32 bytes : packedTimestamps
+         * packedTimestamps is expected to be in the following format:
+         * lowerBoundTimestamp in the most significant 128 bits (left)
+         * upperBoundTimestamp in the least significant 128 bits (right)
+         * ======== dynamic tail  ==========
+         * ... dynamic tail ...
+         */
+        (bytes32 outerTypeHash, uint256 itemIndex, bytes32[] calldata itemHashes, bytes calldata signature) =
+            HashLib.parsePackedSigDataHead(signatureData);
 
+        bytes32 packedTimestamps;
         assembly {
-            superTxHash := calldataload(signatureData.offset)
-            lowerBoundTimestamp := calldataload(add(signatureData.offset, 0x20))
-            upperBoundTimestamp := calldataload(add(signatureData.offset, 0x40))
-            let u := calldataload(add(signatureData.offset, 0x60))
-            let s := add(signatureData.offset, u)
-            proof.offset := add(s, 0x20)
-            proof.length := calldataload(s)
-            u := mul(proof.length, 0x20)
-            s := add(proof.offset, u)
-            secp256k1Signature.offset := add(s, 0x20)
-            secp256k1Signature.length := calldataload(s)
+            packedTimestamps := calldataload(add(signatureData.offset, STATIC_HEAD_LENGTH))
         }
+        (uint256 lowerBoundTimestamp, uint256 upperBoundTimestamp) = UserOperationLib.unpackUints(packedTimestamps);
 
-        bytes32 leaf = MEEUserOpHashLib.getMEEUserOpHash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
-        if (!EcdsaLib.isValidSignature(expectedSigner, superTxHash, secp256k1Signature)) {
+        bytes32 currentItemHash =
+            MEEUserOpHashLib.getMeeUserOpEip712Hash(userOpHash, lowerBoundTimestamp, upperBoundTimestamp);
+
+        bytes32 superTxEip712Hash = HashLib.compareAndGetFinalHash(outerTypeHash, currentItemHash, itemIndex, itemHashes);
+        if (superTxEip712Hash == bytes32(0)) {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(proof, superTxHash, leaf)) {
+        if (!EcdsaLib.isValidSignature(expectedSigner, superTxEip712Hash, signature)) {
             return SIG_VALIDATION_FAILED;
         }
 
-        return _packValidationData(false, upperBoundTimestamp, lowerBoundTimestamp);
+        return _packValidationData(false, uint48(upperBoundTimestamp), uint48(lowerBoundTimestamp));
     }
 
     /**
      * @notice Validates the signature against the expected signer (owner)
+     * @dev In this case everything is even simpler, as this interface expects
+     * a ready hash to be provided as dataHash, we do not need to rehash
+     * Task to rehash data and provide the dataHash lies on the protocol,
+     * that requests isValidSignature/validateSignatureWithData
+     *
+     * @dev What we expect is that dataHash is a properly made in according to
+     * the algorithm of getting the superTxEip712Hash.
+     * Since this is the hash of the superTx entry, and superTx is a struct,
+     * and the entry is a struct as well, according to EIP-712,
+     * "the struct values are encoded recursively as hashStruct(value)".
+     * So when the SuperTx data struct is hashed as per eip-712 on front-end,
+     * the inner structs are also hashed as hashStruct(s : 𝕊) = keccak256(typeHash ‖ encodeData(s))
+     * So this function expects protocol to build `dataHash` as describe above.
+     * Which will be true for most cases.
+     *
      * @param owner Signer expected to be recovered
-     * @param dataHash data hash being validated.
+     * @param dataHash the hash of the superTx entry that is being validated
      * @param signatureData Signature
      */
-    function validateSignatureForOwner(address owner, bytes32 dataHash, bytes calldata signatureData)
+    // solhint-disable-next-line gas-named-return-values
+    function validateSignatureForOwner(
+        address owner,
+        bytes32 dataHash,
+        bytes calldata signatureData
+    )
         internal
         view
         returns (bool)
     {
-        bytes32 superTxHash;
-        bytes32[] calldata proof;
-        bytes calldata secp256k1Signature;
+        (bytes32 outerTypeHash, uint256 itemIndex, bytes32[] calldata itemHashes, bytes calldata signature) =
+            HashLib.parsePackedSigDataHead(signatureData);
 
-        assembly {
-            superTxHash := calldataload(signatureData.offset)
-            let u := calldataload(add(signatureData.offset, 0x20))
-            let s := add(signatureData.offset, u)
-            proof.offset := add(s, 0x20)
-            proof.length := calldataload(s)
-            u := mul(proof.length, 0x20)
-            s := add(proof.offset, u)
-            secp256k1Signature.offset := add(s, 0x20)
-            secp256k1Signature.length := calldataload(s)
-        }
-
-        if (!EcdsaLib.isValidSignature(owner, superTxHash, secp256k1Signature)) {
+        bytes32 superTxEip712Hash = HashLib.compareAndGetFinalHash(outerTypeHash, dataHash, itemIndex, itemHashes);
+        if (superTxEip712Hash == bytes32(0)) {
             return false;
         }
 
-        if (!MerkleProof.verify(proof, superTxHash, dataHash)) {
+        if (!EcdsaLib.isValidSignature(owner, superTxEip712Hash, signature)) {
             return false;
         }
 

@@ -1,0 +1,36 @@
+#!/usr/bin/env sh
+
+# Get list of staged files
+STAGED_FILES=$(git diff --cached --name-only)
+
+# Run formatter
+forge fmt
+
+# Re-stage only the files that were originally staged
+for file in $STAGED_FILES; do
+  if [ -f "$file" ]; then
+    git add "$file"
+  fi
+done
+
+# Run Solhint and only output Errors, not warnings via awk
+ERROR_OUTPUT=$(pnpm lint | awk '
+/\.sol$/ { current_file = $0 }
+/error/ && !/problems.*error/ { 
+    if (current_file && !file_printed[current_file]) {
+        print current_file
+        file_printed[current_file] = 1
+    }
+    print $0
+}
+')
+
+# Count error lines
+ERROR_COUNT=$(pnpm lint | grep "error" | grep -v "problems.*error" | wc -l)
+
+# If there are some error lines, show errors and exit
+if [ "$ERROR_COUNT" -gt 0 ]; then
+  echo "Solhint found errors, please fix them before committing"
+  echo "$ERROR_OUTPUT"
+  exit 1
+fi

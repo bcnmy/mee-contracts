@@ -8,7 +8,6 @@ pragma solidity ^0.8.27;
 contract EtherForwarder {
     error ZeroAddress();
     error ForwardFailed();
-    error UseForwardFunction();
 
     /**
      * @dev Forwards the received Ether to the specified destination address
@@ -38,15 +37,19 @@ contract EtherForwarder {
 
     /**
      * @dev Prevents accidental Ether transfers without a destination
+     * intentionally using sting and not a custom error here
      */
     receive() external payable {
+        // solhint-disable-next-line gas-custom-errors, reason-string, gas-small-strings
         revert("Use forward() function to send Ether");
     }
 
     /**
      * @dev Prevents accidental Ether transfers without a destination
+     * intentionally using sting and not a custom error here
      */
     fallback() external payable {
+        // solhint-disable-next-line gas-custom-errors, reason-string, gas-small-strings
         revert("Use forward() function to send Ether");
     }
 }

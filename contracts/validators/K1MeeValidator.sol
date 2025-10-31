@@ -2,11 +2,11 @@
 
 pragma solidity ^0.8.27;
 
-import {IValidator, MODULE_TYPE_VALIDATOR} from "erc7579/interfaces/IERC7579Module.sol";
-import {ISessionValidator} from "contracts/interfaces/ISessionValidator.sol";
-import {EnumerableSet} from "EnumerableSet4337/EnumerableSet4337.sol";
-import {PackedUserOperation} from "account-abstraction/interfaces/PackedUserOperation.sol";
-import {ERC7739Validator} from "erc7739Validator/ERC7739Validator.sol";
+import { IValidator, MODULE_TYPE_VALIDATOR } from "erc7579/interfaces/IERC7579Module.sol";
+import { ISessionValidator } from "contracts/interfaces/ISessionValidator.sol";
+import { EnumerableSet } from "EnumerableSet4337/EnumerableSet4337.sol";
+import { PackedUserOperation } from "account-abstraction/interfaces/PackedUserOperation.sol";
+import { ERC7739Validator } from "erc7739Validator/ERC7739Validator.sol";
 import {
     SIG_TYPE_SIMPLE,
     SIG_TYPE_ON_CHAIN,
@@ -17,11 +17,11 @@ import {
     SIG_TYPE_MEE_FLOW
 } from "contracts/types/Constants.sol";
 // Fusion libraries - validate userOp using on-chain tx or off-chain permit
-import {PermitValidatorLib} from "../lib/fusion/PermitValidatorLib.sol";
-import {TxValidatorLib} from "../lib/fusion/TxValidatorLib.sol";
-import {SimpleValidatorLib} from "../lib/fusion/SimpleValidatorLib.sol";
-import {NoMeeFlowLib} from "../lib/fusion/NoMeeFlowLib.sol";
-import {EcdsaLib} from "../lib/util/EcdsaLib.sol";
+import { PermitValidatorLib } from "../lib/fusion/PermitValidatorLib.sol";
+import { TxValidatorLib } from "../lib/fusion/TxValidatorLib.sol";
+import { SimpleValidatorLib } from "../lib/fusion/SimpleValidatorLib.sol";
+import { NoMeeFlowLib } from "../lib/fusion/NoMeeFlowLib.sol";
+import { EcdsaLib } from "../lib/util/EcdsaLib.sol";
 
 /**
  * @title K1MeeValidator
@@ -41,7 +41,6 @@ import {EcdsaLib} from "../lib/util/EcdsaLib.sol";
  *        In future full scale 7739 will replace it when superTx hash is 712 and transparent.
  *
  */
-
 contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     using EnumerableSet for EnumerableSet.AddressSet;
     /*//////////////////////////////////////////////////////////////////////////
@@ -49,7 +48,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     //////////////////////////////////////////////////////////////////////////*/
 
     uint256 private constant ENCODED_DATA_OFFSET = 4;
-    
+
     /// @notice Mapping of smart account addresses to their respective owner addresses
     mapping(address => address) public smartAccountOwners;
 
@@ -66,7 +65,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     error ModuleAlreadyInitialized();
 
     /// @notice Error to indicate that the new owner cannot be a contract address
-    error NewOwnerIsNotEOA();
+    error NewOwnerIsNotEoa();
 
     /// @notice Error to indicate that the owner cannot be the zero address
     error OwnerCannotBeZeroAddress();
@@ -91,8 +90,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         require(!_isInitialized(msg.sender), ModuleAlreadyInitialized());
         address newOwner = address(bytes20(data[:20]));
         require(newOwner != address(0), OwnerCannotBeZeroAddress());
-        if (_isNotEOA(newOwner)) {
-            revert NewOwnerIsNotEOA();
+        if (_isNotEoa(newOwner)) {
+            revert NewOwnerIsNotEoa();
         }
         smartAccountOwners[msg.sender] = newOwner;
         if (data.length > 20) {
@@ -112,8 +111,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @param newOwner The address of the new owner
     function transferOwnership(address newOwner) external {
         require(newOwner != address(0), ZeroAddressNotAllowed());
-        if (_isNotEOA(newOwner)) {
-            revert NewOwnerIsNotEOA();
+        if (_isNotEoa(newOwner)) {
+            revert NewOwnerIsNotEoa();
         }
         smartAccountOwners[msg.sender] = newOwner;
     }
@@ -160,32 +159,37 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
      *      MEE flow: [65 bytes node master signature] [4 bytes sigType] [encoded data for this validator]
      *      Non-MEE flow: [65 bytes regular secp256k1 sig]
      *
-     * @return uint256 the result of the signature validation, which can be:
+     * @return vd validation data = the result of the signature validation, which can be:
      *  - 0 if the signature is valid
      *  - 1 if the signature is invalid
      *  - <20-byte> aggregatorOrSigFail, <6-byte> validUntil and <6-byte> validAfter (see ERC-4337
      * for more details)
      */
-    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash)
+    function validateUserOp(
+        PackedUserOperation calldata userOp,
+        bytes32 userOpHash
+    )
         external
         override
-        returns (uint256)
-    {   
+        returns (uint256 vd)
+    {
         address owner = getOwner(userOp.sender);
         if (userOp.signature.length < ENCODED_DATA_OFFSET) {
             // if sig is short then we are sure it is a non-MEE flow
-            return NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
+            vd = NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
         } else {
             bytes4 sigType = bytes4(userOp.signature[0:ENCODED_DATA_OFFSET]);
             if (sigType == SIG_TYPE_SIMPLE) {
-                return SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
+                vd = SimpleValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else if (sigType == SIG_TYPE_ON_CHAIN) {
-                return TxValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length], owner);
+                vd = TxValidatorLib.validateUserOp(
+                    userOpHash, userOp.signature[ENCODED_DATA_OFFSET:userOp.signature.length], owner
+                );
             } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
-                return PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
+                vd = PermitValidatorLib.validateUserOp(userOpHash, userOp.signature[ENCODED_DATA_OFFSET:], owner);
             } else {
                 // fallback flow => non MEE flow => no prefix
-                return NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
+                vd = NoMeeFlowLib.validateUserOp(userOpHash, userOp.signature, owner);
             }
         }
     }
@@ -194,14 +198,18 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
      * Validates an ERC-1271 signature
      *
      * @param sender The sender of the ERC-1271 call to the account
-     * @param hash The hash of the message
+     * @param dataHash The hash of the message
      * @param signature The signature of the message
      *
      * @return sigValidationResult the result of the signature validation, which can be:
      *  - EIP1271_SUCCESS if the signature is valid
      *  - EIP1271_FAILED if the signature is invalid
      */
-    function isValidSignatureWithSender(address sender, bytes32 hash, bytes calldata signature)
+    function isValidSignatureWithSender(
+        address sender,
+        bytes32 dataHash,
+        bytes calldata signature
+    )
         external
         view
         virtual
@@ -209,16 +217,34 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
         returns (bytes4 sigValidationResult)
     {
         if (bytes3(signature[0:3]) != SIG_TYPE_MEE_FLOW) {
-            // Non MEE 7739 flow
+            // Non MEE flow => uses 7739
             // goes to ERC7739Validator to apply 7739 magic and then returns back
             // to this contract's _erc1271IsValidSignatureNowCalldata() method.
-            return _erc1271IsValidSignatureWithSender(sender, hash, _erc1271UnwrapSignature(signature));
+            return _erc1271IsValidSignatureWithSender(sender, dataHash, _erc1271UnwrapSignature(signature));
         } else {
-            // non-7739 flow
-            // hash the SA into the `hash` to protect against two SA's with same owner vector
-            return _validateSignatureForOwner(
-                getOwner(msg.sender), keccak256(abi.encodePacked(hash, msg.sender)), _erc1271UnwrapSignature(signature)
-            ) ? EIP1271_SUCCESS : EIP1271_FAILED;
+            // MEE flow:
+            // 1) in simple mode, domain separator used for 712 is the domain separator
+            // of the smart account, which includes the account address,
+            // so 7739 is not needed for simple mode
+            // 2) for permit mode and on-chain mode we still need the secure hash
+            bytes4 sigType = bytes4(signature[0:4]);
+            if (sigType == SIG_TYPE_ERC20_PERMIT || sigType == SIG_TYPE_ON_CHAIN) {
+                // since we do not know if the underlying hash is safe or not,
+                // and :
+                // - for permit mode it is blind anyways since it is packed into the deadline field
+                // - for on-chain mode it is blind anyways since it is packed into the txn data
+                // so we can hash the SA into the final hash to protect against two SA's with same owner vector
+                // dataHash = keccak256(abi.encodePacked(dataHash, msg.sender))
+                assembly {
+                    let ptr := mload(0x40)
+                    mstore(ptr, dataHash)
+                    mstore(add(ptr, 0x20), shl(96, caller()))
+                    dataHash := keccak256(ptr, 0x34)
+                }
+            }
+            return _validateSignatureForOwner(getOwner(msg.sender), dataHash, _erc1271UnwrapSignature(signature))
+                ? EIP1271_SUCCESS
+                : EIP1271_FAILED;
         }
     }
 
@@ -226,13 +252,17 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @param hash The hash of the data to validate
     /// @param sig The signature data
     /// @param data The data to validate against (owner address in this case)
-    function validateSignatureWithData(bytes32 hash, bytes calldata sig, bytes calldata data)
+    function validateSignatureWithData(
+        bytes32 hash,
+        bytes calldata sig,
+        bytes calldata data
+    )
         external
         view
-        returns (bool validSig)
+        returns (bool isValidSig)
     {
         require(data.length >= 20, InvalidDataLength());
-        return _validateSignatureForOwner(address(bytes20(data[:20])), hash, sig);
+        isValidSig = _validateSignatureForOwner(address(bytes20(data[:20])), hash, sig);
     }
 
     /**
@@ -259,9 +289,9 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @return The version of the module
     /// @dev
     /// - supports appended 65-bytes signature for on-chain fusion mode
-    /// - supports erc7702-delegated EOAs as owners  
+    /// - supports erc7702-delegated EOAs as owners
     function version() external pure returns (string memory) {
-        return "1.0.3";
+        return "1.0.4";
     }
 
     /// @notice Checks if the module is of the specified type
@@ -279,36 +309,41 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @param owner The address of the owner
     /// @param hash The hash of the data to validate
     /// @param signature The signature data
-    function _validateSignatureForOwner(address owner, bytes32 hash, bytes calldata signature)
+    function _validateSignatureForOwner(
+        address owner,
+        bytes32 hash,
+        bytes calldata signature
+    )
         internal
         view
-        returns (bool)
+        returns (bool isValidSig)
     {
         bytes4 sigType = bytes4(signature[0:4]);
 
         if (sigType == SIG_TYPE_SIMPLE) {
-            return SimpleValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
+            isValidSig = SimpleValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else if (sigType == SIG_TYPE_ON_CHAIN) {
-            return TxValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
+            isValidSig = TxValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else if (sigType == SIG_TYPE_ERC20_PERMIT) {
-            return PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
+            isValidSig = PermitValidatorLib.validateSignatureForOwner(owner, hash, signature[4:]);
         } else {
             // fallback flow => non MEE flow => no prefix
-            return NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
+            isValidSig = NoMeeFlowLib.validateSignatureForOwner(owner, hash, signature);
         }
     }
 
     /// @notice Checks if the smart account is initialized with an owner
     /// @param smartAccount The address of the smart account
-    /// @return True if the smart account has an owner, false otherwise
-    function _isInitialized(address smartAccount) private view returns (bool) {
-        return smartAccountOwners[smartAccount] != address(0);
+    /// @return isInitializedRet True if the smart account has an owner, false otherwise
+    function _isInitialized(address smartAccount) private view returns (bool isInitializedRet) {
+        isInitializedRet = smartAccountOwners[smartAccount] != address(0);
     }
 
     // @notice Fills the _safeSenders list from the given data
     function _fillSafeSenders(bytes calldata data) private {
-        require(data.length % 20 == 0, SafeSendersLengthInvalid());
-        for (uint256 i; i < data.length / 20; i++) {
+        uint256 length = data.length;
+        require(length % 20 == 0, SafeSendersLengthInvalid());
+        for (uint256 i; i < length / 20; ++i) {
             _safeSenders.add(msg.sender, address(bytes20(data[20 * i:20 * (i + 1)])));
         }
     }
@@ -316,7 +351,7 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     /// @notice Checks if the address is a contract
     /// @param account The address to check
     /// @return True if the address is a contract, false otherwise
-    function _isNotEOA(address account) private view returns (bool) {
+    function _isNotEoa(address account) private view returns (bool) {
         uint256 size;
         assembly {
             size := extcodesize(account)
@@ -329,14 +364,17 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     ///      Obtains the authorized signer's credentials and calls some
     ///      module's specific internal function to validate the signature
     ///      against credentials.
-    function _erc1271IsValidSignatureNowCalldata(bytes32 hash, bytes calldata signature)
+    function _erc1271IsValidSignatureNowCalldata(
+        bytes32 hash,
+        bytes calldata signature
+    )
         internal
         view
         override
-        returns (bool)
+        returns (bool isValidSig)
     {
         // call custom internal function to validate the signature against credentials
-        return EcdsaLib.isValidSignature(getOwner(msg.sender), hash, signature);
+        isValidSig = EcdsaLib.isValidSignature(getOwner(msg.sender), hash, signature);
     }
 
     /// @dev Returns whether the `sender` is considered safe, such
@@ -346,8 +384,8 @@ contract K1MeeValidator is IValidator, ISessionValidator, ERC7739Validator {
     // is known to include the account in the hash to be signed.
     // msg.sender = Smart Account
     // sender = 1271 og request sender
-    function _erc1271CallerIsSafe(address sender) internal view virtual override returns (bool) {
-        return (
+    function _erc1271CallerIsSafe(address sender) internal view virtual override returns (bool isCallerSafe) {
+        isCallerSafe = (
             sender == 0x000000000000D9ECebf3C23529de49815Dac1c4c // MulticallerWithSigner
                 || sender == msg.sender // Smart Account. Assume smart account never sends non safe eip-712 struct
                 || _safeSenders.contains(msg.sender, sender)

@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {MerkleProof} from "openzeppelin/utils/cryptography/MerkleProof.sol";
-import {EcdsaLib} from "../util/EcdsaLib.sol";
-import {MEEUserOpHashLib} from "../util/MEEUserOpHashLib.sol";
-import {IERC20Permit} from "openzeppelin/token/ERC20/extensions/IERC20Permit.sol";
-import {IERC20} from "openzeppelin/token/ERC20/IERC20.sol";
-import "account-abstraction/core/Helpers.sol";
+import { MerkleProofLib } from "solady/utils/MerkleProofLib.sol";
+import { EcdsaLib } from "../util/EcdsaLib.sol";
+import { MEEUserOpHashLib } from "../util/MEEUserOpHashLib.sol";
+import { ERC20 } from "solady/tokens/ERC20.sol";
+import { EfficientHashLib } from "solady/utils/EfficientHashLib.sol";
+import { SIG_VALIDATION_FAILED, _packValidationData } from "account-abstraction/core/Helpers.sol";
 
 /**
  * @dev Library to validate the signature for MEE ERC-2612 Permit mode
@@ -26,11 +25,12 @@ import "account-abstraction/core/Helpers.sol";
  *           phishing attempt (injecting super txn hash as the deadline) and the user should not sign the permit.
  *           This is going to be mitigated in the future by making superTx hash a EIP-712 hash.
  */
-bytes32 constant PERMIT_TYPEHASH =
-    keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+
+//keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+bytes32 constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
 
 struct DecodedErc20PermitSig {
-    IERC20Permit token;
+    ERC20 token;
     address spender;
     bytes32 domainSeparator;
     uint256 amount;
@@ -60,9 +60,9 @@ struct DecodedErc20PermitSigShort {
 library PermitValidatorLib {
     error PermitFailed();
 
-    uint8 constant EIP_155_MIN_V_VALUE = 37;
+    uint8 internal constant EIP_155_MIN_V_VALUE = 37;
 
-    using MessageHashUtils for bytes32;
+    using EcdsaLib for bytes32;
 
     /**
      * This function parses the given userOpSignature into a DecodedErc20PermitSig data structure.
@@ -72,7 +72,8 @@ library PermitValidatorLib {
      *      2. is the recovered message signer equal to the expected signer?
      *
      * NOTES: This function will revert if either of following is met:
-     *    1. the userOpSignature couldn't be abi.decoded into a valid DecodedErc20PermitSig struct as defined in this contract
+     *    1. the userOpSignature couldn't be abi.decoded into a valid DecodedErc20PermitSig struct as defined in this
+     * contract
      *    2. userOp is not part of the merkle tree
      *    3. recovered Permit message signer wasn't equal to the expected signer
      *
@@ -83,15 +84,18 @@ library PermitValidatorLib {
      * @param parsedSignature Signature provided as the userOp.signature parameter (minus the prepended tx type byte).
      * @param expectedSigner Signer expected to be recovered when decoding the ERC20OPermit signature.
      */
-    function validateUserOp(bytes32 userOpHash, bytes calldata parsedSignature, address expectedSigner)
+    function validateUserOp(
+        bytes32 userOpHash,
+        bytes calldata parsedSignature,
+        address expectedSigner
+    )
         internal
         returns (uint256)
     {
         DecodedErc20PermitSig memory decodedSig = _decodeFullPermitSig(parsedSignature);
 
-        bytes32 meeUserOpHash = MEEUserOpHashLib.getMEEUserOpHash(
-            userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp
-        );
+        bytes32 meeUserOpHash =
+            MEEUserOpHashLib.getMEEUserOpHash(userOpHash, decodedSig.lowerBoundTimestamp, decodedSig.upperBoundTimestamp);
 
         if (
             !EcdsaLib.isValidSignature(
@@ -103,7 +107,7 @@ library PermitValidatorLib {
             return SIG_VALIDATION_FAILED;
         }
 
-        if (!MerkleProof.verify(decodedSig.proof, decodedSig.superTxHash, meeUserOpHash)) {
+        if (!MerkleProofLib.verify(decodedSig.proof, decodedSig.superTxHash, meeUserOpHash)) {
             return SIG_VALIDATION_FAILED;
         }
 
@@ -120,8 +124,7 @@ library PermitValidatorLib {
                 // all good
             } catch {
                 // check if by some reason this permit was already successfully used (and not spent yet)
-                if (IERC20(address(decodedSig.token)).allowance(expectedSigner, decodedSig.spender) < decodedSig.amount)
-                {
+                if (ERC20(address(decodedSig.token)).allowance(expectedSigner, decodedSig.spender) < decodedSig.amount) {
                     // if the above expectationis not true, revert
                     revert PermitFailed();
                 }
@@ -131,7 +134,11 @@ library PermitValidatorLib {
         return _packValidationData(false, decodedSig.upperBoundTimestamp, decodedSig.lowerBoundTimestamp);
     }
 
-    function validateSignatureForOwner(address expectedSigner, bytes32 dataHash, bytes calldata parsedSignature)
+    function validateSignatureForOwner(
+        address expectedSigner,
+        bytes32 dataHash,
+        bytes calldata parsedSignature
+    )
         internal
         view
         returns (bool)
@@ -148,7 +155,7 @@ library PermitValidatorLib {
             return false;
         }
 
-        if (!MerkleProof.verify(decodedSig.proof, decodedSig.superTxHash, dataHash)) {
+        if (!MerkleProofLib.verify(decodedSig.proof, decodedSig.superTxHash, dataHash)) {
             return false;
         }
 
@@ -177,37 +184,60 @@ library PermitValidatorLib {
         return decodedSig;
     }
 
-    function _getSignedDataHash(address expectedSigner, DecodedErc20PermitSig memory decodedSig)
+    function _getSignedDataHash(
+        address expectedSigner,
+        DecodedErc20PermitSig memory decodedSig
+    )
         private
         pure
         returns (bytes32)
     {
-        uint256 deadline = uint256(decodedSig.superTxHash);
-
-        bytes32 structHash = keccak256(
-            abi.encode(
-                PERMIT_TYPEHASH, expectedSigner, decodedSig.spender, decodedSig.amount, decodedSig.nonce, deadline
-            )
+        return _hashTypedData(
+            _hashPermitDataStruct(
+                expectedSigner, decodedSig.spender, decodedSig.amount, decodedSig.nonce, decodedSig.superTxHash
+            ),
+            decodedSig.domainSeparator
         );
-        return _hashTypedData(structHash, decodedSig.domainSeparator);
     }
 
-    function _getSignedDataHash(address expectedSigner, DecodedErc20PermitSigShort memory decodedSig)
+    function _getSignedDataHash(
+        address expectedSigner,
+        DecodedErc20PermitSigShort memory decodedSig
+    )
         private
         pure
         returns (bytes32)
     {
-        uint256 deadline = uint256(decodedSig.superTxHash);
-
-        bytes32 structHash = keccak256(
-            abi.encode(
-                PERMIT_TYPEHASH, expectedSigner, decodedSig.spender, decodedSig.amount, decodedSig.nonce, deadline
-            )
+        return _hashTypedData(
+            _hashPermitDataStruct(
+                expectedSigner, decodedSig.spender, decodedSig.amount, decodedSig.nonce, decodedSig.superTxHash
+            ),
+            decodedSig.domainSeparator
         );
-        return _hashTypedData(structHash, decodedSig.domainSeparator);
+    }
+
+    function _hashPermitDataStruct(
+        address expectedSigner,
+        address spender,
+        uint256 amount,
+        uint256 nonce,
+        bytes32 superTxHash
+    )
+        private
+        pure
+        returns (bytes32)
+    {
+        return EfficientHashLib.hash(
+            uint256(PERMIT_TYPEHASH),
+            uint256(uint160(expectedSigner)),
+            uint256(uint160(spender)),
+            amount,
+            nonce,
+            uint256(superTxHash)
+        );
     }
 
     function _hashTypedData(bytes32 structHash, bytes32 domainSeparator) private pure returns (bytes32) {
-        return MessageHashUtils.toTypedDataHash(domainSeparator, structHash);
+        return EcdsaLib.toTypedDataHash(domainSeparator, structHash);
     }
 }

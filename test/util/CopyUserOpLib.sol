@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.27;
 
-import {PackedUserOperation} from "account-abstraction/core/UserOperationLib.sol";
+import { PackedUserOperation } from "account-abstraction/core/UserOperationLib.sol";
 
 /*
 struct PackedUserOperation {
@@ -18,7 +18,7 @@ struct PackedUserOperation {
 */
 
 library CopyUserOpLib {
-    function deepCopy(PackedUserOperation memory userOp) internal view returns (PackedUserOperation memory newUserOp) {
+    function deepCopy(PackedUserOperation memory userOp) internal pure returns (PackedUserOperation memory newUserOp) {
         // copy every field of packedUserOp
         newUserOp.sender = userOp.sender;
         newUserOp.nonce = userOp.nonce;
