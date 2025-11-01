@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import { Script, console } from "forge-std/Script.sol";
 
-import { CreateX } from "../src/CreateX.sol";
+import { CreateX } from "./CreateX.sol";
 
 contract DeployDisperse is Script {
     bytes32 public constant DISPERSE_SALT = 0xfd73487f4e6544007a3ce4000000000000000000000000000000000000000000;

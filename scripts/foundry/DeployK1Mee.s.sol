@@ -2,9 +2,9 @@
 pragma solidity ^0.8.13;
 
 import { Script, console2 } from "node_modules/forge-std/src/Script.sol";
-import { K1MeeValidator } from "../../../contracts/validators/K1MeeValidator.sol";
+import { K1MeeValidator } from "../../contracts/validators/K1MeeValidator.sol";
 import { DeterministicDeployerLib } from "./utils/DeterministicDeployerLib.sol";
-import { NodePaymaster } from "../../../contracts/NodePaymaster.sol";
+import { NodePaymaster } from "../../contracts/NodePaymaster.sol";
 
 contract DeployK1 is Script {
     address constant ENTRY_POINT_V07 = 0x0000000071727De22E5E9d8BAf0edAc6f37da032;
@@ -12,8 +12,8 @@ contract DeployK1 is Script {
 
     address constant ATTESTER_ADDRESS = 0xF9ff902Cdde729b47A4cDB55EF16DF3683a04EAB; // Biconomy Attester
 
-    bytes32 constant MEE_K1_VALIDATOR_SALT = 0x0000000000000000000000000000000000000000a3b0fcb33981d5004c69f6cc; //=>
-        // 0x0000000031ef4155C978d48a8A7d4EDba03b04fE;
+    bytes32 constant MEE_K1_VALIDATOR_SALT = 0x00000000000000000000000000000000000000005ec01b7f9f6e300427d823ea; //=>
+        // 0x00000002987de8E966e1202534f018B028384eaC;
     bytes32 constant ETH_FORWARDER_SALT = 0x0000000000000000000000000000000000000000f9941fb84509c0031a6fc104; //=>
         // 0x000000Afe527A978Ecb761008Af475cfF04132a1;
 

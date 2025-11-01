@@ -1,20 +1,202 @@
-# TESTNETS
-#printf '%s\n' n y n | bash deploy-mee.sh testnet sepolia
-#printf '%s\n' n y n | bash deploy-mee.sh testnet base-sepolia
-#printf '%s\n' n y n | bash deploy-mee.sh testnet scroll-sepolia
-printf '%s\n' n y n | bash deploy-mee.sh testnet arbitrum-sepolia
-#printf '%s\n' n y n | bash deploy-mee.sh testnet bsc-testnet
-#{ (printf '%s\n' n y n | bash deploy-mee.sh testnet gnosis-chiado) } || { (printf "Gnosis chiado :: probably errors => check logs\n") }
-printf '%s\n' n y n | bash deploy-mee.sh testnet amoy
-#printf '%s\n' n y n | bash deploy-mee.sh testnet optimism-sepolia
-#{ (printf '%s\n' n y n | bash deploy-mee.sh testnet berachain-bartio) } || { (printf "Berachain bartio :: probably errors => check logs\n") }
+#!/bin/bash
 
+# K1 Validator Multi-Chain Deployment Script
+# This script deploys K1MeeValidator to multiple testnets/mainnets and tracks failures
+#
+# Usage:
+#   bash nyn.sh                    # Deploy to all testnets (default)
+#   bash nyn.sh testnets           # Deploy to all testnets
+#   bash nyn.sh mainnets           # Deploy to all mainnets
+#   bash nyn.sh sepolia base       # Deploy to specific chains
 
-# MAINNETS
-#printf '%s\n' n y n | bash deploy-mee.sh mainnet base
-#printf '%s\n' n y n | bash deploy-mee.sh mainnet scroll
-#printf '%s\n' n y n | bash deploy-mee.sh mainnet gnosis
-#printf '%s\n' n y n | bash deploy-mee.sh mainnet bsc
-printf '%s\n' n y n | bash deploy-mee.sh mainnet arbitrum
-printf '%s\n' n y n | bash deploy-mee.sh mainnet polygon
-#printf '%s\n' n y n | bash deploy-mee.sh mainnet optimism
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Arrays to track results
+SUCCESSFUL_CHAINS=()
+FAILED_CHAINS=()
+SKIPPED_CHAINS=()
+
+# Start time
+START_TIME=$(date +%s)
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+
+# Determine environment (default: testnet)
+ENVIRONMENT="testnet"
+DEPLOY_MODE="testnets"
+
+# Parse first argument to determine mode
+if [ ! -z "$1" ]; then
+    if [ "$1" = "mainnets" ]; then
+        ENVIRONMENT="mainnet"
+        DEPLOY_MODE="mainnets"
+        shift # Remove first argument
+    elif [ "$1" = "testnets" ]; then
+        ENVIRONMENT="testnet"
+        DEPLOY_MODE="testnets"
+        shift # Remove first argument
+    else
+        # If first arg is not mainnets/testnets, treat all args as specific chains
+        ENVIRONMENT="testnet"
+        DEPLOY_MODE="custom"
+    fi
+fi
+
+echo -e "${BLUE}========================================${NC}"
+echo -e "${BLUE}K1 Validator Multi-Chain Deployment${NC}"
+echo -e "${BLUE}Environment: ${ENVIRONMENT}${NC}"
+echo -e "${BLUE}Started at: $(date)${NC}"
+echo -e "${BLUE}========================================${NC}\n"
+
+# Create logs directory
+mkdir -p ./logs/multi-deploy-$TIMESTAMP
+
+# Function to deploy to a single chain
+deploy_to_chain() {
+    local chain=$1
+    local env=$2
+    echo -e "\n${YELLOW}>>> Deploying to: $chain ($env)${NC}"
+    echo ">>> Started at: $(date)" | tee -a ./logs/multi-deploy-$TIMESTAMP/summary.log
+
+    # Run deployment (n = don't rebuild, y = proceed, n = no custom gas)
+    if printf '%s\n' n y n | bash deploy-k1.sh $env $chain >> ./logs/multi-deploy-$TIMESTAMP/${chain}.log 2>&1; then
+        echo -e "${GREEN}✓ SUCCESS: $chain${NC}" | tee -a ./logs/multi-deploy-$TIMESTAMP/summary.log
+        SUCCESSFUL_CHAINS+=("$chain")
+        return 0
+    else
+        echo -e "${RED}✗ FAILED: $chain${NC}" | tee -a ./logs/multi-deploy-$TIMESTAMP/summary.log
+        FAILED_CHAINS+=("$chain")
+        return 1
+    fi
+}
+
+# List of all testnets from foundry.toml
+TESTNETS=(
+    # Ethereum testnets
+    "sepolia"
+    "base-sepolia"
+    "amoy"
+    "arbitrum-sepolia"
+    "optimism-sepolia"
+    "bsc-testnet"
+    "sonic-blaze-testnet"
+    "scroll-sepolia"
+    "gnosis-chiado"
+    "fuji"
+    "apechain-testnet"
+    "coredao-testnet"
+    "neura-testnet"
+    "sei-testnet"
+    "unichain-testnet"
+    "worldchain-testnet"
+    "fluent-testnet"
+    "monad-testnet"
+    "plasma-testnet"
+    "sophon-zk-testnet"
+    "arc-testnet"
+)
+
+# List of all mainnets from foundry.toml
+MAINNETS=(
+    "mainnet"
+    "base"
+    "polygon"
+    "arbitrum"
+    "optimism"
+    "bsc"
+    "sonic-mainnet"
+    "scroll"
+    "gnosis"
+    "avalanche"
+    "apechain"
+    "hyperevm"
+    "sei-mainnet"
+    "unichain-mainnet"
+    "katana-mainnet"
+    "lisk-mainnet"
+    "worldchain-mainnet"
+    "monad-mainnet"
+    "plasma-mainnet"
+)
+
+# Select which chains to deploy based on mode
+CHAINS_TO_DEPLOY=()
+
+if [ "$DEPLOY_MODE" = "mainnets" ]; then
+    CHAINS_TO_DEPLOY=("${MAINNETS[@]}")
+    echo -e "${YELLOW}Deploying to ALL MAINNETS${NC}"
+    echo -e "${RED}WARNING: You are about to deploy to production networks!${NC}"
+    echo -e "${RED}Press Ctrl+C within 10 seconds to cancel...${NC}\n"
+    sleep 10
+elif [ "$DEPLOY_MODE" = "testnets" ]; then
+    CHAINS_TO_DEPLOY=("${TESTNETS[@]}")
+    echo -e "${YELLOW}Deploying to all testnets${NC}\n"
+elif [ "$DEPLOY_MODE" = "custom" ]; then
+    CHAINS_TO_DEPLOY=("$@")
+    echo -e "${YELLOW}Deploying to specific chains: $@${NC}\n"
+fi
+
+# Deploy to all selected chains
+for chain in "${CHAINS_TO_DEPLOY[@]}"; do
+    deploy_to_chain "$chain" "$ENVIRONMENT"
+    # Small delay between deployments
+    sleep 2
+done
+
+# Calculate duration
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+MINUTES=$((DURATION / 60))
+SECONDS=$((DURATION % 60))
+
+# Print summary
+SUCCESS_COUNT=${#SUCCESSFUL_CHAINS[@]}
+FAILED_COUNT=${#FAILED_CHAINS[@]}
+SKIPPED_COUNT=${#SKIPPED_CHAINS[@]}
+
+echo -e "\n${BLUE}========================================${NC}"
+echo -e "${BLUE}DEPLOYMENT SUMMARY${NC}"
+echo -e "${BLUE}========================================${NC}"
+echo -e "Total duration: ${MINUTES}m ${SECONDS}s"
+echo -e "Completed at: $(date)\n"
+
+echo -e "${GREEN}Successful deployments ($SUCCESS_COUNT):${NC}"
+if [ $SUCCESS_COUNT -eq 0 ]; then
+    echo "  None"
+else
+    for chain in "${SUCCESSFUL_CHAINS[@]}"; do
+        echo -e "  ${GREEN}✓${NC} $chain"
+    done
+fi
+
+echo -e "\n${RED}Failed deployments ($FAILED_COUNT):${NC}"
+if [ $FAILED_COUNT -eq 0 ]; then
+    echo "  None"
+else
+    for chain in "${FAILED_CHAINS[@]}"; do
+        echo -e "  ${RED}✗${NC} $chain"
+    done
+fi
+
+if [ $SKIPPED_COUNT -gt 0 ]; then
+    echo -e "\n${YELLOW}Skipped deployments ($SKIPPED_COUNT):${NC}"
+    for chain in "${SKIPPED_CHAINS[@]}"; do
+        echo -e "  ${YELLOW}⊘${NC} $chain"
+    done
+fi
+
+echo -e "\n${BLUE}Logs saved to: ./logs/multi-deploy-$TIMESTAMP/${NC}"
+echo -e "${BLUE}Summary log: ./logs/multi-deploy-$TIMESTAMP/summary.log${NC}"
+
+# Exit with error code if any deployments failed
+if [ $FAILED_COUNT -gt 0 ]; then
+    echo -e "\n${RED}⚠ Some deployments failed. Check logs for details.${NC}"
+    exit 1
+else
+    echo -e "\n${GREEN}✓ All deployments completed successfully!${NC}"
+    exit 0
+fi

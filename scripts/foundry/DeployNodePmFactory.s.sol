@@ -3,12 +3,12 @@ pragma solidity ^0.8.13;
 
 import { Script, console2 } from "node_modules/forge-std/src/Script.sol";
 import { DeterministicDeployerLib } from "./utils/DeterministicDeployerLib.sol";
-import { NodePaymasterFactory } from "../../../contracts/util/NodePaymasterFactory.sol";
+import { NodePaymasterFactory } from "../../contracts/util/NodePaymasterFactory.sol";
 import { CreateX } from "./utils/CreateX.sol";
 
 contract DeployNodePaymasterFactory is Script {
-    bytes32 constant NODE_PMF_SALT = 0x00000000000000000000000000000000000000000621b09c7f5c6b003de7bfc4; // =>
-        // 0x000000005824a1ED617994dF733151D26a4cf03d
+    bytes32 constant NODE_PMF_SALT = 0x0000000000000000000000000000000000000000b2c8417146408700c86d4370; // =>
+        // 0x000000006fcc00f06a507E4284cc17e767189b04
 
     bytes32 public constant DISPERSE_SALT = 0xfd73487f4e6544007a3ce4000000000000000000000000000000000000000000;
     bytes public constant DISPERSE_INITCODE =
