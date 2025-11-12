@@ -20,6 +20,7 @@ NC='\033[0m' # No Color
 SUCCESSFUL_CHAINS=()
 FAILED_CHAINS=()
 SKIPPED_CHAINS=()
+VERIFICATION_FAILED_CHAINS=()  # Deployed successfully but verification failed
 
 # Start time
 START_TIME=$(date +%s)
@@ -59,18 +60,32 @@ mkdir -p ./logs/multi-deploy-$TIMESTAMP
 deploy_to_chain() {
     local chain=$1
     local env=$2
+    local wrapper_log="./logs/multi-deploy-$TIMESTAMP/${chain}.log"
+    local deploy_log="./logs/${chain}/${chain}-deploy-mee.log"
+
     echo -e "\n${YELLOW}>>> Deploying to: $chain ($env)${NC}"
     echo ">>> Started at: $(date)" | tee -a ./logs/multi-deploy-$TIMESTAMP/summary.log
 
     # Run deployment (n = don't rebuild, y = proceed, n = no custom gas)
-    if printf '%s\n' n y n | bash deploy-k1.sh $env $chain >> ./logs/multi-deploy-$TIMESTAMP/${chain}.log 2>&1; then
-        echo -e "${GREEN}✓ SUCCESS: $chain${NC}" | tee -a ./logs/multi-deploy-$TIMESTAMP/summary.log
+    if printf '%s\n' n y n | bash deploy-k1.sh $env $chain >> $wrapper_log 2>&1; then
+        # Script succeeded - deployment and verification both successful
+        echo -e "${GREEN}✓ SUCCESS: $chain (deployed + verified)${NC}" | tee -a ./logs/multi-deploy-$TIMESTAMP/summary.log
         SUCCESSFUL_CHAINS+=("$chain")
         return 0
     else
-        echo -e "${RED}✗ FAILED: $chain${NC}" | tee -a ./logs/multi-deploy-$TIMESTAMP/summary.log
-        FAILED_CHAINS+=("$chain")
-        return 1
+        # Script failed - check if deployment was successful despite verification failure
+        if [ -f "$deploy_log" ] && grep -q "ONCHAIN EXECUTION COMPLETE & SUCCESSFUL" $deploy_log; then
+            # Deployment succeeded but verification failed
+            echo -e "${YELLOW}✓ SUCCESS: $chain (deployed, verification failed)${NC}" | tee -a ./logs/multi-deploy-$TIMESTAMP/summary.log
+            SUCCESSFUL_CHAINS+=("$chain")
+            VERIFICATION_FAILED_CHAINS+=("$chain")
+            return 0
+        else
+            # Deployment itself failed
+            echo -e "${RED}✗ FAILED: $chain (deployment failed)${NC}" | tee -a ./logs/multi-deploy-$TIMESTAMP/summary.log
+            FAILED_CHAINS+=("$chain")
+            return 1
+        fi
     fi
 }
 
@@ -157,6 +172,7 @@ SECONDS=$((DURATION % 60))
 SUCCESS_COUNT=${#SUCCESSFUL_CHAINS[@]}
 FAILED_COUNT=${#FAILED_CHAINS[@]}
 SKIPPED_COUNT=${#SKIPPED_CHAINS[@]}
+VERIFICATION_FAILED_COUNT=${#VERIFICATION_FAILED_CHAINS[@]}
 
 echo -e "\n${BLUE}========================================${NC}"
 echo -e "${BLUE}DEPLOYMENT SUMMARY${NC}"
@@ -169,7 +185,12 @@ if [ $SUCCESS_COUNT -eq 0 ]; then
     echo "  None"
 else
     for chain in "${SUCCESSFUL_CHAINS[@]}"; do
-        echo -e "  ${GREEN}✓${NC} $chain"
+        # Check if this chain had verification failure
+        if [[ " ${VERIFICATION_FAILED_CHAINS[@]} " =~ " ${chain} " ]]; then
+            echo -e "  ${GREEN}✓${NC} $chain ${YELLOW}(verification failed)${NC}"
+        else
+            echo -e "  ${GREEN}✓${NC} $chain ${GREEN}(fully verified)${NC}"
+        fi
     done
 fi
 
@@ -186,6 +207,14 @@ if [ $SKIPPED_COUNT -gt 0 ]; then
     echo -e "\n${YELLOW}Skipped deployments ($SKIPPED_COUNT):${NC}"
     for chain in "${SKIPPED_CHAINS[@]}"; do
         echo -e "  ${YELLOW}⊘${NC} $chain"
+    done
+fi
+
+if [ $VERIFICATION_FAILED_COUNT -gt 0 ]; then
+    echo -e "\n${YELLOW}Chains with verification failures ($VERIFICATION_FAILED_COUNT):${NC}"
+    echo -e "${YELLOW}Note: Contracts deployed successfully but verification failed${NC}"
+    for chain in "${VERIFICATION_FAILED_CHAINS[@]}"; do
+        echo -e "  ${YELLOW}⚠${NC} $chain"
     done
 fi
 

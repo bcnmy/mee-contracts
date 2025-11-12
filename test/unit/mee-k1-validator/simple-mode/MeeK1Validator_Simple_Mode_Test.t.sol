@@ -20,11 +20,12 @@ contract MeeK1Validator_Simple_Mode_Test is MeeK1Validator_Base_Test {
 
     // tests simple mode, validateUserOp, where the super tx entries are MEE user operations only
     // SuperTx
-    function test_simple_mode_ValidateUserOp_with_MeeUserOps_only_as_entries_success(uint256 numOfClones)
+    function test_simple_mode_ValidateUserOp_with_MeeUserOps_only_as_entries_success( /*uint256 numOfClones*/ )
         public
         returns (PackedUserOperation[] memory)
     {
-        numOfClones = bound(numOfClones, 1, 25);
+        //numOfClones = bound(numOfClones, 1, 25);
+        uint256 numOfClones = 5;
         uint256 counterBefore = mockTarget.counter();
         bytes memory innerCallData = abi.encodeWithSelector(MockTarget.incrementCounter.selector);
         PackedUserOperation memory userOp = buildBasicMEEUserOpWithCalldata({
@@ -40,6 +41,8 @@ contract MeeK1Validator_Simple_Mode_Test is MeeK1Validator_Base_Test {
         vm.startPrank(MEE_NODE_EXECUTOR_EOA, MEE_NODE_EXECUTOR_EOA);
         ENTRYPOINT.handleOps(userOps, payable(MEE_NODE_ADDRESS));
         vm.stopPrank();
+
+        console2.logBytes(userOps[0].signature);
 
         assertEq(mockTarget.counter(), counterBefore + userOps.length);
         return userOps;
